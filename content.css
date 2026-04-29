@@ -1,0 +1,19 @@
+/* Content Script Styles */
+/* 这些样式会注入到每个页面中 */
+
+.claw-highlight {
+  outline: 2px solid #667eea !important;
+  outline-offset: 2px !important;
+  background-color: rgba(102, 126, 234, 0.1) !important;
+}
+
+.claw-tooltip {
+  position: fixed;
+  background: #333;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 999999;
+  pointer-events: none;
+}
