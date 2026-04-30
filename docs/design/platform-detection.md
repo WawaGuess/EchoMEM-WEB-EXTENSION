@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-Claw Extension 采用多层平台检测机制，确保只在目标网站（HIGO Office）的特定页面注入增强功能。检测系统通过 4 层验证，全部满足才判定为目标平台。
+Claw Extension 采用多层平台检测机制，确保只在目标网站的特定页面注入增强功能。检测系统通过 4 层验证，全部满足才判定为目标平台。目前已支持 HIGO Office 和 DeepSeek 两个平台。
 
 ## 2. 设计目标
 
@@ -17,14 +17,12 @@ Claw Extension 采用多层平台检测机制，确保只在目标网站（HIGO 
 
 ```javascript
 const PLATFORM_CONFIGS = {
+  // HIGO Office 平台
   'higo': {
     name: 'HIGO Office',
     detection: {
-      // 第一层：URL 路径匹配
       urlPatterns: ['/home/session/', '/home/workspace/'],
-      // 第二层：页面标题关键字（支持 Higo / HIGO / Higo2 / Higo Office 等变体）
       titleKeywords: ['Higo', 'HIGO', 'Higo2', 'Higo Office'],
-      // 第三层：DOM 特征检测
       domFeatures: {
         required: [
           { selector: '.MuiDrawer-root', description: 'MUI 抽屉组件' },
@@ -36,13 +34,11 @@ const PLATFORM_CONFIGS = {
           { selector: '.MuiDrawer-anchorRight', description: '右侧抽屉' }
         ]
       },
-      // 第四层：页面内容关键字（可选，用于进一步确认）
       contentKeywords: ['higo', 'HIGO', 'Higo2']
     },
     detect: function() {
       return detectPlatformMultiLayer(this.detection);
     },
-    // 按钮插入位置配置
     buttonBar: {
       containerSelector: '.MuiPaper-root',
       validateSelectors: {
@@ -60,13 +56,77 @@ const PLATFORM_CONFIGS = {
       },
       insertPosition: 'after'
     },
-    // 面板配置（新增：支持 sidebar 和 overlay 两种模式）
     panel: {
-      type: 'sidebar',                    // 'sidebar' 或 'overlay'
-      containerSelector: '.MuiDrawer-anchorRight .MuiDrawer-paper',  // sidebar 容器选择器
-      overlayConfig: null                 // overlay 模式配置
+      type: 'sidebar',
+      containerSelector: '.MuiDrawer-anchorRight .MuiDrawer-paper',
+      overlayConfig: null
     },
-    // 按钮配置
+    buttons: [
+      { text: '资源管理', panel: '资源管理' },
+      { text: '输入联想', panel: '输入联想' },
+      { text: '认知反馈', panel: '认知反馈' },
+      { text: 'skill商店', panel: 'skill商店' }
+    ]
+  },
+
+  // DeepSeek 平台
+  'deepseek': {
+    name: 'DeepSeek',
+    detection: {
+      urlPatterns: ['chat.deepseek.com'],
+      titleKeywords: ['DeepSeek'],
+      domFeatures: {
+        required: [
+          { selector: 'textarea[placeholder*="DeepSeek"]', description: 'DeepSeek 输入框' },
+          { selector: '._24fad49', description: '输入框容器' }
+        ],
+        optional: [
+          { selector: '._020ab5b', description: '底部按钮区域' },
+          { selector: '[role="button"]', description: '功能按钮' }
+        ]
+      },
+      contentKeywords: ['deepseek', '深度思考', '智能搜索']
+    },
+    detect: function() {
+      return detectPlatformMultiLayer(this.detection);
+    },
+    buttonBar: {
+      containerSelector: '._24fad49',
+      validateSelectors: {
+        textarea: 'textarea[placeholder*="DeepSeek"]'
+      },
+      // 插入到深度思考/智能搜索行之后
+      insertAfter: '._020ab5b',
+      // 动态获取背景色
+      getBackgroundColor: () => {
+        const inputArea = document.querySelector('._77cefa5');
+        if (inputArea) {
+          const style = window.getComputedStyle(inputArea);
+          if (style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+            return style.backgroundColor;
+          }
+        }
+        return '#fff';
+      },
+      style: {
+        display: 'flex',
+        gap: '8px',
+        padding: '8px 12px',
+        borderTop: '1px solid #e0e0e0',
+        alignItems: 'center',
+        flexWrap: 'wrap'
+      },
+      insertPosition: 'after'
+    },
+    panel: {
+      type: 'overlay',
+      containerSelector: null,
+      overlayConfig: {
+        position: 'right',
+        width: '400px',
+        backdrop: true
+      }
+    },
     buttons: [
       { text: '资源管理', panel: '资源管理' },
       { text: '输入联想', panel: '输入联想' },
@@ -546,6 +606,8 @@ Claw Extension: Custom buttons added for HIGO Office
 | `detection` | 4层检测配置 | urlPatterns, titleKeywords, domFeatures, contentKeywords |
 | `buttonBar.containerSelector` | 按钮栏插入的容器 | `.MuiPaper-root`, `.toolbar` |
 | `buttonBar.validateSelectors` | 验证容器的选择器 | `{ textarea: 'textarea', sendButton: '.send-btn' }` |
+| `buttonBar.insertAfter` | 插入到指定元素之后（优先级高于 insertPosition） | `'._020ab5b'` |
+| `buttonBar.getBackgroundColor` | 动态获取背景色函数 | `() => '#fff'` |
 | `buttonBar.insertPosition` | 插入位置 | `'after'`, `'before'`, `'append'` |
 | `panel.type` | 面板类型 | `'sidebar'` 或 `'overlay'` |
 | `panel.containerSelector` | sidebar 容器选择器 | `.MuiDrawer-paper` |
@@ -554,7 +616,8 @@ Claw Extension: Custom buttons added for HIGO Office
 
 ## 11. 文件位置
 
-- 检测系统实现：`/content.js`（第 11-227 行）
-- 面板系统实现：`/content.js`（第 229-586 行）
-- 按钮注入实现：`/content.js`（第 1130-1226 行）
+- 平台配置：`/content.js`（第 11-155 行）
+- 检测系统实现：`/content.js`（第 158-237 行）
+- 面板系统实现：`/content.js`（第 254-614 行）
+- 按钮注入实现：`/content.js`（第 1178-1321 行）
 - 本设计文档：`/docs/design/platform-detection.md`

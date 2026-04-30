@@ -48,7 +48,7 @@ button:hover {
 
 ### 2.4 按钮位置
 
-插入到 `.MuiPaper-root` 容器之后：
+默认插入到容器之后（`insertPosition: 'after'`）：
 
 ```
 ┌─────────────────────────────┐
@@ -64,6 +64,48 @@ button:hover {
 │ [资源管理][输入联想][认知反馈] │
 │      [skill商店]             │
 └─────────────────────────────┘
+```
+
+### 2.5 按钮栏配置扩展
+
+平台配置支持以下扩展字段，实现不同页面的定制化注入：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `insertAfter` | `string` | CSS 选择器，将按钮栏插入到该元素之后（优先级高于 `insertPosition`） |
+| `getBackgroundColor` | `function` | 动态获取页面背景色函数，返回值覆盖 `style.background` |
+
+**DeepSeek 示例：**
+
+```javascript
+buttonBar: {
+  containerSelector: '._24fad49',
+  validateSelectors: {
+    textarea: 'textarea[placeholder*="DeepSeek"]'
+  },
+  // 插入到深度思考/智能搜索行之后
+  insertAfter: '._020ab5b',
+  // 动态获取背景色，与页面风格保持一致
+  getBackgroundColor: () => {
+    const inputArea = document.querySelector('._77cefa5');
+    if (inputArea) {
+      const style = window.getComputedStyle(inputArea);
+      if (style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+        return style.backgroundColor;
+      }
+    }
+    return '#fff';
+  },
+  style: {
+    display: 'flex',
+    gap: '8px',
+    padding: '8px 12px',
+    borderTop: '1px solid #e0e0e0',
+    alignItems: 'center',
+    flexWrap: 'wrap'
+  },
+  insertPosition: 'after'
+}
 ```
 
 ## 3. 通用面板框架
@@ -625,7 +667,11 @@ function createOverlayPanel(panelHtml, overlayConfig) {
   // 移除已存在的浮层面板
   if (currentOverlayPanel) {
     currentOverlayPanel.remove();
+    currentOverlayPanel = null;
   }
+
+  // 移除所有已存在的遮罩层（防止多次打开叠加导致背景变暗）
+  document.querySelectorAll('.claw-overlay-backdrop').forEach(b => b.remove());
 
   // 创建遮罩层
   let backdrop = null;
@@ -724,20 +770,19 @@ if (panelConfig.type === 'overlay') {
     }, 300);
   }
 
-  // 移除遮罩层
-  const backdrop = document.querySelector('.claw-overlay-backdrop');
-  if (backdrop) {
-    backdrop.style.opacity = '0';
-    setTimeout(() => backdrop.remove(), 300);
-  }
+  // 移除所有遮罩层（防止多次打开后漏删导致背景变暗）
+  document.querySelectorAll('.claw-overlay-backdrop').forEach(b => {
+    b.style.opacity = '0';
+    setTimeout(() => b.remove(), 300);
+  });
 }
 ```
 
 ## 10. 文件位置
 
-- 面板框架实现：`/content.js`（第 229-586 行）
-- 资源管理内容：`/content.js`（第 589-604 行）
-- 输入联想内容：`/content.js`（第 706-770 行）
-- 认知反馈内容：`/content.js`（第 614-641 行）
-- Skill 商店实现：`/content.js`（第 717-1027 行）
+- 面板框架实现：`/content.js`（第 229-614 行）
+- 资源管理内容：`/content.js`（第 617-643 行）
+- 认知反馈内容：`/content.js`（第 645-680 行）
+- 输入联想内容：`/content.js`（第 741-806 行）
+- Skill 商店实现：`/content.js`（第 688-1162 行）
 - 本设计文档：`/docs/design/button-features.md`

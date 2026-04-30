@@ -81,56 +81,78 @@ const PLATFORM_CONFIGS = {
     ]
   },
 
-  // 示例：另一个 Claw 平台（无侧边栏，按钮在顶部）
-  // 'another-claw': {
-  //   name: 'Another Claw',
-  //   detection: {
-  //     urlPatterns: ['/chat/'],
-  //     titleKeywords: ['Claw'],
-  //     domFeatures: {
-  //       required: [
-  //         { selector: '.chat-container', description: '聊天容器' }
-  //       ],
-  //       optional: [
-  //         { selector: 'textarea', description: '输入框' }
-  //       ]
-  //     },
-  //     contentKeywords: ['claw']
-  //   },
-  //   detect: function() {
-  //     return detectPlatformMultiLayer(this.detection);
-  //   },
-  //   // 按钮插入到顶部工具栏
-  //   buttonBar: {
-  //     containerSelector: '.toolbar',
-  //     validateSelectors: {
-  //       toolbar: '.toolbar-items'
-  //     },
-  //     style: {
-  //       display: 'flex',
-  //       gap: '8px',
-  //       padding: '4px'
-  //     },
-  //     insertPosition: 'append'
-  //   },
-  //   // 面板配置为浮层（因为没有侧边栏）
-  //   panel: {
-  //     type: 'overlay',
-  //     containerSelector: null,
-  //     overlayConfig: {
-  //       position: 'right',      // 从右侧滑出
-  //       width: '400px',         // 面板宽度
-  //       backdrop: true          // 显示遮罩层
-  //     }
-  //   },
-  //   // 自定义按钮（功能相同但文字不同）
-  //   buttons: [
-  //     { text: '文件', panel: '资源管理' },
-  //     { text: '联想', panel: '输入联想' },
-  //     { text: '反馈', panel: '认知反馈' },
-  //     { text: '商店', panel: 'skill商店' }
-  //   ]
-  // }
+  // DeepSeek 聊天平台
+  'deepseek': {
+    name: 'DeepSeek',
+    detection: {
+      // 第一层：URL 路径匹配（支持首页 / 和聊天页 /a/chat/s/）
+      urlPatterns: ['chat.deepseek.com'],
+      // 第二层：页面标题关键字
+      titleKeywords: ['DeepSeek'],
+      // 第三层：DOM 特征检测
+      domFeatures: {
+        required: [
+          { selector: 'textarea[placeholder*="DeepSeek"]', description: 'DeepSeek 输入框' },
+          { selector: '._24fad49', description: '输入框容器' }
+        ],
+        optional: [
+          { selector: '._020ab5b', description: '底部按钮区域' },
+          { selector: '[role="button"]', description: '功能按钮' }
+        ]
+      },
+      // 第四层：页面内容关键字
+      contentKeywords: ['deepseek', '深度思考', '智能搜索']
+    },
+    detect: function() {
+      return detectPlatformMultiLayer(this.detection);
+    },
+    // 按钮栏配置
+    buttonBar: {
+      containerSelector: '._24fad49',
+      validateSelectors: {
+        textarea: 'textarea[placeholder*="DeepSeek"]'
+      },
+      // 按钮栏插入到哪个元素之后（默认是 container 自己）
+      insertAfter: '._020ab5b',
+      // 动态获取背景色，与页面风格保持一致
+      getBackgroundColor: () => {
+        const inputArea = document.querySelector('._77cefa5');
+        if (inputArea) {
+          const style = window.getComputedStyle(inputArea);
+          if (style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+            return style.backgroundColor;
+          }
+        }
+        return '#fff';
+      },
+      style: {
+        display: 'flex',
+        gap: '8px',
+        padding: '8px 12px',
+        borderTop: '1px solid #e0e0e0',
+        alignItems: 'center',
+        flexWrap: 'wrap'
+      },
+      insertPosition: 'after'
+    },
+    // 面板配置：浮层模式（无侧边栏）
+    panel: {
+      type: 'overlay',
+      containerSelector: null,
+      overlayConfig: {
+        position: 'right',
+        width: '400px',
+        backdrop: true
+      }
+    },
+    // 按钮配置
+    buttons: [
+      { text: '资源管理', panel: '资源管理' },
+      { text: '输入联想', panel: '输入联想' },
+      { text: '认知反馈', panel: '认知反馈' },
+      { text: 'skill商店', panel: 'skill商店' }
+    ]
+  }
 };
 
 // 当前检测到的平台
@@ -455,7 +477,11 @@ function createOverlayPanel(panelHtml, overlayConfig) {
   // 移除已存在的浮层面板
   if (currentOverlayPanel) {
     currentOverlayPanel.remove();
+    currentOverlayPanel = null;
   }
+
+  // 移除所有已存在的遮罩层（防止多次打开叠加）
+  document.querySelectorAll('.claw-overlay-backdrop').forEach(b => b.remove());
 
   // 创建遮罩层（如果需要）
   let backdrop = null;
@@ -576,12 +602,11 @@ function restoreOriginalPanel() {
       }, 300);
     }
 
-    // 移除遮罩层
-    const backdrop = document.querySelector('.claw-overlay-backdrop');
-    if (backdrop) {
-      backdrop.style.opacity = '0';
-      setTimeout(() => backdrop.remove(), 300);
-    }
+    // 移除所有遮罩层
+    document.querySelectorAll('.claw-overlay-backdrop').forEach(b => {
+      b.style.opacity = '0';
+      setTimeout(() => b.remove(), 300);
+    });
 
     isCustomPanelOpen = false;
     console.log('Claw Extension: Overlay panel closed');
@@ -1207,7 +1232,20 @@ function addCustomButtons() {
     buttonBar.className = 'claw-custom-buttons';
 
     // 应用平台配置的样式
-    const style = bbConfig.style;
+    const style = { ...bbConfig.style };
+
+    // 如果配置了动态背景色获取函数，优先使用
+    if (bbConfig.getBackgroundColor && typeof bbConfig.getBackgroundColor === 'function') {
+      try {
+        const dynamicBg = bbConfig.getBackgroundColor();
+        if (dynamicBg) {
+          style.background = dynamicBg;
+        }
+      } catch (e) {
+        console.log('Claw Extension: getBackgroundColor failed, using default', e);
+      }
+    }
+
     buttonBar.style.cssText = Object.entries(style)
       .map(([key, value]) => {
         // 将 camelCase 转换为 kebab-case
@@ -1260,7 +1298,16 @@ function addCustomButtons() {
     });
 
     // 根据平台配置的插入位置插入按钮栏
-    if (bbConfig.insertPosition === 'after') {
+    if (bbConfig.insertAfter) {
+      // 如果配置了 insertAfter，将按钮栏插入到指定元素之后
+      const insertTarget = document.querySelector(bbConfig.insertAfter);
+      if (insertTarget && insertTarget.parentNode) {
+        insertTarget.parentNode.insertBefore(buttonBar, insertTarget.nextSibling);
+      } else {
+        // 回退到默认的 after 行为
+        container.parentNode.insertBefore(buttonBar, container.nextSibling);
+      }
+    } else if (bbConfig.insertPosition === 'after') {
       container.parentNode.insertBefore(buttonBar, container.nextSibling);
     } else if (bbConfig.insertPosition === 'before') {
       container.parentNode.insertBefore(buttonBar, container);
