@@ -1,5 +1,7 @@
 # DeepSeek 平台扩展支持设计文档
 
+> 注意：本文记录的是 DeepSeek 旧版「4 个功能按钮」接入设计。当前交互已切换为 `EchoMem` 单入口按钮 + 右侧功能导航，当前方案见 [echomem-launcher-sidebar.md](./echomem-launcher-sidebar.md)。
+
 ## 1. 概述
 
 将 Claw Extension 扩展至支持 DeepSeek 聊天页面 (`https://chat.deepseek.com`)，在聊天输入框下方注入与 HIGO Office 相同的 4 个功能按钮（资源管理、输入联想、认知反馈、skill商店），点击后从右侧滑出浮层面板展示对应功能。

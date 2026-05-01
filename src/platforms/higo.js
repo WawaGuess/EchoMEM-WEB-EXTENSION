@@ -18,7 +18,8 @@ export const higoConfig = {
     },
     contentKeywords: ['higo', 'HIGO', 'Higo2']
   },
-  buttonBar: {
+  launcher: {
+    text: 'EchoMem',
     containerSelector: '.MuiPaper-root',
     validateSelectors: {
       textarea: 'textarea[id^="_r_"]',
@@ -27,23 +28,23 @@ export const higoConfig = {
     style: {
       display: 'flex',
       gap: '8px',
-      padding: '8px 12px',
-      borderTop: '1px solid #e0e0e0',
+      padding: '0 12px 8px',
       background: 'rgb(255, 251, 254)',
       alignItems: 'center',
-      flexWrap: 'wrap'
+      justifyContent: 'flex-start'
     },
-    insertPosition: 'after'
+    insertPosition: 'before'
   },
   panel: {
     type: 'sidebar',
     containerSelector: '.MuiDrawer-anchorRight .MuiDrawer-paper',
     overlayConfig: null
   },
-  buttons: [
-    { text: '资源管理', panel: '资源管理' },
-    { text: '输入联想', panel: '输入联想' },
-    { text: '认知反馈', panel: '认知反馈' },
-    { text: 'skill商店', panel: 'skill商店' }
+  menuItems: [
+    { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
+    { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
+    { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
+    { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
+    { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
   ]
 };

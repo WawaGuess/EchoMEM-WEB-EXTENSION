@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Claw Web Extension",
+  "name": "EchoMem Web Extension",
   "version": "1.0.0",
-  "description": "A Chrome extension for web automation and data extraction",
+  "description": "Enhances Claw-style web workflows with memory, resources, input association, feedback, skills, and productivity tools",
   "permissions": [
     "activeTab",
     "storage",

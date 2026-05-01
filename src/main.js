@@ -13,13 +13,15 @@ import { addCustomButtons } from './core/buttons.js';
 import { restoreOriginalPanel, isPanelOpen, setOriginalPanelContent } from './core/panel.js';
 import { bindToggleButton, toggleInputAssociation, getInputAssociationContent } from './panels/association.js';
 import {
+  getEchoMemHomeContent,
+  getPanelContent,
   getSkillStoreHomeContent,
   getSkillHistoryContent,
   getSkillUploadContent,
   getSkillPurchaseContent,
   getSkillMerchantContent,
   getSkillManageContent
-} from './panels/skill-store.js';
+} from './panels/index.js';
 import { openCustomPanel } from './core/panel.js';
 
 // ====== Skill 商店导航 ======
@@ -44,8 +46,22 @@ function navigateToSkillSection(sectionId) {
   openCustomPanel(titles[sectionId], contents[sectionId], {
     showBack: true,
     onBack: () => {
-      openCustomPanel('skill商店', getSkillStoreHomeContent());
+      openCustomPanel('skill商店', getSkillStoreHomeContent(), {
+        showBack: true,
+        onBack: openEchoMemHomePanel
+      });
     }
+  });
+}
+
+function openEchoMemHomePanel() {
+  openCustomPanel('EchoMem', getEchoMemHomeContent());
+}
+
+function navigateToEchoMemPanel(panelName) {
+  openCustomPanel(panelName, getPanelContent(panelName), {
+    showBack: true,
+    onBack: openEchoMemHomePanel
   });
 }
 
@@ -80,11 +96,20 @@ const observer = new MutationObserver(() => {
     }
   }
 
-  // 绑定 Skill 商店板块卡片的点击事件（事件委托）
-  const skillPanel = document.querySelector('.claw-custom-panel');
-  if (skillPanel && !skillPanel.dataset.clawEventsBound) {
-    skillPanel.dataset.clawEventsBound = 'true';
-    skillPanel.addEventListener('click', (e) => {
+  // 绑定自定义面板内的卡片点击事件（事件委托）
+  const customPanel = document.querySelector('.claw-custom-panel');
+  if (customPanel && !customPanel.dataset.clawEventsBound) {
+    customPanel.dataset.clawEventsBound = 'true';
+    customPanel.addEventListener('click', (e) => {
+      const menuItem = e.target.closest('.claw-echomem-menu-item');
+      if (menuItem) {
+        const panelName = menuItem.dataset.panel;
+        if (panelName) {
+          navigateToEchoMemPanel(panelName);
+        }
+        return;
+      }
+
       const card = e.target.closest('.claw-skill-section');
       if (card) {
         const sectionId = card.dataset.section;

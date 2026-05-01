@@ -2,7 +2,7 @@
 
 import { detectPlatform, getCurrentPlatform, setCurrentPlatform } from './detection.js';
 import { openCustomPanel } from './panel.js';
-import { getPanelContent } from '../panels/index.js';
+import { getEchoMemHomeContent } from '../panels/index.js';
 
 export function addCustomButtons() {
   let platform = getCurrentPlatform();
@@ -18,15 +18,18 @@ export function addCustomButtons() {
   }
 
   const config = platform.config;
-  const bbConfig = config.buttonBar;
+  const launcherConfig = config.launcher || config.buttonBar;
+  if (!launcherConfig) return;
 
-  const inputContainers = document.querySelectorAll(bbConfig.containerSelector);
+  if (document.querySelector('.claw-echomem-launcher-bar')) return;
+
+  const inputContainers = document.querySelectorAll(launcherConfig.containerSelector);
 
   for (const container of inputContainers) {
-    if (container.dataset.clawButtonsAdded) continue;
+    if (container.dataset.clawLauncherAdded) continue;
 
     let isValidContainer = true;
-    for (const [key, selector] of Object.entries(bbConfig.validateSelectors)) {
+    for (const [key, selector] of Object.entries(launcherConfig.validateSelectors || {})) {
       if (!container.querySelector(selector)) {
         isValidContainer = false;
         break;
@@ -35,16 +38,28 @@ export function addCustomButtons() {
 
     if (!isValidContainer) continue;
 
-    container.dataset.clawButtonsAdded = 'true';
+    container.dataset.clawLauncherAdded = 'true';
 
-    const buttonBar = document.createElement('div');
-    buttonBar.className = 'claw-custom-buttons';
+    const launcherBar = document.createElement('div');
+    launcherBar.className = 'claw-echomem-launcher-bar';
 
-    const style = { ...bbConfig.style };
+    const launcher = document.createElement('button');
+    launcher.className = 'claw-echomem-launcher';
+    launcher.textContent = launcherConfig.text || 'EchoMem';
 
-    if (bbConfig.getBackgroundColor && typeof bbConfig.getBackgroundColor === 'function') {
+    const style = {
+      display: 'flex',
+      gap: '8px',
+      padding: '0 12px 8px',
+      background: 'transparent',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      ...(launcherConfig.style || {})
+    };
+
+    if (launcherConfig.getBackgroundColor && typeof launcherConfig.getBackgroundColor === 'function') {
       try {
-        const dynamicBg = bbConfig.getBackgroundColor();
+        const dynamicBg = launcherConfig.getBackgroundColor();
         if (dynamicBg) {
           style.background = dynamicBg;
         }
@@ -53,71 +68,64 @@ export function addCustomButtons() {
       }
     }
 
-    buttonBar.style.cssText = Object.entries(style)
+    launcherBar.style.cssText = Object.entries(style)
       .map(([key, value]) => {
         const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
         return `${cssKey}: ${value}`;
       })
       .join('; ');
 
-    const buttons = config.buttons.map(btn => ({
-      text: btn.text,
-      action: () => openCustomPanel(btn.panel, getPanelContent(btn.panel))
-    }));
+    launcher.style.cssText = `
+      height: 28px;
+      padding: 0 10px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 6px;
+      background: #fff;
+      color: #1f2937;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 26px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    `;
 
-    buttons.forEach(btnConfig => {
-      const btn = document.createElement('button');
-      btn.textContent = btnConfig.text;
-      btn.style.cssText = `
-        padding: 4px 12px;
-        border: 1px solid #e0e0e0;
-        border-radius: 4px;
-        background: #fff;
-        color: #333;
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.2s;
-        white-space: nowrap;
-        ${btnConfig.style || ''}
-      `;
-      btn.addEventListener('mouseenter', () => {
-        if (!btnConfig.style) {
-          btn.style.background = '#667eea';
-          btn.style.color = '#fff';
-          btn.style.borderColor = '#667eea';
-        }
-      });
-      btn.addEventListener('mouseleave', () => {
-        if (!btnConfig.style) {
-          btn.style.background = '#fff';
-          btn.style.color = '#333';
-          btn.style.borderColor = '#e0e0e0';
-        }
-      });
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        btnConfig.action();
-      });
-      buttonBar.appendChild(btn);
+    launcher.addEventListener('mouseenter', () => {
+      launcher.style.borderColor = '#2563eb';
+      launcher.style.color = '#2563eb';
+      launcher.style.boxShadow = '0 2px 6px rgba(37, 99, 235, 0.18)';
+    });
+    launcher.addEventListener('mouseleave', () => {
+      launcher.style.borderColor = 'rgba(0, 0, 0, 0.12)';
+      launcher.style.color = '#1f2937';
+      launcher.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.08)';
+    });
+    launcher.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openCustomPanel('EchoMem', getEchoMemHomeContent());
     });
 
-    if (bbConfig.insertAfter) {
-      const insertTarget = document.querySelector(bbConfig.insertAfter);
+    launcherBar.appendChild(launcher);
+
+    if (launcherConfig.insertAfter) {
+      const insertTarget = document.querySelector(launcherConfig.insertAfter);
       if (insertTarget && insertTarget.parentNode) {
-        insertTarget.parentNode.insertBefore(buttonBar, insertTarget.nextSibling);
+        insertTarget.parentNode.insertBefore(launcherBar, insertTarget.nextSibling);
       } else {
-        container.parentNode.insertBefore(buttonBar, container.nextSibling);
+        container.parentNode.insertBefore(launcherBar, container);
       }
-    } else if (bbConfig.insertPosition === 'after') {
-      container.parentNode.insertBefore(buttonBar, container.nextSibling);
-    } else if (bbConfig.insertPosition === 'before') {
-      container.parentNode.insertBefore(buttonBar, container);
-    } else if (bbConfig.insertPosition === 'append') {
-      container.appendChild(buttonBar);
+    } else if (launcherConfig.insertPosition === 'after') {
+      container.parentNode.insertBefore(launcherBar, container.nextSibling);
+    } else if (launcherConfig.insertPosition === 'append') {
+      container.appendChild(launcherBar);
+    } else {
+      container.parentNode.insertBefore(launcherBar, container);
     }
 
-    console.log(`Claw Extension: Custom buttons added for ${config.name}`);
+    console.log(`Claw Extension: EchoMem launcher added for ${config.name}`);
     break;
   }
 }

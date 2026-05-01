@@ -41,27 +41,23 @@ const PLATFORM_CONFIGS = {
     detect: function() {
       return detectPlatformMultiLayer(this.detection);
     },
-    // 按钮插入位置配置
-    buttonBar: {
-      // 查找输入框容器的选择器
+    // EchoMem 入口按钮配置
+    launcher: {
+      text: 'EchoMem',
       containerSelector: '.MuiPaper-root',
-      // 验证容器的选择器（确保是正确的输入框容器）
       validateSelectors: {
         textarea: 'textarea[id^="_r_"]',
         sendButton: '[data-testid="ArrowUpwardIcon"]'
       },
-      // 按钮栏样式
       style: {
         display: 'flex',
         gap: '8px',
-        padding: '8px 12px',
-        borderTop: '1px solid #e0e0e0',
+        padding: '0 12px 8px',
         background: 'rgb(255, 251, 254)',
         alignItems: 'center',
-        flexWrap: 'wrap'
+        justifyContent: 'flex-start'
       },
-      // 插入方式：'after' 表示作为兄弟元素插入到容器后面
-      insertPosition: 'after'
+      insertPosition: 'before'
     },
     // 面板配置
     panel: {
@@ -72,12 +68,12 @@ const PLATFORM_CONFIGS = {
       // 浮层配置（type='overlay' 时使用）
       overlayConfig: null
     },
-    // 按钮配置
-    buttons: [
-      { text: '资源管理', panel: '资源管理' },
-      { text: '输入联想', panel: '输入联想' },
-      { text: '认知反馈', panel: '认知反馈' },
-      { text: 'skill商店', panel: 'skill商店' }
+    menuItems: [
+      { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
+      { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
+      { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
+      { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
+      { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
     ]
   },
 
@@ -106,15 +102,13 @@ const PLATFORM_CONFIGS = {
     detect: function() {
       return detectPlatformMultiLayer(this.detection);
     },
-    // 按钮栏配置
-    buttonBar: {
-      containerSelector: '._24fad49',
+    // EchoMem 入口按钮配置
+    launcher: {
+      text: 'EchoMem',
+      containerSelector: '._77cefa5, ._24fad49',
       validateSelectors: {
         textarea: 'textarea[placeholder*="DeepSeek"]'
       },
-      // 按钮栏插入到哪个元素之后（默认是 container 自己）
-      insertAfter: '._020ab5b',
-      // 动态获取背景色，与页面风格保持一致
       getBackgroundColor: () => {
         const inputArea = document.querySelector('._77cefa5');
         if (inputArea) {
@@ -128,12 +122,11 @@ const PLATFORM_CONFIGS = {
       style: {
         display: 'flex',
         gap: '8px',
-        padding: '8px 12px',
-        borderTop: '1px solid #e0e0e0',
+        padding: '0 12px 8px',
         alignItems: 'center',
-        flexWrap: 'wrap'
+        justifyContent: 'flex-start'
       },
-      insertPosition: 'after'
+      insertPosition: 'before'
     },
     // 面板配置：浮层模式（无侧边栏）
     panel: {
@@ -145,12 +138,12 @@ const PLATFORM_CONFIGS = {
         backdrop: true
       }
     },
-    // 按钮配置
-    buttons: [
-      { text: '资源管理', panel: '资源管理' },
-      { text: '输入联想', panel: '输入联想' },
-      { text: '认知反馈', panel: '认知反馈' },
-      { text: 'skill商店', panel: 'skill商店' }
+    menuItems: [
+      { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
+      { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
+      { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
+      { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
+      { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
     ]
   }
 };
@@ -613,6 +606,118 @@ function restoreOriginalPanel() {
   }
 }
 
+function getEchoMemMenuItems() {
+  const platform = currentPlatform || detectPlatform();
+  return platform?.config?.menuItems || [
+    { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
+    { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
+    { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
+    { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
+    { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
+  ];
+}
+
+function getEchoMemHomeContent() {
+  const colors = ['#2563eb', '#059669', '#7c3aed', '#d97706', '#dc2626'];
+  const cards = getEchoMemMenuItems().map((item, index) => {
+    const color = colors[index % colors.length];
+
+    return `
+      <button class="claw-echomem-menu-item" data-panel="${item.panel}" style="
+        width: 100%;
+        padding: 14px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: #fff;
+        cursor: pointer;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transition: all 0.2s;
+      " onmouseenter="this.style.borderColor='${color}';this.style.background='#f9fafb';this.style.transform='translateX(3px)'" onmouseleave="this.style.borderColor='#e5e7eb';this.style.background='#fff';this.style.transform='none'">
+        <span style="
+          width: 10px;
+          height: 32px;
+          border-radius: 999px;
+          background: ${color};
+          flex-shrink: 0;
+        "></span>
+        <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1;">
+          <span style="font-size: 14px; font-weight: 600; color: #111827;">${item.text}</span>
+          <span style="font-size: 12px; color: #6b7280; line-height: 1.45;">${item.description}</span>
+        </span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+    `;
+  }).join('');
+
+  return `
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      ${cards}
+    </div>
+  `;
+}
+
+function getPerformanceContent() {
+  const metrics = [
+    { label: '今日会话', value: '0' },
+    { label: 'Skill 使用', value: '0' },
+    { label: '联想触发', value: '0' },
+    { label: '资源引用', value: '0' }
+  ];
+
+  const metricCards = metrics.map(metric => `
+    <div style="
+      padding: 14px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #f9fafb;
+    ">
+      <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">${metric.label}</p>
+      <p style="margin: 0; font-size: 22px; font-weight: 700; color: #111827;">${metric.value}</p>
+    </div>
+  `).join('');
+
+  return `
+    <div style="color: #374151;">
+      <p style="margin: 0 0 14px; font-size: 13px; color: #6b7280; line-height: 1.6;">
+        当前为效能概览占位，后续可接入真实会话、Skill、联想和资源引用数据。
+      </p>
+      <div style="
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+      ">
+        ${metricCards}
+      </div>
+      <div style="
+        padding: 14px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: #fff;
+      ">
+        <p style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #111827;">最近状态</p>
+        <p style="margin: 0; font-size: 13px; color: #9ca3af;">暂无效能数据</p>
+      </div>
+    </div>
+  `;
+}
+
+function openEchoMemHomePanel() {
+  openCustomPanel('EchoMem', getEchoMemHomeContent());
+}
+
+function navigateToEchoMemPanel(panelName) {
+  openCustomPanel(panelName, getPanelContent(panelName), {
+    showBack: true,
+    onBack: openEchoMemHomePanel
+  });
+}
+
 // 生成不同面板的内容
 function getPanelContent(type) {
   const contents = {
@@ -678,7 +783,8 @@ function getPanelContent(type) {
         ">生成反馈报告</button>
       </div>
     `,
-    'skill商店': getSkillStoreHomeContent()
+    'skill商店': getSkillStoreHomeContent(),
+    '效能': getPerformanceContent()
   };
   return contents[type] || '<p>暂无内容</p>';
 }
@@ -865,7 +971,10 @@ function navigateToSkillSection(sectionId) {
   openCustomPanel(titles[sectionId], contents[sectionId], {
     showBack: true,
     onBack: () => {
-      openCustomPanel('skill商店', getSkillStoreHomeContent());
+      openCustomPanel('skill商店', getSkillStoreHomeContent(), {
+        showBack: true,
+        onBack: openEchoMemHomePanel
+      });
     }
   });
 }
@@ -1205,18 +1314,21 @@ function addCustomButtons() {
 
   const platform = currentPlatform;
   const config = platform.config;
-  const bbConfig = config.buttonBar;
+  const launcherConfig = config.launcher || config.buttonBar;
+  if (!launcherConfig) return;
+
+  if (document.querySelector('.claw-echomem-launcher-bar')) return;
 
   // 使用平台配置的容器选择器查找输入框容器
-  const inputContainers = document.querySelectorAll(bbConfig.containerSelector);
+  const inputContainers = document.querySelectorAll(launcherConfig.containerSelector);
 
   for (const container of inputContainers) {
     // 检查是否已经是处理过的容器
-    if (container.dataset.clawButtonsAdded) continue;
+    if (container.dataset.clawLauncherAdded) continue;
 
     // 使用平台配置的验证选择器来确认正确的容器
     let isValidContainer = true;
-    for (const [key, selector] of Object.entries(bbConfig.validateSelectors)) {
+    for (const [key, selector] of Object.entries(launcherConfig.validateSelectors || {})) {
       if (!container.querySelector(selector)) {
         isValidContainer = false;
         break;
@@ -1225,19 +1337,28 @@ function addCustomButtons() {
 
     if (!isValidContainer) continue;
 
-    container.dataset.clawButtonsAdded = 'true';
+    container.dataset.clawLauncherAdded = 'true';
 
-    // 创建按钮容器
-    const buttonBar = document.createElement('div');
-    buttonBar.className = 'claw-custom-buttons';
+    const launcherBar = document.createElement('div');
+    launcherBar.className = 'claw-echomem-launcher-bar';
 
-    // 应用平台配置的样式
-    const style = { ...bbConfig.style };
+    const launcher = document.createElement('button');
+    launcher.className = 'claw-echomem-launcher';
+    launcher.textContent = launcherConfig.text || 'EchoMem';
 
-    // 如果配置了动态背景色获取函数，优先使用
-    if (bbConfig.getBackgroundColor && typeof bbConfig.getBackgroundColor === 'function') {
+    const style = {
+      display: 'flex',
+      gap: '8px',
+      padding: '0 12px 8px',
+      background: 'transparent',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      ...(launcherConfig.style || {})
+    };
+
+    if (launcherConfig.getBackgroundColor && typeof launcherConfig.getBackgroundColor === 'function') {
       try {
-        const dynamicBg = bbConfig.getBackgroundColor();
+        const dynamicBg = launcherConfig.getBackgroundColor();
         if (dynamicBg) {
           style.background = dynamicBg;
         }
@@ -1246,76 +1367,64 @@ function addCustomButtons() {
       }
     }
 
-    buttonBar.style.cssText = Object.entries(style)
+    launcherBar.style.cssText = Object.entries(style)
       .map(([key, value]) => {
-        // 将 camelCase 转换为 kebab-case
         const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
         return `${cssKey}: ${value}`;
       })
       .join('; ');
 
-    // 使用平台配置的按钮列表
-    const buttons = config.buttons.map(btn => ({
-      text: btn.text,
-      action: () => openCustomPanel(btn.panel, getPanelContent(btn.panel))
-    }));
+    launcher.style.cssText = `
+      height: 28px;
+      padding: 0 10px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 6px;
+      background: #fff;
+      color: #1f2937;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 26px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    `;
 
-    buttons.forEach(btnConfig => {
-      const btn = document.createElement('button');
-      btn.textContent = btnConfig.text;
-      btn.style.cssText = `
-        padding: 4px 12px;
-        border: 1px solid #e0e0e0;
-        border-radius: 4px;
-        background: #fff;
-        color: #333;
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.2s;
-        white-space: nowrap;
-        ${btnConfig.style || ''}
-      `;
-      btn.addEventListener('mouseenter', () => {
-        if (!btnConfig.style) {
-          btn.style.background = '#667eea';
-          btn.style.color = '#fff';
-          btn.style.borderColor = '#667eea';
-        }
-      });
-      btn.addEventListener('mouseleave', () => {
-        if (!btnConfig.style) {
-          btn.style.background = '#fff';
-          btn.style.color = '#333';
-          btn.style.borderColor = '#e0e0e0';
-        }
-      });
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        btnConfig.action();
-      });
-      buttonBar.appendChild(btn);
+    launcher.addEventListener('mouseenter', () => {
+      launcher.style.borderColor = '#2563eb';
+      launcher.style.color = '#2563eb';
+      launcher.style.boxShadow = '0 2px 6px rgba(37, 99, 235, 0.18)';
+    });
+    launcher.addEventListener('mouseleave', () => {
+      launcher.style.borderColor = 'rgba(0, 0, 0, 0.12)';
+      launcher.style.color = '#1f2937';
+      launcher.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.08)';
+    });
+    launcher.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openEchoMemHomePanel();
     });
 
-    // 根据平台配置的插入位置插入按钮栏
-    if (bbConfig.insertAfter) {
-      // 如果配置了 insertAfter，将按钮栏插入到指定元素之后
-      const insertTarget = document.querySelector(bbConfig.insertAfter);
+    launcherBar.appendChild(launcher);
+
+    if (launcherConfig.insertAfter) {
+      const insertTarget = document.querySelector(launcherConfig.insertAfter);
       if (insertTarget && insertTarget.parentNode) {
-        insertTarget.parentNode.insertBefore(buttonBar, insertTarget.nextSibling);
+        insertTarget.parentNode.insertBefore(launcherBar, insertTarget.nextSibling);
       } else {
-        // 回退到默认的 after 行为
-        container.parentNode.insertBefore(buttonBar, container.nextSibling);
+        container.parentNode.insertBefore(launcherBar, container);
       }
-    } else if (bbConfig.insertPosition === 'after') {
-      container.parentNode.insertBefore(buttonBar, container.nextSibling);
-    } else if (bbConfig.insertPosition === 'before') {
-      container.parentNode.insertBefore(buttonBar, container);
-    } else if (bbConfig.insertPosition === 'append') {
-      container.appendChild(buttonBar);
+    } else if (launcherConfig.insertPosition === 'after') {
+      container.parentNode.insertBefore(launcherBar, container.nextSibling);
+    } else if (launcherConfig.insertPosition === 'append') {
+      container.appendChild(launcherBar);
+    } else {
+      container.parentNode.insertBefore(launcherBar, container);
     }
 
-    console.log(`Claw Extension: Custom buttons added for ${config.name}`);
+    console.log(`Claw Extension: EchoMem launcher added for ${config.name}`);
     break;
   }
 }
@@ -1350,11 +1459,20 @@ const observer = new MutationObserver((mutations) => {
     }
   }
 
-  // 绑定 Skill 商店板块卡片的点击事件（事件委托）
-  const skillPanel = document.querySelector('.claw-custom-panel');
-  if (skillPanel && !skillPanel.dataset.clawEventsBound) {
-    skillPanel.dataset.clawEventsBound = 'true';
-    skillPanel.addEventListener('click', (e) => {
+  // 绑定自定义面板内的卡片点击事件（事件委托）
+  const customPanel = document.querySelector('.claw-custom-panel');
+  if (customPanel && !customPanel.dataset.clawEventsBound) {
+    customPanel.dataset.clawEventsBound = 'true';
+    customPanel.addEventListener('click', (e) => {
+      const menuItem = e.target.closest('.claw-echomem-menu-item');
+      if (menuItem) {
+        const panelName = menuItem.dataset.panel;
+        if (panelName) {
+          navigateToEchoMemPanel(panelName);
+        }
+        return;
+      }
+
       const card = e.target.closest('.claw-skill-section');
       if (card) {
         const sectionId = card.dataset.section;

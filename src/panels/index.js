@@ -3,6 +3,8 @@
 import { getResourceContent } from './resource.js';
 import { getInputAssociationContent } from './association.js';
 import { getFeedbackContent } from './feedback.js';
+import { getEchoMemHomeContent } from './echomem.js';
+import { getPerformanceContent } from './performance.js';
 import {
   getSkillStoreHomeContent,
   getSkillHistoryContent,
@@ -17,12 +19,15 @@ export function getPanelContent(type) {
     '资源管理': getResourceContent(),
     '输入联想': getInputAssociationContent(),
     '认知反馈': getFeedbackContent(),
-    'skill商店': getSkillStoreHomeContent()
+    'skill商店': getSkillStoreHomeContent(),
+    '效能': getPerformanceContent()
   };
   return contents[type] || '<p>暂无内容</p>';
 }
 
 export {
+  getEchoMemHomeContent,
+  getPerformanceContent,
   getResourceContent,
   getInputAssociationContent,
   getFeedbackContent,

@@ -1,5 +1,7 @@
 # Claw Extension 按钮功能实现细节文档
 
+> 注意：本文记录的是旧版「输入框下方 4 个功能按钮」实现细节。当前交互已切换为 `EchoMem` 单入口按钮 + 右侧功能导航，当前方案见 [echomem-launcher-sidebar.md](./echomem-launcher-sidebar.md)。
+
 ## 1. 概述
 
 Claw Extension 在 HIGO Office 页面注入 4 个功能按钮，点击后在右侧打开对应的功能面板。本文档详细说明每个按钮的功能实现。

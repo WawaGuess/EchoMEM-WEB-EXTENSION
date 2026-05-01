@@ -1,5 +1,7 @@
 # Claw Extension 平台检测系统设计文档
 
+> 注意：本文部分示例仍保留旧版 `buttonBar/buttons` 配置。当前 UI 入口已切换为 `launcher/menuItems`，当前交互方案见 [echomem-launcher-sidebar.md](./echomem-launcher-sidebar.md)。
+
 ## 1. 概述
 
 Claw Extension 采用多层平台检测机制，确保只在目标网站的特定页面注入增强功能。检测系统通过 4 层验证，全部满足才判定为目标平台。目前已支持 HIGO Office 和 DeepSeek 两个平台。

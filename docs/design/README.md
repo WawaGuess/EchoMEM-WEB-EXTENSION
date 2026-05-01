@@ -8,6 +8,7 @@
 |------|------|
 | [platform-detection.md](./platform-detection.md) | 平台检测系统设计文档 |
 | [button-features.md](./button-features.md) | 按钮功能实现细节文档 |
+| [echomem-launcher-sidebar.md](./echomem-launcher-sidebar.md) | EchoMem 单入口按钮与右侧功能导航设计 |
 | [detection-flow.mmd](./detection-flow.mmd) | 检测流程图（Mermaid 格式） |
 
 ## 快速导航
@@ -20,12 +21,15 @@
 
 ### 按钮功能
 
+新交互设计将输入区入口收敛为一个 `EchoMem` 按钮。点击后在右侧面板展示功能导航：首页包含以下 5 个选项：
+
 | 按钮 | 功能 |
 |------|------|
 | 资源管理 | 文件上传和资源列表 |
 | 输入联想 | 开关控制输入联想功能 |
 | 认知反馈 | 会话统计和反馈报告 |
 | skill商店 | Skill 浏览/购买/上传/管理 |
+| 效能 | 使用效率与工作表现概览 |
 
 ## 流程图
 
