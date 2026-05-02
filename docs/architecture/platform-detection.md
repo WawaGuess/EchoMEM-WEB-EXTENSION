@@ -15,130 +15,49 @@ EchoMem Web Extension 采用多层平台检测机制，确保只在目标网站�
 
 ## 3. 检测架构
 
-### 3.1 配置结构
+### 3.1 运行入口
+
+当前内容脚本采用模块化源码 + 构建产物的方式运行：
+
+```text
+src/entry/content.js  →  npm run build  →  dist/content.js
+```
+
+Chrome 通过 `manifest.json` 加载 `/dist/content.js`。修改 `src/` 下的运行逻辑后，需要执行 `npm run build` 并重新加载扩展。
+
+### 3.2 配置结构
 
 ```javascript
-const PLATFORM_CONFIGS = {
-  // HIGO Office 平台
-  'higo': {
-    name: 'HIGO Office',
-    detection: {
-      urlPatterns: ['/home/session/', '/home/workspace/'],
-      titleKeywords: ['Higo', 'HIGO', 'Higo2', 'Higo Office'],
-      domFeatures: {
-        required: [
-          { selector: '.MuiDrawer-root', description: 'MUI 抽屉组件' },
-          { selector: '.MuiPaper-root', description: 'MUI Paper 容器' }
-        ],
-        optional: [
-          { selector: 'textarea[id^="_r_"]', description: 'React 输入框' },
-          { selector: '[data-testid="ArrowUpwardIcon"]', description: '发送按钮图标' },
-          { selector: '.MuiDrawer-anchorRight', description: '右侧抽屉' }
-        ]
-      },
-      contentKeywords: ['higo', 'HIGO', 'Higo2']
-    },
-    detect: function() {
-      return detectPlatformMultiLayer(this.detection);
-    },
-    launcher: {
-      text: 'EchoMem',
-      containerSelector: '.MuiPaper-root',
-      validateSelectors: {
-        textarea: 'textarea[id^="_r_"]',
-        sendButton: '[data-testid="ArrowUpwardIcon"]'
-      },
-      style: {
-        display: 'flex',
-        gap: '8px',
-        padding: '0 12px 8px',
-        background: 'rgb(255, 251, 254)',
-        alignItems: 'center',
-        justifyContent: 'flex-start'
-      },
-      insertPosition: 'before'
-    },
-    panel: {
-      type: 'sidebar',
-      containerSelector: '.MuiDrawer-anchorRight .MuiDrawer-paper',
-      overlayConfig: null
-    },
-    menuItems: [
-      { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
-      { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
-      { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
-      { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
-      { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
-    ]
-  },
-
-  // DeepSeek 平台
-  'deepseek': {
-    name: 'DeepSeek',
-    detection: {
-      urlPatterns: ['chat.deepseek.com'],
-      titleKeywords: ['DeepSeek'],
-      domFeatures: {
-        required: [
-          { selector: 'textarea[placeholder*="DeepSeek"]', description: 'DeepSeek 输入框' },
-          { selector: '._24fad49', description: '输入框容器' }
-        ],
-        optional: [
-          { selector: '._020ab5b', description: '底部按钮区域' },
-          { selector: '[role="button"]', description: '功能按钮' }
-        ]
-      },
-      contentKeywords: ['deepseek', '深度思考', '智能搜索']
-    },
-    detect: function() {
-      return detectPlatformMultiLayer(this.detection);
-    },
-    launcher: {
-      text: 'EchoMem',
-      containerSelector: '._77cefa5, ._24fad49',
-      validateSelectors: {
-        textarea: 'textarea[placeholder*="DeepSeek"]'
-      },
-      getBackgroundColor: () => {
-        const inputArea = document.querySelector('._77cefa5');
-        if (inputArea) {
-          const style = window.getComputedStyle(inputArea);
-          if (style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)') {
-            return style.backgroundColor;
-          }
-        }
-        return '#fff';
-      },
-      style: {
-        display: 'flex',
-        gap: '8px',
-        padding: '0 12px 8px',
-        alignItems: 'center',
-        justifyContent: 'flex-start'
-      },
-      insertPosition: 'before'
-    },
-    panel: {
-      type: 'overlay',
-      containerSelector: null,
-      overlayConfig: {
-        position: 'right',
-        width: '400px',
-        backdrop: true
-      }
-    },
-    menuItems: [
-      { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
-      { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
-      { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
-      { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
-      { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
-    ]
-  }
+export const platformRegistry = {
+  higo: higoPlatform,
+  deepseek: deepseekPlatform
 };
 ```
 
-### 3.2 检测流程图
+每个平台配置保存在 `src/platforms/`，配置项包括：
+
+| 配置项 | 说明 |
+|--------|------|
+| `id` | 稳定平台 ID |
+| `name` | 平台展示名称 |
+| `detection` | URL、标题、DOM、内容关键字检测配置 |
+| `launcher` | EchoMem 入口按钮挂载配置 |
+| `panelHost` | 面板承载方式，支持 `sidebar` 和 `overlay` |
+| `menuItems` | 当前平台展示的功能面板 ID 列表 |
+
+功能面板使用 `panelRegistry` 注册，平台菜单通过稳定 `panelId` 引用面板：
+
+```javascript
+menuItems: [
+  { panelId: 'resources' },
+  { panelId: 'association' },
+  { panelId: 'feedback' },
+  { panelId: 'skillStore' },
+  { panelId: 'performance' }
+]
+```
+
+### 3.3 检测流程图
 
 ```
 检测开始
@@ -447,30 +366,15 @@ function addCustomButtons() {
 使用 MutationObserver 持续监听 DOM 变化，确保在动态加载完成后注入按钮：
 
 ```javascript
-const observer = new MutationObserver((mutations) => {
-  addCustomButtons();
-
-  // 保存原始面板内容（仅 sidebar 模式）
-  const platform = currentPlatform || detectPlatform();
-  if (platform) {
-    const panelConfig = platform.config.panel;
-    if (panelConfig.type === 'sidebar') {
-      const container = document.querySelector(panelConfig.containerSelector);
-      if (container && !isCustomPanelOpen && !container.querySelector('.claw-custom-panel')) {
-        originalPanelContent = container.innerHTML;
-      }
-    }
-  }
-
-  // 绑定 Skill 商店卡片点击事件
-  // 绑定输入联想开关按钮事件
+const lifecycle = createDomLifecycle({
+  onDomChange: refreshContentScriptMount,
+  delay: 120
 });
 
-observer.observe(document.body, {
-  childList: true,
-  subtree: true
-});
+lifecycle.start();
 ```
+
+`refreshContentScriptMount()` 负责尝试注入 EchoMem 入口、同步 sidebar 原始内容，并绑定面板内的导航事件。
 
 ## 9. 控制台调试信息
 
@@ -497,7 +401,8 @@ Claw Extension: EchoMem launcher added for HIGO Office
 ### 10.1 场景：有侧边栏的页面
 
 ```javascript
-'another-platform': {
+export const anotherPlatform = {
+  id: 'anotherPlatform',
   name: 'Another Platform',
   detection: {
     urlPatterns: ['/chat/'],
@@ -511,9 +416,6 @@ Claw Extension: EchoMem launcher added for HIGO Office
       ]
     },
     contentKeywords: ['chat']
-  },
-  detect: function() {
-    return detectPlatformMultiLayer(this.detection);
   },
   launcher: {
     text: 'EchoMem',
@@ -529,25 +431,26 @@ Claw Extension: EchoMem launcher added for HIGO Office
     },
     insertPosition: 'before'
   },
-  panel: {
+  panelHost: {
     type: 'sidebar',
     containerSelector: '.sidebar',
     overlayConfig: null
   },
   menuItems: [
-    { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
-    { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
-    { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
-    { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
-    { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
+    { panelId: 'resources' },
+    { panelId: 'association' },
+    { panelId: 'feedback' },
+    { panelId: 'skillStore' },
+    { panelId: 'performance' }
   ]
-}
+};
 ```
 
 ### 10.2 场景：无侧边栏的页面（使用浮层）
 
 ```javascript
-'floating-platform': {
+export const floatingPlatform = {
+  id: 'floatingPlatform',
   name: 'Floating Platform',
   detection: {
     urlPatterns: ['/ai/'],
@@ -561,9 +464,6 @@ Claw Extension: EchoMem launcher added for HIGO Office
       ]
     },
     contentKeywords: ['ai']
-  },
-  detect: function() {
-    return detectPlatformMultiLayer(this.detection);
   },
   // EchoMem 入口插入到顶部工具栏
   launcher: {
@@ -580,7 +480,7 @@ Claw Extension: EchoMem launcher added for HIGO Office
     insertPosition: 'append'
   },
   // 面板配置为浮层（因为没有侧边栏）
-  panel: {
+  panelHost: {
     type: 'overlay',
     containerSelector: null,
     overlayConfig: {
@@ -591,13 +491,13 @@ Claw Extension: EchoMem launcher added for HIGO Office
   },
   // 自定义功能导航文案
   menuItems: [
-    { text: '文件', panel: '资源管理', description: '管理文件资源' },
-    { text: '联想', panel: '输入联想', description: '开启或关闭智能联想' },
-    { text: '反馈', panel: '认知反馈', description: '查看会话分析' },
-    { text: '商店', panel: 'skill商店', description: '浏览和管理 Skill' },
-    { text: '效能', panel: '效能', description: '查看效率概览' }
+    { panelId: 'resources' },
+    { panelId: 'association' },
+    { panelId: 'feedback' },
+    { panelId: 'skillStore' },
+    { panelId: 'performance' }
   ]
-}
+};
 ```
 
 ### 10.3 关键配置说明
@@ -611,17 +511,20 @@ Claw Extension: EchoMem launcher added for HIGO Office
 | `launcher.insertAfter` | 插入到指定元素之后（优先级高于 insertPosition） | `'._020ab5b'` |
 | `launcher.getBackgroundColor` | 动态获取入口栏背景色函数 | `() => '#fff'` |
 | `launcher.insertPosition` | 插入位置 | `'after'`, `'before'`, `'append'` |
-| `panel.type` | 面板类型 | `'sidebar'` 或 `'overlay'` |
-| `panel.containerSelector` | sidebar 容器选择器 | `.MuiDrawer-paper` |
-| `panel.overlayConfig` | overlay 配置 | `{ position, width, backdrop }` |
-| `menuItems` | EchoMem 功能导航列表 | `{ text, panel, description }` |
+| `panelHost.type` | 面板类型 | `'sidebar'` 或 `'overlay'` |
+| `panelHost.containerSelector` | sidebar 容器选择器 | `.MuiDrawer-paper` |
+| `panelHost.overlayConfig` | overlay 配置 | `{ position, width, backdrop }` |
+| `menuItems` | EchoMem 功能导航列表 | `{ panelId }` |
 
 ## 11. 文件位置
 
-- 平台配置：`/content.js`
-- 检测系统实现：`/content.js`
-- 面板系统实现：`/content.js`
-- EchoMem 入口注入实现：`/content.js`
-- 模块化源码镜像：`/src/core/*`, `/src/platforms/*`, `/src/panels/*`
+- 内容脚本源码入口：`/src/entry/content.js`
+- 内容脚本构建产物：`/dist/content.js`
+- 平台配置：`/src/platforms/*`
+- 面板注册：`/src/panels/registry.js`
+- 检测系统实现：`/src/core/detection.js`
+- 入口注入实现：`/src/core/buttons.js`
+- 面板承载实现：`/src/core/panel-host.js`
+- 路由实现：`/src/core/router.js`
 - 本设计文档：`/docs/architecture/platform-detection.md`
 - 检测流程图：`/docs/architecture/detection-flow.mmd`

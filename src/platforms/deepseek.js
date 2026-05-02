@@ -1,6 +1,7 @@
 // DeepSeek 聊天平台配置
 
 export const deepseekConfig = {
+  id: 'deepseek',
   name: 'DeepSeek',
   detection: {
     urlPatterns: ['chat.deepseek.com'],
@@ -42,7 +43,7 @@ export const deepseekConfig = {
     },
     insertPosition: 'before'
   },
-  panel: {
+  panelHost: {
     type: 'overlay',
     containerSelector: null,
     overlayConfig: {
@@ -52,10 +53,10 @@ export const deepseekConfig = {
     }
   },
   menuItems: [
-    { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
-    { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
-    { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
-    { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
-    { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
+    { panelId: 'resources' },
+    { panelId: 'association' },
+    { panelId: 'feedback' },
+    { panelId: 'skillStore' },
+    { panelId: 'performance' }
   ]
 };

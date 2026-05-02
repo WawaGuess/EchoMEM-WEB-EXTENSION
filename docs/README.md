@@ -28,6 +28,12 @@ docs/
 | [architecture/detection-flow.mmd](./architecture/detection-flow.mmd) | 平台检测流程图，Mermaid 格式 |
 | [proposals/README.md](./proposals/README.md) | 后续方案草稿区的使用规则 |
 
+## 方案记录
+
+| 文档 | 说明 |
+|------|------|
+| [proposals/2026-05-02-modular-content-architecture.md](./proposals/2026-05-02-modular-content-architecture.md) | 内容脚本模块化与可扩展架构方案（已采用） |
+
 ## 历史归档
 
 | 文档 | 说明 |
@@ -35,7 +41,7 @@ docs/
 | [legacy/button-features.md](./legacy/button-features.md) | 旧版输入框下方 4 个功能按钮实现记录 |
 | [legacy/deepseek-extension.md](./legacy/deepseek-extension.md) | DeepSeek 旧版 4 按钮接入记录 |
 
-`legacy/` 中的文档只作为历史参考，不代表当前运行逻辑。当前 Chrome 实际加载根目录的 `/content.js`，`/src/` 是模块化源码镜像；修改运行行为时需要优先确认 `/content.js`。
+`legacy/` 中的文档只作为历史参考，不代表当前运行逻辑。当前内容脚本源码入口是 `/src/entry/content.js`，Chrome 通过 `manifest.json` 实际加载构建产物 `/dist/content.js`；修改运行行为后需要执行 `npm run build`。
 
 ## 当前功能入口
 

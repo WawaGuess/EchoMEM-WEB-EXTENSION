@@ -1,9 +1,15 @@
 // 面板内容聚合
 
+import { getEchoMemHomeContent } from './echomem.js';
+import {
+  getPanelContent,
+  getPanelDefinition,
+  panelRegistry,
+  resolvePanelId
+} from './registry.js';
 import { getResourceContent } from './resource.js';
 import { getInputAssociationContent } from './association.js';
 import { getFeedbackContent } from './feedback.js';
-import { getEchoMemHomeContent } from './echomem.js';
 import { getPerformanceContent } from './performance.js';
 import {
   getSkillStoreHomeContent,
@@ -14,18 +20,11 @@ import {
   getSkillManageContent
 } from './skill-store.js';
 
-export function getPanelContent(type) {
-  const contents = {
-    '资源管理': getResourceContent(),
-    '输入联想': getInputAssociationContent(),
-    '认知反馈': getFeedbackContent(),
-    'skill商店': getSkillStoreHomeContent(),
-    '效能': getPerformanceContent()
-  };
-  return contents[type] || '<p>暂无内容</p>';
-}
-
 export {
+  panelRegistry,
+  getPanelDefinition,
+  getPanelContent,
+  resolvePanelId,
   getEchoMemHomeContent,
   getPerformanceContent,
   getResourceContent,

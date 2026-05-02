@@ -189,7 +189,7 @@ const echomemMenuItems = [
 
 ## 7. 配置模型调整
 
-旧版平台配置使用 `buttonBar` 和 `buttons` 描述多按钮栏。当前实现已改为 `launcher` 和 `menuItems`。
+旧版平台配置使用 `buttonBar` 和 `buttons` 描述多按钮栏。当前实现已改为 `launcher`、`panelHost` 和 `menuItems`。
 
 ```javascript
 launcher: {
@@ -206,15 +206,15 @@ launcher: {
   insertPosition: 'before'
 },
 menuItems: [
-  { text: '资源管理', panel: '资源管理' },
-  { text: '输入联想', panel: '输入联想' },
-  { text: '认知反馈', panel: '认知反馈' },
-  { text: 'skill商店', panel: 'skill商店' },
-  { text: '效能', panel: '效能' }
+  { panelId: 'resources' },
+  { panelId: 'association' },
+  { panelId: 'feedback' },
+  { panelId: 'skillStore' },
+  { panelId: 'performance' }
 ]
 ```
 
-当前运行入口仍兼容读取 `buttonBar`，但正式配置应优先使用 `launcher/menuItems`。
+功能面板通过 `src/panels/registry.js` 注册，`menuItems` 使用稳定 `panelId` 引用面板；中文标题只作为展示文案。
 
 ## 8. 代码影响范围
 
@@ -223,14 +223,16 @@ menuItems: [
 | 文件 | 调整内容 |
 |------|----------|
 | `src/core/buttons.js` | 从注入按钮组改为注入 `EchoMem` 单入口；点击打开功能导航首页 |
-| `src/core/panel.js` | 复用现有 `openCustomPanel()`；详情页继续使用返回按钮能力 |
-| `src/panels/index.js` | 注册新增「效能」面板；提供 EchoMem 导航首页内容 |
+| `src/core/panel-host.js` | 承载 sidebar / overlay 面板，负责打开、关闭和恢复 |
+| `src/core/router.js` | 统一处理 EchoMem 首页、功能详情和 Skill 商店子页面导航 |
+| `src/panels/registry.js` | 注册功能面板和稳定 `panelId` |
 | `src/panels/performance.js` | 新增「效能」面板内容 |
-| `src/platforms/higo.js` | 将 4 个按钮配置调整为 `EchoMem` launcher 与 5 个菜单项 |
-| `src/platforms/deepseek.js` | 同步配置；无原生右侧栏时继续使用 overlay 模式 |
-| `content.js` | 当前 Manifest 实际加载的运行入口，需要同步相同逻辑 |
+| `src/platforms/higo.js` | 配置 `EchoMem` launcher、sidebar panelHost 与 5 个菜单项 |
+| `src/platforms/deepseek.js` | 配置 `EchoMem` launcher、overlay panelHost 与 5 个菜单项 |
+| `src/entry/content.js` | 内容脚本源码入口 |
+| `dist/content.js` | Manifest 实际加载的构建产物 |
 
-> 当前项目没有构建步骤，Chrome 通过 `manifest.json` 直接加载根目录的 `content.js`。`src/` 目录是模块化源码镜像；修改运行行为时，需要优先修改 `content.js`，并同步维护 `src/` 中对应模块，或后续明确切换到构建/打包流程。
+> 当前 Chrome 通过 `manifest.json` 加载 `/dist/content.js`。运行逻辑源码位于 `/src/entry/content.js` 及其依赖模块；修改 `src/` 后需要执行 `npm run build` 生成新的构建产物。
 
 ## 9. 兼容策略
 

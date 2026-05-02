@@ -1,8 +1,9 @@
 // 输入联想面板内容
 
-let inputAssociationEnabled = false;
+import { getAssociationEnabled, toggleAssociationEnabled } from '../core/state.js';
 
 export function getInputAssociationContent() {
+  const inputAssociationEnabled = getAssociationEnabled();
   const btnText = inputAssociationEnabled ? '关闭联想' : '确认开启';
   const btnBg = inputAssociationEnabled ? '#ffebee' : '#667eea';
   const btnColor = inputAssociationEnabled ? '#c62828' : '#fff';
@@ -63,12 +64,11 @@ export function getInputAssociationContent() {
 }
 
 export function toggleInputAssociation() {
-  inputAssociationEnabled = !inputAssociationEnabled;
-  return inputAssociationEnabled;
+  return toggleAssociationEnabled();
 }
 
 export function getAssociationStatus() {
-  return inputAssociationEnabled;
+  return getAssociationEnabled();
 }
 
 export function bindToggleButton(callback) {

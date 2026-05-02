@@ -1,16 +1,14 @@
 // 平台检测逻辑
 
 import { PLATFORM_CONFIGS } from '../platforms/index.js';
-
-// 当前检测到的平台
-let currentPlatform = null;
+import { getPlatform, setPlatform } from './state.js';
 
 export function getCurrentPlatform() {
-  return currentPlatform;
+  return getPlatform();
 }
 
 export function setCurrentPlatform(platform) {
-  currentPlatform = platform;
+  setPlatform(platform);
 }
 
 // 多层平台检测函数（4层全部满足才判定为目标页面）

@@ -1,8 +1,7 @@
 // 按钮注入逻辑
 
 import { detectPlatform, getCurrentPlatform, setCurrentPlatform } from './detection.js';
-import { openCustomPanel } from './panel.js';
-import { getEchoMemHomeContent } from '../panels/index.js';
+import { openEchoMemHomePanel } from './router.js';
 
 export function addCustomButtons() {
   let platform = getCurrentPlatform();
@@ -105,7 +104,7 @@ export function addCustomButtons() {
     launcher.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      openCustomPanel('EchoMem', getEchoMemHomeContent());
+      openEchoMemHomePanel();
     });
 
     launcherBar.appendChild(launcher);

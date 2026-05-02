@@ -27,10 +27,16 @@ EchoMEM-WEB-EXTENSION/
 ├── popup.css              # Popup styles
 ├── popup.js               # Popup logic and user interactions
 ├── background.js          # Service worker (background script)
-├── content.js             # Content script injected into web pages
 ├── content.css            # Styles injected into web pages
+├── dist/
+│   └── content.js         # Bundled content script loaded by Chrome
 ├── icons/                 # Extension icons (16x16, 48x48, 128x128)
-├── src/                   # Modular source mirror / future structure
+├── src/                   # Modular content script source
+│   ├── entry/             # Content script source entry
+│   ├── core/              # Detection, injection, routing, state, panel host
+│   ├── panels/            # EchoMem feature panels
+│   ├── platforms/         # Platform registry and configs
+│   └── services/          # Chrome API wrappers
 └── docs/                  # Documentation index, current design, architecture, and legacy docs
     ├── architecture/      # Platform detection and runtime architecture
     ├── design/            # Current interaction design
@@ -47,9 +53,10 @@ EchoMEM-WEB-EXTENSION/
 - Permissions: `activeTab`, `storage`, `scripting`
 
 ### Runtime Entry
-- Chrome currently loads root-level `content.js` directly from `manifest.json`.
-- The `src/` modules mirror the same architecture, but they are not loaded by Chrome unless a build step or manifest change is added.
-- Runtime behavior changes must be made in `content.js`; if keeping the modular copy useful, mirror the same change in `src/`.
+- Runtime source is `src/entry/content.js`.
+- Chrome loads the bundled `dist/content.js` from `manifest.json`.
+- Runtime behavior changes should be made in `src/`, then rebuilt with `npm run build`.
+- Keep `dist/content.js` committed so the unpacked extension can be loaded without a local build step.
 
 ### Documentation Maintenance
 - Do not re-audit every document after each code change.
@@ -61,7 +68,7 @@ EchoMEM-WEB-EXTENSION/
 
 ### Communication Flow
 - **Popup** (`popup.js`) is currently an information-only UI.
-- **Content Script** (`content.js`) injects the EchoMem launcher and panels on supported pages.
+- **Content Script** (`src/entry/content.js` -> `dist/content.js`) injects the EchoMem launcher and panels on supported pages.
 - **Background** (`background.js`) initializes storage and exposes basic message handlers such as `getTabInfo` and `saveToHistory`.
 
 ### Data Flow
@@ -74,7 +81,7 @@ EchoMEM-WEB-EXTENSION/
 ## Common Development Tasks
 
 ### Reload Extension After Changes
-After modifying any file, go to `chrome://extensions/` and click the refresh icon on the extension card, or use the "Update" button.
+After modifying files under `src/`, run `npm run build`, then go to `chrome://extensions/` and click the refresh icon on the extension card, or use the "Update" button.
 
 ### Debug Popup
 - Right-click the extension icon → "Inspect popup"
@@ -82,7 +89,7 @@ After modifying any file, go to `chrome://extensions/` and click the refresh ico
 
 ### Debug Content Script
 - Open DevTools on any web page
-- Look for messages in the Console from `content.js`
+- Look for messages in the Console from `dist/content.js`
 - Content script runs in the page's isolated world
 
 ### Debug Background Script
@@ -106,8 +113,7 @@ Current features implemented:
 
 ## Notes
 
-- No build step required — this is a vanilla JavaScript extension loaded from root files
-- No package manager (npm/yarn) is used
-- Keep `content.js` and the `src/` mirror in sync when changing runtime logic, or explicitly decide to deprecate one of them
+- Build step required for content script changes: `npm run build`
+- esbuild bundles `src/entry/content.js` into `dist/content.js`
 - Icons directory (`icons/`) needs PNG files: `icon16.png`, `icon48.png`, `icon128.png`
 - The extension uses Chinese (zh-CN) UI text

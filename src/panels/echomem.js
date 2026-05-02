@@ -1,14 +1,30 @@
 import { getCurrentPlatform } from '../core/detection.js';
+import { getPanelDefinition } from './registry.js';
 
 export function getEchoMemMenuItems() {
   const platform = getCurrentPlatform();
-  return platform?.config?.menuItems || [
-    { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
-    { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
-    { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
-    { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
-    { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
+  const menuItems = platform?.config?.menuItems || [
+    { panelId: 'resources' },
+    { panelId: 'association' },
+    { panelId: 'feedback' },
+    { panelId: 'skillStore' },
+    { panelId: 'performance' }
   ];
+
+  return menuItems
+    .map((item) => {
+      const panelId = item.panelId || item.panel;
+      const panel = getPanelDefinition(panelId);
+
+      if (!panel) return null;
+
+      return {
+        panelId: panel.id,
+        text: item.text || panel.title,
+        description: item.description || panel.description
+      };
+    })
+    .filter(Boolean);
 }
 
 export function getEchoMemHomeContent() {
@@ -17,7 +33,7 @@ export function getEchoMemHomeContent() {
     const color = colors[index % colors.length];
 
     return `
-      <button class="claw-echomem-menu-item" data-panel="${item.panel}" style="
+      <button class="claw-echomem-menu-item" data-panel-id="${item.panelId}" data-panel="${item.panelId}" style="
         width: 100%;
         padding: 14px;
         border: 1px solid #e5e7eb;

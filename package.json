@@ -1,0 +1,13 @@
+{
+  "name": "echomem-web-extension",
+  "version": "1.0.0",
+  "private": true,
+  "description": "EchoMem Web Extension",
+  "scripts": {
+    "build": "esbuild src/entry/content.js --bundle --format=iife --target=chrome88 --outfile=dist/content.js",
+    "check": "npm run build && node --check dist/content.js && node --check background.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
