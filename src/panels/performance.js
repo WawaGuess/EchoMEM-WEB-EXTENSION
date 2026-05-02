@@ -3,7 +3,8 @@ export function getPerformanceContent() {
     { label: '今日会话', value: '0' },
     { label: 'Skill 使用', value: '0' },
     { label: '联想触发', value: '0' },
-    { label: '资源引用', value: '0' }
+    { label: '资源引用', value: '0' },
+    { label: '反馈报告', value: '0' }
   ];
 
   const metricCards = metrics.map(metric => `
@@ -21,7 +22,7 @@ export function getPerformanceContent() {
   return `
     <div style="color: #374151;">
       <p style="margin: 0 0 14px; font-size: 13px; color: #6b7280; line-height: 1.6;">
-        当前为效能概览占位，后续可接入真实会话、Skill、联想和资源引用数据。
+        当前为效能概览占位，后续可接入真实会话、Skill、联想、资源引用和反馈报告数据。
       </p>
       <div style="
         display: grid;

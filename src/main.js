@@ -79,6 +79,36 @@ function insertText(textarea, text) {
   textarea.focus();
 }
 
+function refreshInputAssociationPanel() {
+  const platform = getCurrentPlatform();
+  if (!platform) return;
+
+  const panelConfig = platform.config.panel;
+  let contentDiv = null;
+
+  if (panelConfig.type === 'sidebar') {
+    const container = document.querySelector(panelConfig.containerSelector);
+    if (container) {
+      contentDiv = container.querySelector('.claw-custom-panel > div:last-child');
+    }
+  } else if (panelConfig.type === 'overlay') {
+    const overlayPanel = document.querySelector('.claw-overlay-panel');
+    if (overlayPanel) {
+      contentDiv = overlayPanel.querySelector('.claw-custom-panel > div:last-child');
+    }
+  }
+
+  if (contentDiv) {
+    contentDiv.innerHTML = getInputAssociationContent();
+    bindToggleButton(handleInputAssociationToggle);
+  }
+}
+
+function handleInputAssociationToggle() {
+  toggleInputAssociation();
+  refreshInputAssociationPanel();
+}
+
 // ====== MutationObserver ======
 
 const observer = new MutationObserver(() => {
@@ -121,35 +151,7 @@ const observer = new MutationObserver(() => {
   }
 
   // 绑定输入联想开关按钮事件
-  bindToggleButton(() => {
-    toggleInputAssociation();
-    // 重新渲染面板内容
-    const platform = getCurrentPlatform();
-    if (!platform) return;
-
-    const panelConfig = platform.config.panel;
-    let contentDiv = null;
-
-    if (panelConfig.type === 'sidebar') {
-      const container = document.querySelector(panelConfig.containerSelector);
-      if (container) {
-        contentDiv = container.querySelector('.claw-custom-panel > div:last-child');
-      }
-    } else if (panelConfig.type === 'overlay') {
-      const overlayPanel = document.querySelector('.claw-overlay-panel');
-      if (overlayPanel) {
-        contentDiv = overlayPanel.querySelector('.claw-custom-panel > div:last-child');
-      }
-    }
-
-    if (contentDiv) {
-      contentDiv.innerHTML = getInputAssociationContent();
-      bindToggleButton(() => {
-        toggleInputAssociation();
-        // 触发 MutationObserver 重新执行，实现递归更新
-      });
-    }
-  });
+  bindToggleButton(handleInputAssociationToggle);
 });
 
 // 启动观察

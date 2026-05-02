@@ -7,8 +7,9 @@
 | 文档 | 说明 |
 |------|------|
 | [platform-detection.md](./platform-detection.md) | 平台检测系统设计文档 |
-| [button-features.md](./button-features.md) | 按钮功能实现细节文档 |
+| [button-features.md](./button-features.md) | 旧版 4 按钮实现记录（legacy） |
 | [echomem-launcher-sidebar.md](./echomem-launcher-sidebar.md) | EchoMem 单入口按钮与右侧功能导航设计 |
+| [deepseek-extension.md](./deepseek-extension.md) | DeepSeek 旧版 4 按钮接入记录（legacy） |
 | [detection-flow.mmd](./detection-flow.mmd) | 检测流程图（Mermaid 格式） |
 
 ## 快速导航
@@ -16,7 +17,7 @@
 ### 平台检测系统
 
 - 4层检测机制：URL路径 → 标题关键字 → DOM特征 → 内容关键字
-- 全部满足才判定为 HIGO Office 页面
+- 全部满足才判定为目标平台页面
 - 短路模式：一层失败立即返回
 
 ### 按钮功能
@@ -106,3 +107,6 @@ skill商店首页
 - 核心实现：`/content.js`
 - 扩展配置：`/manifest.json`
 - 样式文件：`/content.css`
+- 模块化源码镜像：`/src/`
+
+> 当前 Chrome 实际加载的是 `/content.js`。`/src/` 目录中的模块化实现与运行逻辑保持镜像关系，但在没有构建流程或 Manifest 切换前不会被浏览器直接执行。

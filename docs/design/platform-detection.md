@@ -1,6 +1,6 @@
 # Claw Extension 平台检测系统设计文档
 
-> 注意：本文部分示例仍保留旧版 `buttonBar/buttons` 配置。当前 UI 入口已切换为 `launcher/menuItems`，当前交互方案见 [echomem-launcher-sidebar.md](./echomem-launcher-sidebar.md)。
+> 注意：当前 UI 入口使用 `launcher/menuItems` 配置。旧版 `buttonBar/buttons` 方案仅保留在 legacy 文档中，当前交互方案见 [echomem-launcher-sidebar.md](./echomem-launcher-sidebar.md)。
 
 ## 1. 概述
 
@@ -41,7 +41,8 @@ const PLATFORM_CONFIGS = {
     detect: function() {
       return detectPlatformMultiLayer(this.detection);
     },
-    buttonBar: {
+    launcher: {
+      text: 'EchoMem',
       containerSelector: '.MuiPaper-root',
       validateSelectors: {
         textarea: 'textarea[id^="_r_"]',
@@ -50,24 +51,24 @@ const PLATFORM_CONFIGS = {
       style: {
         display: 'flex',
         gap: '8px',
-        padding: '8px 12px',
-        borderTop: '1px solid #e0e0e0',
+        padding: '0 12px 8px',
         background: 'rgb(255, 251, 254)',
         alignItems: 'center',
-        flexWrap: 'wrap'
+        justifyContent: 'flex-start'
       },
-      insertPosition: 'after'
+      insertPosition: 'before'
     },
     panel: {
       type: 'sidebar',
       containerSelector: '.MuiDrawer-anchorRight .MuiDrawer-paper',
       overlayConfig: null
     },
-    buttons: [
-      { text: '资源管理', panel: '资源管理' },
-      { text: '输入联想', panel: '输入联想' },
-      { text: '认知反馈', panel: '认知反馈' },
-      { text: 'skill商店', panel: 'skill商店' }
+    menuItems: [
+      { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
+      { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
+      { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
+      { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
+      { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
     ]
   },
 
@@ -92,14 +93,12 @@ const PLATFORM_CONFIGS = {
     detect: function() {
       return detectPlatformMultiLayer(this.detection);
     },
-    buttonBar: {
-      containerSelector: '._24fad49',
+    launcher: {
+      text: 'EchoMem',
+      containerSelector: '._77cefa5, ._24fad49',
       validateSelectors: {
         textarea: 'textarea[placeholder*="DeepSeek"]'
       },
-      // 插入到深度思考/智能搜索行之后
-      insertAfter: '._020ab5b',
-      // 动态获取背景色
       getBackgroundColor: () => {
         const inputArea = document.querySelector('._77cefa5');
         if (inputArea) {
@@ -113,12 +112,11 @@ const PLATFORM_CONFIGS = {
       style: {
         display: 'flex',
         gap: '8px',
-        padding: '8px 12px',
-        borderTop: '1px solid #e0e0e0',
+        padding: '0 12px 8px',
         alignItems: 'center',
-        flexWrap: 'wrap'
+        justifyContent: 'flex-start'
       },
-      insertPosition: 'after'
+      insertPosition: 'before'
     },
     panel: {
       type: 'overlay',
@@ -129,11 +127,12 @@ const PLATFORM_CONFIGS = {
         backdrop: true
       }
     },
-    buttons: [
-      { text: '资源管理', panel: '资源管理' },
-      { text: '输入联想', panel: '输入联想' },
-      { text: '认知反馈', panel: '认知反馈' },
-      { text: 'skill商店', panel: 'skill商店' }
+    menuItems: [
+      { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
+      { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
+      { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
+      { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
+      { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
     ]
   }
 };
@@ -366,7 +365,7 @@ panel: {
 │  │                 │  │  └───────────┘   │  │
 │  └─────────────────┘  └─────────────────┘  │
 │       ↑                                     │
-│  按钮栏                                     │
+│  EchoMem 入口                               │
 └─────────────────────────────────────────────┘
 ```
 
@@ -386,13 +385,13 @@ panel: {
 │  │                 │   │  │          │  │   │
 │  └─────────────────┘   │  └──────────┘  │   │
 │       ↑                └──────────────┘   │
-│  按钮栏（在顶部工具栏）                       │
+│  EchoMem 入口（在输入框外部上方）              │
 └─────────────────────────────────────────────┘
 ```
 
-## 6. 按钮注入流程
+## 6. EchoMem 入口注入流程
 
-检测通过后，进入按钮注入阶段：
+检测通过后，进入 EchoMem 入口注入阶段：
 
 ```
 平台检测通过
@@ -402,25 +401,21 @@ addCustomButtons()
     │
     ├── 获取平台配置（currentPlatform）
     │
-    ├── 查找容器（buttonBar.containerSelector）
+    ├── 查找容器（launcher.containerSelector）
     │       └── 遍历所有匹配元素
     │
-    ├── 验证容器（buttonBar.validateSelectors）
+    ├── 验证容器（launcher.validateSelectors）
     │       ├── 包含 textarea[id^="_r_"]
     │       └── 包含 [data-testid="ArrowUpwardIcon"]
     │
-    ├── 创建按钮栏（应用 buttonBar.style）
-    │       ├── 背景色：rgb(255, 251, 254)
-    │       ├── 边框：1px solid #e0e0e0
+    ├── 创建入口栏（应用 launcher.style）
+    │       ├── 背景色：平台配置或 getBackgroundColor()
     │       └── 布局：flex, gap: 8px
     │
-    ├── 创建按钮（config.buttons）
-    │       ├── 资源管理
-    │       ├── 输入联想
-    │       ├── 认知反馈
-    │       └── skill商店
+    ├── 创建单个入口按钮
+    │       └── EchoMem
     │
-    └── 插入到指定位置（buttonBar.insertPosition）
+    └── 插入到指定位置（launcher.insertPosition）
             ├── 'after' → 容器后面
             ├── 'before' → 容器前面
             └── 'append' → 容器内部末尾
@@ -494,7 +489,7 @@ Claw Extension: 平台检测未通过 - 缺少必要DOM: MUI 抽屉组件
 ```
 Claw Extension: 平台检测全部通过: ✓ URL匹配 | ✓ 标题关键字匹配 | ✓ 必要DOM元素全部存在 | ✓ 可选DOM特征匹配 | ✓ 页面内容关键字匹配
 Claw Extension: Detected platform - HIGO Office
-Claw Extension: Custom buttons added for HIGO Office
+Claw Extension: EchoMem launcher added for HIGO Office
 ```
 
 ## 10. 扩展新平台
@@ -520,7 +515,8 @@ Claw Extension: Custom buttons added for HIGO Office
   detect: function() {
     return detectPlatformMultiLayer(this.detection);
   },
-  buttonBar: {
+  launcher: {
+    text: 'EchoMem',
     containerSelector: '.input-wrapper',
     validateSelectors: {
       textarea: 'textarea',
@@ -529,20 +525,21 @@ Claw Extension: Custom buttons added for HIGO Office
     style: {
       display: 'flex',
       gap: '8px',
-      padding: '8px 12px'
+      padding: '0 12px 8px'
     },
-    insertPosition: 'after'
+    insertPosition: 'before'
   },
   panel: {
     type: 'sidebar',
     containerSelector: '.sidebar',
     overlayConfig: null
   },
-  buttons: [
-    { text: '资源管理', panel: '资源管理' },
-    { text: '输入联想', panel: '输入联想' },
-    { text: '认知反馈', panel: '认知反馈' },
-    { text: 'skill商店', panel: 'skill商店' }
+  menuItems: [
+    { text: '资源管理', panel: '资源管理', description: '管理文件资源与上传内容' },
+    { text: '输入联想', panel: '输入联想', description: '开启或关闭智能联想' },
+    { text: '认知反馈', panel: '认知反馈', description: '查看会话分析与反馈报告' },
+    { text: 'skill商店', panel: 'skill商店', description: '浏览、上传、安装 Skill' },
+    { text: '效能', panel: '效能', description: '查看使用效率与工作表现' }
   ]
 }
 ```
@@ -568,8 +565,9 @@ Claw Extension: Custom buttons added for HIGO Office
   detect: function() {
     return detectPlatformMultiLayer(this.detection);
   },
-  // 按钮插入到顶部工具栏
-  buttonBar: {
+  // EchoMem 入口插入到顶部工具栏
+  launcher: {
+    text: 'EchoMem',
     containerSelector: '.toolbar',
     validateSelectors: {
       toolbar: '.toolbar-items'
@@ -591,12 +589,13 @@ Claw Extension: Custom buttons added for HIGO Office
       backdrop: true          // 显示遮罩层
     }
   },
-  // 自定义按钮文字
-  buttons: [
-    { text: '文件', panel: '资源管理' },
-    { text: '联想', panel: '输入联想' },
-    { text: '反馈', panel: '认知反馈' },
-    { text: '商店', panel: 'skill商店' }
+  // 自定义功能导航文案
+  menuItems: [
+    { text: '文件', panel: '资源管理', description: '管理文件资源' },
+    { text: '联想', panel: '输入联想', description: '开启或关闭智能联想' },
+    { text: '反馈', panel: '认知反馈', description: '查看会话分析' },
+    { text: '商店', panel: 'skill商店', description: '浏览和管理 Skill' },
+    { text: '效能', panel: '效能', description: '查看效率概览' }
   ]
 }
 ```
@@ -606,20 +605,22 @@ Claw Extension: Custom buttons added for HIGO Office
 | 配置项 | 说明 | 示例 |
 |--------|------|------|
 | `detection` | 4层检测配置 | urlPatterns, titleKeywords, domFeatures, contentKeywords |
-| `buttonBar.containerSelector` | 按钮栏插入的容器 | `.MuiPaper-root`, `.toolbar` |
-| `buttonBar.validateSelectors` | 验证容器的选择器 | `{ textarea: 'textarea', sendButton: '.send-btn' }` |
-| `buttonBar.insertAfter` | 插入到指定元素之后（优先级高于 insertPosition） | `'._020ab5b'` |
-| `buttonBar.getBackgroundColor` | 动态获取背景色函数 | `() => '#fff'` |
-| `buttonBar.insertPosition` | 插入位置 | `'after'`, `'before'`, `'append'` |
+| `launcher.text` | 入口按钮文字 | `EchoMem` |
+| `launcher.containerSelector` | 入口插入的容器 | `.MuiPaper-root`, `.toolbar` |
+| `launcher.validateSelectors` | 验证容器的选择器 | `{ textarea: 'textarea', sendButton: '.send-btn' }` |
+| `launcher.insertAfter` | 插入到指定元素之后（优先级高于 insertPosition） | `'._020ab5b'` |
+| `launcher.getBackgroundColor` | 动态获取入口栏背景色函数 | `() => '#fff'` |
+| `launcher.insertPosition` | 插入位置 | `'after'`, `'before'`, `'append'` |
 | `panel.type` | 面板类型 | `'sidebar'` 或 `'overlay'` |
 | `panel.containerSelector` | sidebar 容器选择器 | `.MuiDrawer-paper` |
 | `panel.overlayConfig` | overlay 配置 | `{ position, width, backdrop }` |
-| `buttons` | 按钮列表 | `{ text, panel }` |
+| `menuItems` | EchoMem 功能导航列表 | `{ text, panel, description }` |
 
 ## 11. 文件位置
 
-- 平台配置：`/content.js`（第 11-155 行）
-- 检测系统实现：`/content.js`（第 158-237 行）
-- 面板系统实现：`/content.js`（第 254-614 行）
-- 按钮注入实现：`/content.js`（第 1178-1321 行）
+- 平台配置：`/content.js`
+- 检测系统实现：`/content.js`
+- 面板系统实现：`/content.js`
+- EchoMem 入口注入实现：`/content.js`
+- 模块化源码镜像：`/src/core/*`, `/src/platforms/*`, `/src/panels/*`
 - 本设计文档：`/docs/design/platform-detection.md`

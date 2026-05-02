@@ -178,6 +178,9 @@ const echomemMenuItems = [
 │ ┌────────┐ ┌────────┐       │
 │ │ 联想 0 │ │ 资源 0 │       │
 │ └────────┘ └────────┘       │
+│ ┌────────┐                  │
+│ │ 报告 0 │                  │
+│ └────────┘                  │
 │                              │
 │ 最近状态                     │
 │ 暂无效能数据                 │
@@ -186,7 +189,7 @@ const echomemMenuItems = [
 
 ## 7. 配置模型调整
 
-当前平台配置使用 `buttonBar` 和 `buttons` 描述多按钮栏。新设计建议改为 `launcher` 和 `menuItems`。
+旧版平台配置使用 `buttonBar` 和 `buttons` 描述多按钮栏。当前实现已改为 `launcher` 和 `menuItems`。
 
 ```javascript
 launcher: {
@@ -211,7 +214,7 @@ menuItems: [
 ]
 ```
 
-为了降低改动风险，也可以第一阶段保留 `buttonBar` 命名，仅把实现从“创建多个按钮”调整为“创建一个 launcher”。但长期看，`launcher/menuItems` 更符合新结构。
+当前运行入口仍兼容读取 `buttonBar`，但正式配置应优先使用 `launcher/menuItems`。
 
 ## 8. 代码影响范围
 
@@ -225,7 +228,9 @@ menuItems: [
 | `src/panels/performance.js` | 新增「效能」面板内容 |
 | `src/platforms/higo.js` | 将 4 个按钮配置调整为 `EchoMem` launcher 与 5 个菜单项 |
 | `src/platforms/deepseek.js` | 同步配置；无原生右侧栏时继续使用 overlay 模式 |
-| `content.js` | 如果仍作为旧版打包入口，需要同步相同逻辑或确认废弃 |
+| `content.js` | 当前 Manifest 实际加载的运行入口，需要同步相同逻辑 |
+
+> 当前项目没有构建步骤，Chrome 通过 `manifest.json` 直接加载根目录的 `content.js`。`src/` 目录是模块化源码镜像；修改运行行为时，需要优先修改 `content.js`，并同步维护 `src/` 中对应模块，或后续明确切换到构建/打包流程。
 
 ## 9. 兼容策略
 

@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **Chrome Extension (Manifest V3)** project called "Claw Web Extension". It is a browser extension for web automation and data extraction that can be loaded directly into Chrome in developer mode.
+This is a **Chrome Extension (Manifest V3)** project called "EchoMem Web Extension". It enhances supported Claw/AI chat workflows by injecting a single `EchoMem` launcher near the chat input. The launcher opens a right-side navigation panel for resources, input association, cognitive feedback, Skill store, and productivity overview features.
+
+Currently supported platforms:
+- HIGO Office
+- DeepSeek
 
 ## Loading the Extension in Chrome
 
@@ -26,7 +30,8 @@ claw-web-extension/
 ├── content.js             # Content script injected into web pages
 ├── content.css            # Styles injected into web pages
 ├── icons/                 # Extension icons (16x16, 48x48, 128x128)
-└── assets/                # Web-accessible resources
+├── src/                   # Modular source mirror / future structure
+└── docs/                  # Design documents
 ```
 
 ## Key Architecture
@@ -34,19 +39,25 @@ claw-web-extension/
 ### Manifest V3
 - Uses `manifest_version: 3`
 - Background script runs as a **service worker** (event-based, not persistent)
-- Content scripts inject into all URLs via `<all_urls>`
+- Content scripts inject into all URLs via `<all_urls>`, then platform detection gates EchoMem UI injection
 - Permissions: `activeTab`, `storage`, `scripting`
 
+### Runtime Entry
+- Chrome currently loads root-level `content.js` directly from `manifest.json`.
+- The `src/` modules mirror the same architecture, but they are not loaded by Chrome unless a build step or manifest change is added.
+- Runtime behavior changes must be made in `content.js`; if keeping the modular copy useful, mirror the same change in `src/`.
+
 ### Communication Flow
-- **Popup** (`popup.js`) communicates with **Content Scripts** via `chrome.scripting.executeScript()`
-- **Popup/Content** can send messages to **Background** via `chrome.runtime.sendMessage()`
-- **Background** listens via `chrome.runtime.onMessage.addListener()`
+- **Popup** (`popup.js`) is currently an information-only UI.
+- **Content Script** (`content.js`) injects the EchoMem launcher and panels on supported pages.
+- **Background** (`background.js`) initializes storage and exposes basic message handlers such as `getTabInfo` and `saveToHistory`.
 
 ### Data Flow
-1. User clicks button in popup
-2. Popup calls `chrome.scripting.executeScript()` to run code in the active tab
-3. Content script or injected function extracts data from the DOM
-4. Results are displayed in the popup UI
+1. Content script observes DOM changes with `MutationObserver`
+2. Platform detection checks URL, title, DOM features, and content keywords
+3. On supported pages, the script injects one `EchoMem` launcher near the chat input
+4. Clicking the launcher opens a right-side sidebar or overlay panel
+5. Menu items open the corresponding feature panels, with back navigation to the EchoMem home panel
 
 ## Common Development Tasks
 
@@ -73,14 +84,18 @@ If you need new permissions (e.g., `tabs`, `bookmarks`), add them to `manifest.j
 ## Extension Capabilities
 
 Current features implemented:
-- **Get Page Info**: Extracts title, URL, meta description, keywords, H1, link count, image count
-- **Extract Links**: Scrapes all anchor tags (text + href) from the current page
-- **Extract Images**: Scrapes all images (src, alt, dimensions) from the current page
-- **Copy Results**: Copies extracted data to clipboard
+- **EchoMem Launcher**: A single launcher button near the chat input
+- **Feature Navigation**: Right-side EchoMem home panel with 5 feature entries
+- **Resource Management**: Placeholder upload area and resource list
+- **Input Association**: Toggleable on/off state panel
+- **Cognitive Feedback**: Placeholder session stats and report action
+- **Skill Store**: Store home and detail pages with back navigation
+- **Productivity Overview**: Placeholder usage metrics and empty state
 
 ## Notes
 
-- No build step required — this is a vanilla JavaScript extension
+- No build step required — this is a vanilla JavaScript extension loaded from root files
 - No package manager (npm/yarn) is used
+- Keep `content.js` and the `src/` mirror in sync when changing runtime logic, or explicitly decide to deprecate one of them
 - Icons directory (`icons/`) needs PNG files: `icon16.png`, `icon48.png`, `icon128.png`
 - The extension uses Chinese (zh-CN) UI text
