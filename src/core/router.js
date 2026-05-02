@@ -19,7 +19,7 @@ import {
   bindToggleButton,
   getInputAssociationContent,
   toggleInputAssociation
-} from '../panels/association.js';
+} from '../panels/association/index.js';
 
 const skillStoreRoutes = {
   history: {

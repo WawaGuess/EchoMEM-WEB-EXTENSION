@@ -543,7 +543,7 @@
     return (container == null ? void 0 : container.querySelector(".claw-custom-panel-body")) || null;
   }
 
-  // src/panels/resource.js
+  // src/panels/resource/index.js
   function getResourceContent() {
     return `
     <div style="color: #666;">
@@ -572,7 +572,7 @@
   `;
   }
 
-  // src/panels/association.js
+  // src/panels/association/index.js
   function getInputAssociationContent() {
     const inputAssociationEnabled = getAssociationEnabled();
     const btnText = inputAssociationEnabled ? "\u5173\u95ED\u8054\u60F3" : "\u786E\u8BA4\u5F00\u542F";
@@ -647,7 +647,7 @@
     }
   }
 
-  // src/panels/feedback.js
+  // src/panels/feedback/index.js
   function getFeedbackContent() {
     return `
     <div style="color: #666;">
@@ -687,7 +687,7 @@
   `;
   }
 
-  // src/panels/performance.js
+  // src/panels/performance/index.js
   function getPerformanceContent() {
     const metrics = [
       { label: "\u4ECA\u65E5\u4F1A\u8BDD", value: "0" },
@@ -733,7 +733,7 @@
   `;
   }
 
-  // src/panels/skill-store.js
+  // src/panels/skill-store/index.js
   function getSkillStoreHomeContent() {
     const sections = [
       { id: "history", title: "\u{1F4DC} \u7528\u6237\u5386\u53F2 Skill", desc: "\u67E5\u770B\u548C\u7BA1\u7406\u4F60\u4F7F\u7528\u8FC7\u7684 Skill", color: "#667eea" },
@@ -1148,7 +1148,7 @@
     return panel ? panel.render() : "<p>\u6682\u65E0\u5185\u5BB9</p>";
   }
 
-  // src/panels/echomem.js
+  // src/panels/echomem/index.js
   function getEchoMemMenuItems() {
     var _a;
     const platform = getCurrentPlatform();

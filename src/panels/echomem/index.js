@@ -1,5 +1,5 @@
-import { getCurrentPlatform } from '../core/detection.js';
-import { getPanelDefinition } from './registry.js';
+import { getCurrentPlatform } from '../../core/detection.js';
+import { getPanelDefinition } from '../registry.js';
 
 export function getEchoMemMenuItems() {
   const platform = getCurrentPlatform();

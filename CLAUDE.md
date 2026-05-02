@@ -34,7 +34,7 @@ EchoMEM-WEB-EXTENSION/
 ├── src/                   # Modular content script source
 │   ├── entry/             # Content script source entry
 │   ├── core/              # Detection, injection, routing, state, panel host
-│   ├── panels/            # EchoMem feature panels
+│   ├── panels/            # EchoMem feature panel modules
 │   ├── platforms/         # Platform registry and configs
 │   └── services/          # Chrome API wrappers
 └── docs/                  # Documentation index, current design, architecture, and legacy docs
@@ -110,6 +110,10 @@ Current features implemented:
 - **Cognitive Feedback**: Placeholder session stats and report action
 - **Skill Store**: Store home and detail pages with back navigation
 - **Productivity Overview**: Placeholder usage metrics and empty state
+
+Feature panel source modules live under `src/panels/` as one directory per primary EchoMem entry:
+`echomem/`, `resource/`, `association/`, `feedback/`, `skill-store/`, and `performance/`.
+Keep new subfeatures inside the corresponding feature directory unless they become shared runtime services.
 
 ## Notes
 

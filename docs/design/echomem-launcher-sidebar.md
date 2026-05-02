@@ -226,7 +226,7 @@ menuItems: [
 | `src/core/panel-host.js` | 承载 sidebar / overlay 面板，负责打开、关闭和恢复 |
 | `src/core/router.js` | 统一处理 EchoMem 首页、功能详情和 Skill 商店子页面导航 |
 | `src/panels/registry.js` | 注册功能面板和稳定 `panelId` |
-| `src/panels/performance.js` | 新增「效能」面板内容 |
+| `src/panels/performance/` | 新增「效能」面板内容 |
 | `src/platforms/higo.js` | 配置 `EchoMem` launcher、sidebar panelHost 与 5 个菜单项 |
 | `src/platforms/deepseek.js` | 配置 `EchoMem` launcher、overlay panelHost 与 5 个菜单项 |
 | `src/entry/content.js` | 内容脚本源码入口 |

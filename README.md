@@ -65,7 +65,7 @@ EchoMEM-WEB-EXTENSION/
 ├── src/                   # 模块化源码
 │   ├── entry/             # 内容脚本源码入口
 │   ├── core/              # 检测、注入、路由、状态和面板承载
-│   ├── panels/            # EchoMem 功能面板
+│   ├── panels/            # EchoMem 功能面板目录模块
 │   ├── platforms/         # 平台配置注册
 │   └── services/          # Chrome API 服务封装
 ├── docs/                  # 文档索引、现行设计、架构说明和历史归档
@@ -89,12 +89,24 @@ EchoMEM-WEB-EXTENSION/
 | `src/entry/` | 内容脚本源码入口，当前入口为 `src/entry/content.js` |
 | `src/core/` | 核心运行逻辑，包括平台检测、入口注入、DOM 监听、路由、状态和面板承载 |
 | `src/platforms/` | 平台配置注册，目前包含 HIGO Office 和 DeepSeek |
-| `src/panels/` | EchoMem 功能面板和面板注册表，包括资源管理、输入联想、认知反馈、Skill 商店、效能 |
+| `src/panels/` | EchoMem 功能面板和面板注册表；每个主功能入口使用独立目录，便于继续拆分子功能 |
 | `src/services/` | Chrome API 服务封装，预留消息和存储能力 |
 | `icons/` | 扩展图标资源 |
 | `docs/` | 文档目录，包含现行设计、架构说明、方案记录和历史归档 |
 
 运行逻辑修改应优先改 `src/`，再执行 `npm run build` 生成新的 `dist/content.js`。
+
+### 面板目录说明
+
+| 路径 | 对应入口 | 说明 |
+|------|----------|------|
+| `src/panels/registry.js` | 面板注册 | 维护稳定 `panelId`、标题、描述和渲染函数映射 |
+| `src/panels/echomem/` | EchoMem 首页 | 展示主功能导航入口 |
+| `src/panels/resource/` | 资源管理 | 资源上传区域和资源列表入口 |
+| `src/panels/association/` | 输入联想 | 输入联想开关和状态展示 |
+| `src/panels/feedback/` | 认知反馈 | 会话分析和反馈报告入口 |
+| `src/panels/skill-store/` | Skill 商店 | Skill 浏览、上传、购买、商家和安装管理 |
+| `src/panels/performance/` | 效能 | 使用效率指标和状态概览 |
 
 ## 使用说明
 

@@ -1,6 +1,6 @@
 // 输入联想面板内容
 
-import { getAssociationEnabled, toggleAssociationEnabled } from '../core/state.js';
+import { getAssociationEnabled, toggleAssociationEnabled } from '../../core/state.js';
 
 export function getInputAssociationContent() {
   const inputAssociationEnabled = getAssociationEnabled();

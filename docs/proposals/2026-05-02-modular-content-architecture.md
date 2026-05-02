@@ -69,11 +69,12 @@ src/
 │   └── deepseek.js
 ├── panels/
 │   ├── registry.js
-│   ├── resources.js
-│   ├── association.js
-│   ├── feedback.js
-│   ├── skill-store.js
-│   └── performance.js
+│   ├── echomem/
+│   ├── resource/
+│   ├── association/
+│   ├── feedback/
+│   ├── skill-store/
+│   └── performance/
 ├── services/
 │   ├── messaging.js
 │   └── storage.js
@@ -168,7 +169,7 @@ export const panelRegistry = {
 
 这样后续新增功能面板只需要：
 
-1. 新增 `src/panels/new-feature.js`。
+1. 新增 `src/panels/new-feature/index.js`。
 2. 在 `panelRegistry` 注册。
 3. 在平台 `menuItems` 中加入 `{ panelId: 'newFeature' }`。
 

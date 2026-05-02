@@ -1,8 +1,8 @@
-import { getResourceContent } from './resource.js';
-import { getInputAssociationContent } from './association.js';
-import { getFeedbackContent } from './feedback.js';
-import { getPerformanceContent } from './performance.js';
-import { getSkillStoreHomeContent } from './skill-store.js';
+import { getResourceContent } from './resource/index.js';
+import { getInputAssociationContent } from './association/index.js';
+import { getFeedbackContent } from './feedback/index.js';
+import { getPerformanceContent } from './performance/index.js';
+import { getSkillStoreHomeContent } from './skill-store/index.js';
 
 export const panelRegistry = {
   resources: {
