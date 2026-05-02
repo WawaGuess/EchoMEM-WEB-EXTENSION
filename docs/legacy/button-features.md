@@ -1,6 +1,6 @@
 # Claw Extension 按钮功能实现细节文档
 
-> 注意：本文记录的是旧版「输入框下方 4 个功能按钮」实现细节。当前交互已切换为 `EchoMem` 单入口按钮 + 右侧功能导航，当前方案见 [echomem-launcher-sidebar.md](./echomem-launcher-sidebar.md)。
+> 注意：本文记录的是旧版「输入框下方 4 个功能按钮」实现细节。当前交互已切换为 `EchoMem` 单入口按钮 + 右侧功能导航，当前方案见 [echomem-launcher-sidebar.md](../design/echomem-launcher-sidebar.md)。
 
 ## 1. 概述
 
@@ -787,4 +787,4 @@ if (panelConfig.type === 'overlay') {
 - 认知反馈内容：`/content.js`（第 645-680 行）
 - 输入联想内容：`/content.js`（第 741-806 行）
 - Skill 商店实现：`/content.js`（第 688-1162 行）
-- 本设计文档：`/docs/design/button-features.md`
+- 本设计文档：`/docs/legacy/button-features.md`

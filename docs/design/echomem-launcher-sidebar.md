@@ -2,7 +2,7 @@
 
 ## 1. 背景
 
-当前 Claw Extension 会在聊天输入框下方注入 4 个功能按钮：
+旧版 EchoMem Web Extension 会在聊天输入框下方注入 4 个功能按钮：
 
 - 资源管理
 - 输入联想

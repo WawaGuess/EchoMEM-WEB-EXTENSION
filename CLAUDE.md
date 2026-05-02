@@ -15,13 +15,13 @@ Currently supported platforms:
 1. Open Chrome and navigate to `chrome://extensions/`
 2. Enable "Developer mode" (toggle in top-right corner)
 3. Click "Load unpacked"
-4. Select this project directory (`claw-web-extension/`)
+4. Select this project directory (`EchoMEM-WEB-EXTENSION/`)
 5. The extension icon will appear in the Chrome toolbar
 
 ## Project Structure
 
 ```
-claw-web-extension/
+EchoMEM-WEB-EXTENSION/
 ├── manifest.json          # Extension manifest (Manifest V3)
 ├── popup.html             # Popup UI markup
 ├── popup.css              # Popup styles
@@ -31,7 +31,11 @@ claw-web-extension/
 ├── content.css            # Styles injected into web pages
 ├── icons/                 # Extension icons (16x16, 48x48, 128x128)
 ├── src/                   # Modular source mirror / future structure
-└── docs/                  # Design documents
+└── docs/                  # Documentation index, current design, architecture, and legacy docs
+    ├── architecture/      # Platform detection and runtime architecture
+    ├── design/            # Current interaction design
+    ├── proposals/         # Draft, discussion, and validation plans
+    └── legacy/            # Historical 4-button design records
 ```
 
 ## Key Architecture
@@ -46,6 +50,14 @@ claw-web-extension/
 - Chrome currently loads root-level `content.js` directly from `manifest.json`.
 - The `src/` modules mirror the same architecture, but they are not loaded by Chrome unless a build step or manifest change is added.
 - Runtime behavior changes must be made in `content.js`; if keeping the modular copy useful, mirror the same change in `src/`.
+
+### Documentation Maintenance
+- Do not re-audit every document after each code change.
+- Use `docs/proposals/` for draft or unconfirmed feature/architecture plans.
+- Update `docs/design/` only when accepted user-facing behavior, entry points, interaction flow, or acceptance criteria change.
+- Update `docs/architecture/` only when runtime entry, platform detection, injection flow, data flow, or structural decisions change.
+- Move replaced but useful records to `docs/legacy/`; keep legacy docs as historical references rather than current truth.
+- Update `docs/README.md` only when adding, moving, deleting, or reclassifying documentation.
 
 ### Communication Flow
 - **Popup** (`popup.js`) is currently an information-only UI.

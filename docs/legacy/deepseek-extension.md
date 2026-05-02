@@ -1,6 +1,6 @@
 # DeepSeek 平台扩展支持设计文档
 
-> 注意：本文记录的是 DeepSeek 旧版「4 个功能按钮」接入设计。当前交互已切换为 `EchoMem` 单入口按钮 + 右侧功能导航，当前方案见 [echomem-launcher-sidebar.md](./echomem-launcher-sidebar.md)。
+> 注意：本文记录的是 DeepSeek 旧版「4 个功能按钮」接入设计。当前交互已切换为 `EchoMem` 单入口按钮 + 右侧功能导航，当前方案见 [echomem-launcher-sidebar.md](../design/echomem-launcher-sidebar.md)。
 
 ## 1. 概述
 
@@ -193,7 +193,7 @@ DeepSeek 为活跃开发中的产品，DOM 结构可能调整。
 
 ## 7. 旧版验证计划（已过期）
 
-旧版 4 按钮方案实现后曾计划验证以下场景；当前 EchoMem 单入口方案的验收标准见 [echomem-launcher-sidebar.md](./echomem-launcher-sidebar.md)。
+旧版 4 按钮方案实现后曾计划验证以下场景；当前 EchoMem 单入口方案的验收标准见 [echomem-launcher-sidebar.md](../design/echomem-launcher-sidebar.md)。
 
 1. **检测验证**：访问 `https://chat.deepseek.com/a/chat/s/xxx`，控制台输出 `平台检测全部通过`
 2. **按钮注入**：聊天输入框下方出现 4 个按钮（旧版方案）

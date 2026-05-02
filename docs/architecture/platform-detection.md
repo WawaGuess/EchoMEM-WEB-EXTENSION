@@ -1,10 +1,10 @@
-# Claw Extension 平台检测系统设计文档
+# EchoMem 平台检测系统设计文档
 
-> 注意：当前 UI 入口使用 `launcher/menuItems` 配置。旧版 `buttonBar/buttons` 方案仅保留在 legacy 文档中，当前交互方案见 [echomem-launcher-sidebar.md](./echomem-launcher-sidebar.md)。
+> 注意：当前 UI 入口使用 `launcher/menuItems` 配置。旧版 `buttonBar/buttons` 方案仅保留在 legacy 文档中，当前交互方案见 [echomem-launcher-sidebar.md](../design/echomem-launcher-sidebar.md)。
 
 ## 1. 概述
 
-Claw Extension 采用多层平台检测机制，确保只在目标网站的特定页面注入增强功能。检测系统通过 4 层验证，全部满足才判定为目标平台。目前已支持 HIGO Office 和 DeepSeek 两个平台。
+EchoMem Web Extension 采用多层平台检测机制，确保只在目标网站的特定页面注入增强功能。检测系统通过 4 层验证，全部满足才判定为目标平台。目前已支持 HIGO Office 和 DeepSeek 两个平台。
 
 ## 2. 设计目标
 
@@ -372,7 +372,7 @@ panel: {
 **Overlay 模式（右侧滑出）**：
 ```
 ┌─────────────────────────────────────────────┐
-│  Another Claw 页面                           │
+│  无原生右侧栏页面（如 DeepSeek）               │
 │                                             │
 │  ┌─────────────────┐                        │
 │  │   聊天消息区域    │   ┌──────────────┐   │
@@ -623,4 +623,5 @@ Claw Extension: EchoMem launcher added for HIGO Office
 - 面板系统实现：`/content.js`
 - EchoMem 入口注入实现：`/content.js`
 - 模块化源码镜像：`/src/core/*`, `/src/platforms/*`, `/src/panels/*`
-- 本设计文档：`/docs/design/platform-detection.md`
+- 本设计文档：`/docs/architecture/platform-detection.md`
+- 检测流程图：`/docs/architecture/detection-flow.mmd`

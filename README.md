@@ -48,7 +48,7 @@
 ## 项目结构
 
 ```
-claw-web-extension/
+EchoMEM-WEB-EXTENSION/
 ├── manifest.json          # 扩展配置文件（Manifest V3）
 ├── popup.html             # 弹窗界面
 ├── popup.css              # 弹窗样式
@@ -60,6 +60,13 @@ claw-web-extension/
 │   ├── icon16.png
 │   ├── icon48.png
 │   └── icon128.png
+├── src/                   # 模块化源码镜像 / 未来结构
+├── docs/                  # 文档索引、现行设计、架构说明和历史归档
+│   ├── README.md
+│   ├── architecture/
+│   ├── design/
+│   ├── proposals/
+│   └── legacy/
 └── README.md              # 本文件
 ```
 
