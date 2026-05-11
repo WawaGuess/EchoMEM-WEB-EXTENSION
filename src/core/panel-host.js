@@ -149,7 +149,7 @@ function buildPanelHeader(title, showBack, onBack) {
   }
 }
 
-function bindPanelEvents(container, showBack, onBack) {
+function bindPanelEvents(container, showBack, onBack, closeMode = 'restore') {
   if (showBack) {
     const backBtn = container.querySelector('.claw-back-btn');
     if (backBtn) {
@@ -178,7 +178,11 @@ function bindPanelEvents(container, showBack, onBack) {
     closeBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      restoreOriginalPanel();
+      if (closeMode === 'overlay-only') {
+        closeOverlayPanel();
+      } else {
+        restoreOriginalPanel();
+      }
     });
   }
 }
@@ -316,55 +320,128 @@ function createOverlayPanel(panelHtml, overlayConfig) {
   currentOverlayPanel = overlay;
 }
 
-export function restoreOriginalPanel() {
-  const platform = getCurrentPlatform();
-  if (!platform) return;
+/**
+ * 仅关闭当前 overlay 浮层，不恢复 sidebar
+ * 如果有 _previousOverlay，则恢复它
+ */
+export function closeOverlayPanel() {
+  const overlayToClose = currentOverlayPanel;
+  const previousOverlay = overlayToClose?._previousOverlay;
 
-  const panelConfig = getPanelConfig(platform);
-  if (!panelConfig) return;
-
-  if (panelConfig.type === 'sidebar') {
-    const container = document.querySelector(panelConfig.containerSelector);
-    if (container && originalPanelContent) {
-      container.innerHTML = originalPanelContent;
-      isCustomPanelOpen = false;
-      setPanelOpen(false);
-      console.log('Claw Extension: Sidebar panel restored');
-    }
-  } else if (panelConfig.type === 'overlay') {
-    if (currentOverlayPanel) {
-      const position = panelConfig.overlayConfig?.position || 'right';
-
-      if (position === 'right') {
-        currentOverlayPanel.style.transform = 'translateX(100%)';
-      } else if (position === 'left') {
-        currentOverlayPanel.style.transform = 'translateX(-100%)';
-      } else if (position === 'center') {
-        currentOverlayPanel.style.transform = 'translate(-50%, -50%) scale(0.9)';
-        currentOverlayPanel.style.opacity = '0';
-      }
-
-      setTimeout(() => {
-        if (currentOverlayPanel) {
-          currentOverlayPanel.remove();
-          currentOverlayPanel = null;
-        }
-      }, 300);
-    }
-
-    // 移除所有遮罩层
-    document.querySelectorAll('.claw-overlay-backdrop').forEach(b => {
-      b.style.opacity = '0';
-      setTimeout(() => b.remove(), 300);
-    });
-
+  // 1. 先恢复之前的 overlay（如果有）
+  if (previousOverlay) {
+    previousOverlay.style.display = '';
+    currentOverlayPanel = previousOverlay;
+    isCustomPanelOpen = true;
+    setPanelOpen(true);
+    console.log('Claw Extension: Restored previous overlay');
+  } else {
+    currentOverlayPanel = null;
     isCustomPanelOpen = false;
     setPanelOpen(false);
-    console.log('Claw Extension: Overlay panel closed');
+  }
+
+  // 2. 关闭当前浮层（动画 + 移除）
+  if (overlayToClose) {
+    const transform = overlayToClose.style.transform;
+    if (transform && transform.includes('translateX(0)')) {
+      const isRight = overlayToClose.style.right === '0px' || overlayToClose.style.right === '';
+      overlayToClose.style.transform = isRight ? 'translateX(100%)' : 'translateX(-100%)';
+    } else {
+      overlayToClose.style.transform = 'translate(-50%, -50%) scale(0.9)';
+      overlayToClose.style.opacity = '0';
+    }
+
+    setTimeout(() => {
+      overlayToClose.remove();
+    }, 300);
+  }
+
+  // 3. 移除遮罩层
+  document.querySelectorAll('.claw-overlay-backdrop').forEach(b => {
+    b.style.opacity = '0';
+    setTimeout(() => b.remove(), 300);
+  });
+}
+
+export function restoreOriginalPanel() {
+  // 1. 关闭 overlay 浮层
+  closeOverlayPanel();
+
+  // 2. 恢复 sidebar 内容
+  const platform = getCurrentPlatform();
+  if (platform) {
+    const panelConfig = getPanelConfig(platform);
+    if (panelConfig && panelConfig.type === 'sidebar') {
+      const container = document.querySelector(panelConfig.containerSelector);
+      if (container && originalPanelContent) {
+        container.innerHTML = originalPanelContent;
+        console.log('Claw Extension: Sidebar panel restored');
+      }
+    }
   }
 }
 
 export function getPanelBodyElement() {
   const container = getPanelContainer();
   return container?.querySelector('.claw-custom-panel-body') || null;
+}
+
+/**
+ * 打开居中、大尺寸的浮动窗口（用于认知反馈图谱等全屏展示场景）
+ * 不依赖 platform config，直接创建居中 overlay
+ */
+export function openCenterOverlay(title, contentHtml, options = {}) {
+  const { showBack = false, onBack = null } = options;
+
+  // 保存当前可能存在的 EchoMem overlay 面板（DeepSeek 场景）
+  const existingOverlay = currentOverlayPanel;
+  if (existingOverlay) {
+    // 暂时隐藏已有的 overlay，而不是删除它
+    existingOverlay.style.display = 'none';
+    currentOverlayPanel = null;
+  }
+
+  // 移除旧遮罩层
+  document.querySelectorAll('.claw-overlay-backdrop').forEach(b => b.remove());
+
+  const headerHtml = buildPanelHeader(title, showBack, onBack);
+  const panelHtml = `
+    <div class="claw-custom-panel" style="
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      background: #fff;
+    ">
+      ${headerHtml}
+      <div class="claw-custom-panel-body" style="
+        flex: 1;
+        overflow-y: auto;
+        padding: 0;
+      ">
+        ${contentHtml}
+      </div>
+    </div>
+  `;
+
+  createOverlayPanel(panelHtml, {
+    position: 'center',
+    width: '85vw',
+    backdrop: true
+  });
+
+  // 调整居中浮层的尺寸
+  if (currentOverlayPanel) {
+    currentOverlayPanel.style.maxWidth = '1000px';
+    currentOverlayPanel.style.height = '80vh';
+    currentOverlayPanel.style.maxHeight = '700px';
+    currentOverlayPanel.style.borderRadius = '16px';
+    currentOverlayPanel.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.2)';
+    // 标记这是认知图谱浮层，关闭时需要恢复之前的 overlay
+    currentOverlayPanel._previousOverlay = existingOverlay;
+  }
+
+  bindPanelEvents(currentOverlayPanel, showBack, onBack, 'overlay-only');
+  isCustomPanelOpen = true;
+  setPanelOpen(true);
 }

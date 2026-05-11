@@ -1,13 +1,16 @@
 import {
   getPanelBodyElement,
   openCustomPanel,
+  openCenterOverlay,
+  closeOverlayPanel,
   restoreOriginalPanel
-} from './panel.js';
+} from './panel-host.js';
 import { setCurrentRoute } from './state.js';
 import {
   getEchoMemHomeContent,
   getPanelContent,
   getPanelDefinition,
+  getGraphOverlayContent,
   getSkillStoreHomeContent,
   getSkillHistoryContent,
   getSkillUploadContent,
@@ -49,6 +52,11 @@ const skillStoreRoutes = {
 export function openEchoMemHomePanel() {
   setCurrentRoute({ type: 'home' });
   openCustomPanel('EchoMem', getEchoMemHomeContent());
+  // 重置事件绑定标记，确保新渲染的面板可以重新绑定事件
+  const customPanel = document.querySelector('.claw-custom-panel');
+  if (customPanel) {
+    delete customPanel.dataset.clawEventsBound;
+  }
   bindPanelNavigation();
 }
 
@@ -57,10 +65,23 @@ export async function navigateToEchoMemPanel(panelIdOrTitle) {
   if (!panel) return;
 
   setCurrentRoute({ type: 'panel', panelId: panel.id });
-  openCustomPanel(panel.title, getPanelContent(panel.id), {
-    showBack: true,
-    onBack: openEchoMemHomePanel
-  });
+
+  // 认知反馈面板使用居中浮层打开图谱
+  if (panel.id === 'feedback') {
+    openCenterOverlay('认知图谱', getGraphOverlayContent(), {
+      showBack: true,
+      onBack: () => {
+        closeOverlayPanel();
+        openEchoMemHomePanel();
+      }
+    });
+  } else {
+    openCustomPanel(panel.title, getPanelContent(panel.id), {
+      showBack: true,
+      onBack: openEchoMemHomePanel
+    });
+  }
+
   bindPanelNavigation();
 
   // 如果是输入联想面板，加载配置值
