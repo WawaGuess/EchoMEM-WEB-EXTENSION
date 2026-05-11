@@ -24,19 +24,74 @@
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  max-height: 200px;
-  overflow-y: auto;
+  max-height: 320px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   z-index: 999999;
   font-size: 13px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* 头部：全选 + 标题 + 折叠按钮 */
+.echomem-suggestion-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+  flex-shrink: 0;
+}
+
+.echomem-suggestion-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #555;
+  font-size: 12px;
+  user-select: none;
+}
+
+.echomem-suggestion-select-all input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.echomem-suggestion-title {
+  flex: 1;
+  color: #888;
+  font-size: 12px;
+}
+
+.echomem-suggestion-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #555;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.echomem-suggestion-toggle:hover {
+  background: #ececec;
+}
+
+/* 列表 */
+.echomem-suggestion-list {
+  overflow-y: auto;
+  max-height: 220px;
 }
 
 .echomem-suggestion-item {
   padding: 10px 12px;
   cursor: pointer;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
   border-bottom: 1px solid #f0f0f0;
   transition: background 0.15s;
 }
@@ -47,6 +102,12 @@
 
 .echomem-suggestion-item:hover {
   background: #f5f5f5;
+}
+
+.echomem-suggestion-check {
+  margin: 0;
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
 .echomem-suggestion-item .suggestion-text {
@@ -89,9 +150,64 @@
   color: #388e3c;
 }
 
-/* 选中态 */
+/* 高亮态（键盘/鼠标聚焦） */
 .echomem-suggestion-active {
   background: #e8eaf6;
+}
+
+/* 勾选态 */
+.echomem-suggestion-checked {
+  background: #f3f7ff;
+}
+
+.echomem-suggestion-checked.echomem-suggestion-active {
+  background: #e1ebff;
+}
+
+/* 操作栏 */
+.echomem-suggestion-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+  flex-shrink: 0;
+}
+
+.echomem-btn-cancel,
+.echomem-btn-confirm {
+  border: 1px solid #d0d0d0;
+  background: #fff;
+  color: #333;
+  padding: 5px 14px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.echomem-btn-cancel:hover {
+  background: #f5f5f5;
+}
+
+.echomem-btn-confirm {
+  background: #1976d2;
+  border-color: #1976d2;
+  color: #fff;
+}
+
+.echomem-btn-confirm:hover:not(:disabled) {
+  background: #1565c0;
+  border-color: #1565c0;
+}
+
+.echomem-btn-confirm:disabled {
+  background: #c0c0c0;
+  border-color: #c0c0c0;
+  color: #fff;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .echomem-suggestion-empty {

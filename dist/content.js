@@ -961,27 +961,74 @@
   }
 
   // src/panels/association/suggestions.js
+  var MEM_HEADER = "\u5F53\u524D\u6211\u7684\u76F8\u5173\u8BB0\u5FC6\u5982\u4E0B\uFF1A";
   var selectedIndex = -1;
   var currentSuggestions = [];
+  var checkedKeys = /* @__PURE__ */ new Set();
+  var currentInputElement = null;
   var keyboardBound = false;
-  var containerElement = null;
+  var collapsed = false;
+  var suppressBlurClose = false;
+  var committedItems = /* @__PURE__ */ new Map();
+  function getItemKey(c, i) {
+    return c.sourceUri || c.insertText || `idx-${i}`;
+  }
   function renderCompletions(inputElement, completions) {
     currentSuggestions = completions;
+    currentInputElement = inputElement;
     selectedIndex = completions.length > 0 ? 0 : -1;
+    checkedKeys = /* @__PURE__ */ new Set();
     const container = getOrCreateContainer();
-    containerElement = container;
     if (!completions.length) {
       hideSuggestions();
       return;
     }
-    const items = completions.map((c, i) => {
+    container.innerHTML = buildContainerHtml(completions);
+    container.style.display = "block";
+    positionContainer(container, inputElement);
+    bindContainerEvents(container, inputElement);
+    bindOutsideClick(container);
+  }
+  function bindOutsideClick(container) {
+    if (container._outsideClickHandler) {
+      document.removeEventListener("mousedown", container._outsideClickHandler);
+      container._outsideClickHandler = null;
+    }
+    const handler = (e) => {
+      if (!container.contains(e.target)) {
+        hideSuggestions();
+        document.removeEventListener("mousedown", handler);
+        container._outsideClickHandler = null;
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener("mousedown", handler);
+      container._outsideClickHandler = handler;
+    }, 0);
+  }
+  function buildContainerHtml(completions) {
+    const headerHtml = `
+    <div class="echomem-suggestion-header">
+      <label class="echomem-suggestion-select-all">
+        <input type="checkbox" class="echomem-suggestion-check-all" />
+        <span>\u5168\u9009</span>
+      </label>
+      <span class="echomem-suggestion-title">\u76F8\u5173\u8BB0\u5FC6 (${completions.length})</span>
+      <button type="button" class="echomem-suggestion-toggle" title="${collapsed ? "\u5C55\u5F00" : "\u6298\u53E0"}">
+        ${collapsed ? "\u25B8" : "\u25BE"}
+      </button>
+    </div>
+  `;
+    const itemsHtml = completions.map((c, i) => {
       const isActive = i === selectedIndex;
+      const key = getItemKey(c, i);
       const sourceBadge = c.source === "memory" ? '<span class="echomem-source-badge memory">\u8BB0\u5FC6</span>' : '<span class="echomem-source-badge session">\u4F1A\u8BDD</span>';
       return `
       <div class="echomem-suggestion-item ${isActive ? "echomem-suggestion-active" : ""}"
            data-index="${i}"
-           style="${isActive ? "background: #e8eaf6;" : ""}">
-        <span class="suggestion-text">${escapeHtml(c.displayText)}</span>
+           data-key="${escapeHtml(key)}">
+        <input type="checkbox" class="echomem-suggestion-check" tabindex="-1" />
+        <span class="suggestion-text">${escapeHtml(c.displayText || "")}</span>
         <div class="suggestion-meta">
           ${sourceBadge}
           <span class="suggestion-score">${(c.score || 0).toFixed(2)}</span>
@@ -989,20 +1036,176 @@
       </div>
     `;
     }).join("");
-    container.innerHTML = items;
-    container.style.display = "block";
-    positionContainer(container, inputElement);
-    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
-      item.addEventListener("mousedown", (e) => {
+    const bodyHtml = `
+    <div class="echomem-suggestion-list" style="${collapsed ? "display:none;" : ""}">
+      ${itemsHtml}
+    </div>
+  `;
+    const actionsHtml = `
+    <div class="echomem-suggestion-actions" style="${collapsed ? "display:none;" : ""}">
+      <button type="button" class="echomem-btn-cancel">\u53D6\u6D88</button>
+      <button type="button" class="echomem-btn-confirm" disabled>\u786E\u5B9A (0)</button>
+    </div>
+  `;
+    return headerHtml + bodyHtml + actionsHtml;
+  }
+  function bindContainerEvents(container, inputElement) {
+    container.addEventListener("mousedown", (e) => {
+      suppressBlurClose = true;
+      setTimeout(() => {
+        suppressBlurClose = false;
+      }, 50);
+      const target = e.target;
+      const isInteractive = target.tagName === "INPUT" || target.tagName === "BUTTON" || target.closest("label");
+      if (!isInteractive) {
         e.preventDefault();
-        const idx = Number(item.dataset.index);
-        insertSuggestion(inputElement, completions[idx]);
+      }
+    });
+    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
+      item.addEventListener("click", (e) => {
+        const key = item.dataset.key;
+        const checkbox = item.querySelector(".echomem-suggestion-check");
+        if (e.target === checkbox) {
+          if (checkbox.checked) {
+            checkedKeys.add(key);
+          } else {
+            checkedKeys.delete(key);
+          }
+        } else {
+          toggleKey(key);
+        }
+        syncUi(container);
       });
       item.addEventListener("mouseenter", () => {
         selectedIndex = Number(item.dataset.index);
-        updateSelection();
+        updateHighlight(container);
       });
     });
+    const checkAll = container.querySelector(".echomem-suggestion-check-all");
+    checkAll.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const allKeys = currentSuggestions.map((c, i) => getItemKey(c, i));
+      if (e.target.checked) {
+        checkedKeys = new Set(allKeys);
+      } else {
+        checkedKeys = /* @__PURE__ */ new Set();
+      }
+      syncUi(container);
+    });
+    const toggleBtn = container.querySelector(".echomem-suggestion-toggle");
+    toggleBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      collapsed = !collapsed;
+      const list = container.querySelector(".echomem-suggestion-list");
+      const actions = container.querySelector(".echomem-suggestion-actions");
+      if (list) list.style.display = collapsed ? "none" : "";
+      if (actions) actions.style.display = collapsed ? "none" : "";
+      toggleBtn.textContent = collapsed ? "\u25B8" : "\u25BE";
+      toggleBtn.title = collapsed ? "\u5C55\u5F00" : "\u6298\u53E0";
+      positionContainer(container, inputElement);
+    });
+    container.querySelector(".echomem-btn-cancel").addEventListener("click", (e) => {
+      e.stopPropagation();
+      hideSuggestions();
+    });
+    container.querySelector(".echomem-btn-confirm").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!checkedKeys.size) return;
+      const selected = [];
+      currentSuggestions.forEach((c, i) => {
+        const key = getItemKey(c, i);
+        if (checkedKeys.has(key)) {
+          selected.push({ key, item: c });
+        }
+      });
+      if (!selected.length) return;
+      composeAndInsert(currentInputElement, currentInputElement.value || "", selected);
+      hideSuggestions();
+    });
+  }
+  function toggleKey(key) {
+    if (checkedKeys.has(key)) {
+      checkedKeys.delete(key);
+    } else {
+      checkedKeys.add(key);
+    }
+  }
+  function syncUi(container) {
+    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
+      const key = item.dataset.key;
+      const checkbox = item.querySelector(".echomem-suggestion-check");
+      const checked = checkedKeys.has(key);
+      if (checkbox) checkbox.checked = checked;
+      item.classList.toggle("echomem-suggestion-checked", checked);
+    });
+    const allKeys = currentSuggestions.map((c, i) => getItemKey(c, i));
+    const allChecked = allKeys.length > 0 && allKeys.every((k) => checkedKeys.has(k));
+    const someChecked = allKeys.some((k) => checkedKeys.has(k));
+    const checkAll = container.querySelector(".echomem-suggestion-check-all");
+    if (checkAll) {
+      checkAll.checked = allChecked;
+      checkAll.indeterminate = !allChecked && someChecked;
+    }
+    const confirmBtn = container.querySelector(".echomem-btn-confirm");
+    if (confirmBtn) {
+      const n = checkedKeys.size;
+      confirmBtn.textContent = `\u786E\u5B9A (${n})`;
+      confirmBtn.disabled = n === 0;
+    }
+    updateHighlight(container);
+  }
+  function updateHighlight(container) {
+    const items = container.querySelectorAll(".echomem-suggestion-item");
+    items.forEach((item, i) => {
+      if (i === selectedIndex) {
+        item.classList.add("echomem-suggestion-active");
+      } else {
+        item.classList.remove("echomem-suggestion-active");
+      }
+    });
+  }
+  function formatItem(it) {
+    return (it.insertText || "").trim().replace(/\s+/g, " ");
+  }
+  function stripMemoryBlock(userText) {
+    const text = userText || "";
+    const headerCount = (text.match(new RegExp(MEM_HEADER, "g")) || []).length;
+    if (headerCount === 0) {
+      committedItems.clear();
+      return text.replace(/\s+$/, "");
+    }
+    if (headerCount > 1) {
+      committedItems.clear();
+      const idx2 = text.indexOf(MEM_HEADER);
+      return idx2 !== -1 ? text.slice(0, idx2).replace(/\s+$/, "") : text.replace(/\s+$/, "");
+    }
+    const idx = text.lastIndexOf(MEM_HEADER);
+    return idx !== -1 ? text.slice(0, idx).replace(/\s+$/, "") : text.replace(/\s+$/, "");
+  }
+  function composeAndInsert(textarea, userText, selected) {
+    if (!textarea) return;
+    const basePart = stripMemoryBlock(userText);
+    for (const { key, item } of selected) {
+      if (committedItems.has(key)) continue;
+      const body = formatItem(item);
+      if (!body) continue;
+      committedItems.set(key, body);
+    }
+    const bodies = Array.from(committedItems.values());
+    if (!bodies.length) return;
+    const lines = bodies.map((b, i) => `${i + 1}. ${b}`);
+    const prefix = basePart ? `${basePart}
+
+` : "";
+    const next = `${prefix}${MEM_HEADER}
+${lines.join("\n")}`;
+    textarea.value = next;
+    try {
+      textarea.selectionStart = textarea.selectionEnd = next.length;
+    } catch (_) {
+    }
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    textarea.focus();
   }
   function hideSuggestions() {
     const container = document.getElementById("echomem-suggestions");
@@ -1011,62 +1214,57 @@
     }
     selectedIndex = -1;
     currentSuggestions = [];
+    checkedKeys = /* @__PURE__ */ new Set();
   }
   function isSuggestionsVisible() {
     const container = document.getElementById("echomem-suggestions");
-    return container && container.style.display !== "none";
+    return !!(container && container.style.display !== "none");
   }
-  function insertSuggestion(inputElement, completion) {
-    if (!completion) return;
-    const text = completion.insertText || "";
-    inputElement.value = text;
-    inputElement.selectionStart = inputElement.selectionEnd = text.length;
-    inputElement.focus();
-    hideSuggestions();
-  }
-  function updateSelection() {
-    const items = document.querySelectorAll(".echomem-suggestion-item");
-    items.forEach((item, i) => {
-      if (i === selectedIndex) {
-        item.classList.add("echomem-suggestion-active");
-        item.style.background = "#e8eaf6";
-      } else {
-        item.classList.remove("echomem-suggestion-active");
-        item.style.background = "";
-      }
-    });
+  function shouldSuppressBlurClose() {
+    return suppressBlurClose;
   }
   function bindKeyboardNavigation(textarea) {
     if (keyboardBound) return;
     keyboardBound = true;
     textarea.addEventListener("keydown", (e) => {
       if (!isSuggestionsVisible()) return;
+      const container = document.getElementById("echomem-suggestions");
+      if (!container) return;
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
           selectedIndex = Math.min(selectedIndex + 1, currentSuggestions.length - 1);
-          updateSelection();
+          updateHighlight(container);
           break;
         case "ArrowUp":
           e.preventDefault();
           selectedIndex = Math.max(selectedIndex - 1, 0);
-          updateSelection();
+          updateHighlight(container);
           break;
-        case "Tab":
-          e.preventDefault();
+        case " ":
           if (selectedIndex >= 0 && currentSuggestions[selectedIndex]) {
-            insertSuggestion(textarea, currentSuggestions[selectedIndex]);
-          } else if (currentSuggestions.length > 0) {
-            insertSuggestion(textarea, currentSuggestions[0]);
+            e.preventDefault();
+            const key = getItemKey(currentSuggestions[selectedIndex], selectedIndex);
+            toggleKey(key);
+            syncUi(container);
           }
           break;
         case "Enter":
-          if (selectedIndex >= 0 && currentSuggestions[selectedIndex]) {
+          if (checkedKeys.size > 0) {
             e.preventDefault();
-            insertSuggestion(textarea, currentSuggestions[selectedIndex]);
+            const selected = [];
+            currentSuggestions.forEach((c, i) => {
+              const key = getItemKey(c, i);
+              if (checkedKeys.has(key)) {
+                selected.push({ key, item: c });
+              }
+            });
+            composeAndInsert(textarea, textarea.value || "", selected);
+            hideSuggestions();
           }
           break;
         case "Escape":
+          e.preventDefault();
           hideSuggestions();
           break;
       }
@@ -1083,8 +1281,13 @@
     return container;
   }
   function positionContainer(container, inputElement) {
+    if (!inputElement) return;
     const rect = inputElement.getBoundingClientRect();
-    const containerHeight = Math.min(container.offsetHeight || 160, 200);
+    const prevVisibility = container.style.visibility;
+    container.style.visibility = "hidden";
+    container.style.display = "block";
+    const containerHeight = Math.min(container.offsetHeight || 160, 320);
+    container.style.visibility = prevVisibility || "";
     container.style.position = "fixed";
     container.style.left = `${rect.left}px`;
     container.style.top = `${rect.top - containerHeight - 8}px`;
@@ -1185,11 +1388,10 @@
     }
     if (((_b = memory == null ? void 0 : memory.keywords) == null ? void 0 : _b.length) > 0) {
       const continuation = memory.keywords.join("\u3001");
-      const spacer = inputTrimmed.endsWith(" ") ? "" : " ";
       return {
         type: "keyword",
-        displayText: `${inputTrimmed} ... ${continuation}`,
-        insertText: `${inputTrimmed}${spacer}${continuation}`,
+        displayText: `...${truncate(continuation, 40)}`,
+        insertText: continuation,
         source: "memory",
         sourceUri: memory.uri || "",
         score: memory.score || 0.5,
@@ -1282,6 +1484,7 @@
         hideSuggestions();
         return;
       }
+      if (!e.isTrusted) return;
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
         const text = e.target.value.trim();
@@ -1298,7 +1501,13 @@
       }, 300);
     });
     textarea.addEventListener("blur", () => {
-      setTimeout(() => hideSuggestions(), 200);
+      setTimeout(() => {
+        if (shouldSuppressBlurClose()) return;
+        const active = document.activeElement;
+        const container = document.getElementById("echomem-suggestions");
+        if (container && active && container.contains(active)) return;
+        hideSuggestions();
+      }, 200);
     });
   }
   async function handleInput(textarea, userInput) {

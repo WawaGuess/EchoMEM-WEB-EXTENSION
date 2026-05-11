@@ -3,7 +3,7 @@
 import { getAssociationEnabled } from './state.js';
 import { createClient } from '../services/openviking-client.js';
 import { getOpenVikingConfig } from '../services/config.js';
-import { renderCompletions, hideSuggestions, bindKeyboardNavigation } from '../panels/association/suggestions.js';
+import { renderCompletions, hideSuggestions, bindKeyboardNavigation, shouldSuppressBlurClose } from '../panels/association/suggestions.js';
 import { generateCompletions } from './completion-engine.js';
 
 let client = null;
@@ -54,6 +54,10 @@ export function tryBindInputElement() {
       return;
     }
 
+    // 忽略程序触发的事件（如 composeAndInsert 手动 dispatch 的 input），
+    // 避免点击确定后浮层关闭又立即重新出现
+    if (!e.isTrusted) return;
+
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(async () => {
       const text = e.target.value.trim();
@@ -71,7 +75,15 @@ export function tryBindInputElement() {
   });
 
   textarea.addEventListener('blur', () => {
-    setTimeout(() => hideSuggestions(), 200);
+    // 浮层内按下时抑制本次关闭，避免点击 checkbox/按钮触发 textarea blur 后浮层消失
+    setTimeout(() => {
+      if (shouldSuppressBlurClose()) return;
+      // 若焦点已经回到浮层内部（例如点击按钮），也不关闭
+      const active = document.activeElement;
+      const container = document.getElementById('echomem-suggestions');
+      if (container && active && container.contains(active)) return;
+      hideSuggestions();
+    }, 200);
   });
 }
 

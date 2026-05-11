@@ -2,9 +2,13 @@
 
 ## 状态
 
-Implemented / Partially Modified
+已归档 / 2026-05-11
 
-> **注意**：本方案中的"会话上下文提取"（源B）已实现后废弃，当前仅保留 OpenViking 记忆召回（源A）。完整实现细节见 `docs/architecture/2026-05-11-smart-completion-implementation.md`。
+> **注意**：本文档为历史方案记录，不代表当前运行逻辑。
+>
+> - "会话上下文提取"（源B）已实现后废弃
+> - 多选浮层、合并式插入等交互在后续迭代中已大幅重构
+> - 当前完整实现细节见 `docs/architecture/2026-05-11-smart-completion-implementation.md`
 
 ## 目标
 

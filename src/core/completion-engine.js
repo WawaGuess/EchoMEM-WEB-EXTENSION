@@ -181,11 +181,10 @@ function buildSuggestion(userInput, memory) {
   // 策略 2：关键词续写
   if (memory?.keywords?.length > 0) {
     const continuation = memory.keywords.join('、');
-    const spacer = inputTrimmed.endsWith(' ') ? '' : ' ';
     return {
       type: 'keyword',
-      displayText: `${inputTrimmed} ... ${continuation}`,
-      insertText: `${inputTrimmed}${spacer}${continuation}`,
+      displayText: `...${truncate(continuation, 40)}`,
+      insertText: continuation,
       source: 'memory',
       sourceUri: memory.uri || '',
       score: memory.score || 0.5,

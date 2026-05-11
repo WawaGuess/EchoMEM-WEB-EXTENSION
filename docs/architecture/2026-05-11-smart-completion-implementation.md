@@ -2,7 +2,7 @@
 
 ## 状态
 
-已上线 / 2026-05-11
+已上线 / 2026-05-11（多选模式重构完成）
 
 ## 功能概述
 
@@ -10,8 +10,9 @@ EchoMem 智能补全（输入联想）是一个基于 OpenViking 记忆召回 + 
 
 1. 调用 OpenViking `find` API 召回相关历史记忆
 2. 使用本地算法从记忆内容中提取短语和关键词
-3. 生成 Top-3 补全建议，以浮层形式展示在输入框上方
-4. 支持键盘导航（↑↓ 选择、Tab/Enter 插入、Esc 关闭）和鼠标点击
+3. 生成 Top-3 补全建议，以多选浮层形式展示在输入框上方
+4. 用户可多选记忆条目，点击「确定」后按统一格式追加到输入框
+5. 支持键盘导航（↑↓ 高亮、空格 切换勾选、Enter 确认、Esc 关闭）和鼠标交互
 
 ## 架构总览
 
@@ -23,6 +24,7 @@ EchoMem 智能补全（输入联想）是一个基于 OpenViking 记忆召回 + 
 │  input-tracker.js                            │
 │  - 监听 textarea input 事件                  │
 │  - 300ms debounce                            │
+│  - 忽略程序触发的事件 (e.isTrusted)          │
 │  - 调用 OpenViking find API                  │
 └──────────────┬──────────────────────────────┘
                │ memories[]
@@ -40,10 +42,10 @@ EchoMem 智能补全（输入联想）是一个基于 OpenViking 记忆召回 + 
                ▼
 ┌─────────────────────────────────────────────┐
 │  suggestions.js                              │
-│  - 渲染浮层 UI                               │
-│  - 键盘导航 (↑↓TabEnterEsc)                  │
-│  - 鼠标点击插入                              │
-│  - 替换整个输入框内容                        │
+│  - 渲染多选浮层 UI（checkbox + 全选 + 折叠） │
+│  - 键盘导航（↑↓空格 Enter Esc）              │
+│  - 点击外部关闭                              │
+│  - 合并式插入（单记忆段 + key 级去重）       │
 └─────────────────────────────────────────────┘
 ```
 
@@ -59,31 +61,26 @@ EchoMem 智能补全（输入联想）是一个基于 OpenViking 记忆召回 + 
 // 绑定条件
 textarea.dataset.echomemTracking = 'true';  // 防止重复绑定
 
-// Debounce 触发
-const text = e.target.value.trim();
-if (text.length >= 3) {
-  debounceTimer = setTimeout(() => handleInput(textarea, text), 300);
-}
-
-// 处理流程
-async function handleInput(textarea, userInput) {
-  // 1. OpenViking 记忆召回
-  const result = await ovClient.find(userInput, { limit: 5 });
-  const memories = result.memories || [];
-
-  // 2. 本地补全引擎生成建议
-  const completions = await generateCompletions(userInput, memories, 3);
-
-  // 3. 渲染或隐藏
-  if (completions.length > 0) {
-    renderCompletions(textarea, completions);
-  } else {
-    hideSuggestions();
+// Debounce 触发（忽略程序触发的事件）
+textarea.addEventListener('input', (e) => {
+  if (!e.isTrusted) return;  // 避免 composeAndInsert 触发的 input 重新打开浮层
+  // ...
+  if (text.length >= 3) {
+    debounceTimer = setTimeout(() => handleInput(textarea, text), 300);
   }
-}
-```
+});
 
-**注意**：`blur` 事件延迟 200ms 隐藏浮层，避免点击建议时浮层先消失。
+// Blur 处理：浮层内点击时抑制关闭
+textarea.addEventListener('blur', () => {
+  setTimeout(() => {
+    if (shouldSuppressBlurClose()) return;
+    const active = document.activeElement;
+    const container = document.getElementById('echomem-suggestions');
+    if (container && active && container.contains(active)) return;
+    hideSuggestions();
+  }, 200);
+});
+```
 
 ---
 
@@ -119,7 +116,7 @@ if (semanticScore < phraseScoreThreshold) {
 
 | 类型 | 匹配模式 | 示例 |
 |------|----------|------|
-| `bullet` | `^-\s+(.+)$` 或 `^*\s+(.+)$` | `- Clothing store owner` |
+| `bullet` | `^[-*]\s+(.+)$` | `- Clothing store owner` |
 | `quote` | `^[""'](.+)[""']\s*\(` | `"I need help" (User)` |
 | `text` | 非标题、非列表的内容行 | `用户最喜欢的编程语言是 TypeScript` |
 
@@ -176,12 +173,12 @@ return scored.sort((a, b) => b.score - a.score).slice(0, 3).map(x => x.word);
    }
    ```
 
-2. **Keyword 策略**：如果没有短语，使用关键词续写
+2. **Keyword 策略**：如果没有短语，使用关键词续写（不包含用户输入前缀）
    ```javascript
    {
      type: 'keyword',
-     displayText: '编程语言 ... TypeScript、类型系统、代码',
-     insertText: '编程语言 TypeScript、类型系统、代码',
+     displayText: '...TypeScript、类型系统、代码',
+     insertText: 'TypeScript、类型系统、代码',
      score: memory.score
    }
    ```
@@ -215,57 +212,150 @@ return unique.slice(0, maxResults);
 
 ### 3. 建议浮层 (`src/panels/association/suggestions.js`)
 
-**职责**：渲染补全建议浮层，处理用户交互。
+**职责**：渲染多选补全建议浮层，处理用户交互，管理记忆段的合并式插入。
 
-#### 3.1 渲染
+#### 3.1 浮层结构
 
 浮层定位在输入框上方（fixed 定位，基于输入框 `getBoundingClientRect`）：
 
-```javascript
-container.style.position = 'fixed';
-container.style.left = `${rect.left}px`;
-container.style.top = `${rect.top - containerHeight - 8}px`;
-container.style.width = `${rect.width}px`;
+```
+┌──────────────────────────────────────────────┐
+│  ☑ 全选        相关记忆 (3)           [▾]    │  ← header
+├──────────────────────────────────────────────┤
+│  ☐  ...用户最喜欢的编程语言是 TypeScript     │  ← item 0
+│     [记忆] 0.53                              │
+├──────────────────────────────────────────────┤
+│  ☐  ...Docker 容器部署方案                   │  ← item 1
+│     [记忆] 0.42                              │
+├──────────────────────────────────────────────┤
+│  ☐  ...Nginx 反向代理配置                    │  ← item 2
+│     [记忆] 0.38                              │
+├──────────────────────────────────────────────┤
+│                         [取消] [确定 (0)]    │  ← actions
+└──────────────────────────────────────────────┘
 ```
 
-每条建议展示：
-- 左侧：`displayText`（截断至 40 字符）
-- 右侧：来源标记 `[记忆]` + 分数（保留 2 位小数）
+**头部**：全选 checkbox + 标题（显示条目数）+ 折叠/展开按钮
+**列表**：每条含 checkbox、展示文本、来源标记、分数
+**操作栏**：取消按钮 + 确定按钮（显示已选数量，无选中时 disabled）
 
-#### 3.2 键盘导航
+#### 3.2 状态管理
+
+```javascript
+let selectedIndex = -1;            // 键盘高亮索引（仅视觉聚焦）
+let currentSuggestions = [];       // 当前浮层数据
+let checkedKeys = new Set();       // 已勾选条目 key（每次重渲染清空）
+let currentInputElement = null;    // 当前绑定的输入元素
+let keyboardBound = false;
+let collapsed = false;             // 折叠状态（保持跨重渲染）
+let suppressBlurClose = false;     // 浮层内点击时抑制 blur 关闭
+let committedItems = new Map();    // 已提交到 textarea 的记忆 key -> body（跨选择保持）
+```
+
+**稳定 key 生成**：
+```javascript
+function getItemKey(c, i) {
+  return c.sourceUri || c.insertText || `idx-${i}`;
+}
+```
+
+#### 3.3 键盘导航
 
 | 按键 | 行为 |
 |------|------|
-| `↓` | 选择下一条建议 |
-| `↑` | 选择上一条建议 |
-| `Tab` | 插入当前选中建议（默认第一条） |
-| `Enter` | 插入当前选中建议 |
+| `↓` | 高亮下一条建议 |
+| `↑` | 高亮上一条建议 |
+| `空格` | 切换当前高亮行的勾选状态 |
+| `Enter` | 确认插入（仅在有勾选时阻止默认行为） |
 | `Esc` | 隐藏浮层 |
 
 **实现细节**：
 - 只在浮层可见时拦截键盘事件
-- `mousedown` 而非 `click`（避免 blur 先触发导致浮层消失）
-- `mouseenter` 更新选中状态
+- `mouseenter` 更新高亮状态
+- 空格切换勾选时同步更新 UI
 
-#### 3.3 插入逻辑
+#### 3.4 多选交互
+
+**行点击**：点击整行（非 checkbox 本身）切换勾选状态
+**全选**：点击头部 checkbox，同步所有行的勾选状态，支持 indeterminate 态
+**折叠**：点击 `▾`/`▸` 按钮折叠/展开列表和操作栏
+**取消**：清空勾选并关闭浮层
+**确定**：将勾选条目合并插入到输入框
+
+#### 3.5 记忆段合并式插入
+
+**输出格式**：
+```
+<用户原始输入>
+
+当前我的相关记忆如下：
+1. <记忆内容 A>
+2. <记忆内容 B>
+```
+
+**核心逻辑**（`composeAndInsert`）：
 
 ```javascript
-function insertSuggestion(inputElement, completion) {
-  const text = completion.insertText || '';
-  inputElement.value = text;  // 直接替换整个输入框内容
-  inputElement.selectionStart = inputElement.selectionEnd = text.length;
-  inputElement.focus();
-  hideSuggestions();
+const MEM_HEADER = '当前我的相关记忆如下：';
+let committedItems = new Map();  // key -> 格式化后的记忆内容
+
+function composeAndInsert(textarea, userText, selected) {
+  // 1. 从 userText 中剥离已有的记忆段
+  const basePart = stripMemoryBlock(userText);
+
+  // 2. 追加新选条目（key 去重）
+  for (const { key, item } of selected) {
+    if (committedItems.has(key)) continue;
+    const body = formatItem(item);  // 清理换行，确保单行
+    if (!body) continue;
+    committedItems.set(key, body);
+  }
+
+  // 3. 构建新的记忆段
+  const bodies = Array.from(committedItems.values());
+  const lines = bodies.map((b, i) => `${i + 1}. ${b}`);
+  const prefix = basePart ? `${basePart}\n\n` : '';
+  const next = `${prefix}${MEM_HEADER}\n${lines.join('\n')}`;
+
+  // 4. 写入输入框并触发 input 事件
+  textarea.value = next;
+  textarea.selectionStart = textarea.selectionEnd = next.length;
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  textarea.focus();
 }
 ```
 
-> **设计决策**：使用替换而非在光标处插入，避免用户输入与建议内容重复。
+**`stripMemoryBlock`**：使用 `lastIndexOf` 找到最后一个 `MEM_HEADER`，删除它及之后的所有内容。如果检测到多个 `MEM_HEADER`（嵌套），清空 `committedItems` 并从第一个位置截断，彻底清理。
+
+**`formatItem`**：清理记忆内容中的换行和多余空白，确保单行输出：
+```javascript
+function formatItem(it) {
+  return (it.insertText || '').trim().replace(/\s+/g, ' ');
+}
+```
+
+**设计决策**：
+- 使用 `committedItems` Map 做 key 级去重，跨多次选择保持已提交记忆
+- 每次确定时，旧记忆段被整体替换为新累积的条目，始终只保留一个记忆段
+- 通过 `dispatchEvent(new Event('input', { bubbles: true }))` 触发受控组件同步
+
+#### 3.6 浮层生命周期
+
+**打开**：用户输入 ≥3 字符且召回到有效记忆时渲染
+**关闭**：
+- 点击「取消」按钮
+- 点击「确定」按钮（插入后关闭）
+- 按 Esc 键
+- 点击浮层外部（`bindOutsideClick` 监听 document mousedown）
+- 输入框 blur（浮层内点击时通过 `suppressBlurClose` 抑制）
+
+**重渲染**：新一轮搜索结果到达时，`checkedKeys` 被清空，但 `committedItems` 和 `collapsed` 保持
 
 ---
 
 ### 4. 文本处理工具 (`src/utils/text-processor.js`)
 
-**职责**：提供分词、停用词过滤、句子分割、相似度计算等基础能力。
+**职责**：提供分词、停用词过滤、句子分割、相似度计算、HTML 转义等基础能力。
 
 #### 4.1 分词 (`tokenize`)
 
@@ -307,6 +397,10 @@ function calculateOverlap(inputWords, textWords) {
   return exactMatch + partialMatch;
 }
 ```
+
+#### 4.4 HTML 转义 (`escapeHtml`)
+
+使用 DOM `textContent` 进行安全转义，用于浮层内容渲染。
 
 ---
 
@@ -411,10 +505,40 @@ completion-engine.js: generateCompletions("编程语言", memories, 3)
         ▼
 suggestions.js: renderCompletions(textarea, [suggestion])
     │
-    ├── 创建/更新浮层 DOM
+    ├── 创建/更新浮层 DOM（含 checkbox、全选、操作按钮）
     ├── 定位到输入框上方
-    ├── 绑定点击事件
-    └── 默认选中第一条（index = 0）
+    ├── 绑定点击事件（行点击、checkbox、全选、折叠、取消、确定）
+    ├── 绑定外部点击关闭
+    └── 默认高亮第一条（index = 0）
+```
+
+### 用户确认插入流程
+
+```
+用户勾选第 1、3 条记忆，点击「确定 (2)」
+    │
+    ▼
+composeAndInsert(textarea, textarea.value, [
+  { key: 'viking://.../mem1', item: completion1 },
+  { key: 'viking://.../mem3', item: completion3 }
+])
+    │
+    ├── stripMemoryBlock(textarea.value)
+    │   ├── 查找 "当前我的相关记忆如下："
+    │   ├── 若存在：删除该 header 及之后所有内容，返回用户原文
+    │   └── 若不存在：返回原文
+    │
+    ├── 遍历 selected，key 去重追加到 committedItems
+    │   ├── committedItems.set('viking://.../mem1', 'TypeScript 类型系统优势')
+    │   └── committedItems.set('viking://.../mem3', 'Docker 容器化部署')
+    │
+    ├── 构建新文本
+    │   └── "用户原文\n\n当前我的相关记忆如下：\n1. TypeScript 类型系统优势\n2. Docker 容器化部署"
+    │
+    ├── textarea.value = 新文本
+    ├── 设置光标到末尾
+    ├── dispatchEvent(new Event('input', { bubbles: true }))
+    └── textarea.focus()
 ```
 
 ---
@@ -429,21 +553,21 @@ suggestions.js: renderCompletions(textarea, [suggestion])
 
 **决策**：移除 fallback，只有提取到有效短语或关键词时才生成建议。
 
-### 2. 为什么使用替换而非插入？
+### 2. 为什么使用合并式插入而非替换？
 
-**背景**：早期版本在光标位置插入建议文本。
+**背景**：早期版本直接替换整个输入框内容为 `insertText`。
 
-**问题**：用户输入"怎么部署"，建议为"怎么部署 Docker 容器"，插入后变成"怎么部署怎么部署 Docker 容器"。
+**问题**：用户输入"怎么部署"，建议为"怎么部署 Docker 容器"，替换后用户原文丢失。
 
-**决策**：直接替换整个输入框内容为 `insertText`。
+**决策**：改为合并式插入——保留用户原文，追加格式化记忆段。每次确定时替换旧记忆段，始终只保留一个记忆段。
 
-### 3. 为什么移除会话内容提取？
+### 3. 为什么使用 key 级去重（committedItems Map）？
 
-**背景**：原计划同时从当前页面 DOM 提取聊天记录作为补全来源。
+**背景**：用户可能多次打开浮层选择不同记忆，需要避免同一条记忆重复插入。
 
-**问题**：HIGO Office DOM 结构复杂且不稳定，多次调整选择器仍无法可靠提取。用户最终决定放弃该功能。
+**问题**：纯文本去重无法识别同一记忆的不同表述，且记忆内容含换行时解析困难。
 
-**决策**：仅保留 OpenViking 记忆召回，移除 session-extractor 引用。
+**决策**：使用 `committedItems` Map，以 `sourceUri || insertText` 为 key，跨多次选择保持去重状态。`stripMemoryBlock` 负责清理旧文本，`committedItems` 负责逻辑去重。
 
 ### 4. 为什么阈值范围设为 0.2 ~ 0.8？
 
@@ -472,34 +596,42 @@ state = {
 };
 ```
 
+### 6. 为什么使用 click 而非 mousedown 处理 checkbox？
+
+**背景**：早期版本在 checkbox 上使用 `mousedown` + `preventDefault()`。
+
+**问题**：`preventDefault()` 阻止了 checkbox 的原生状态切换，导致全选 checkbox 与实际行勾选状态不同步。
+
+**决策**：改为 `click` 事件，使用 `e.target.checked` 作为真值源，不再手动干预 checkbox 的 checked 状态。
+
+### 7. 为什么忽略非 trusted 的 input 事件？
+
+**背景**：`composeAndInsert` 在写入 textarea 后会 dispatch `input` 事件以同步受控组件。
+
+**问题**：该事件会触发 `input-tracker.js` 的监听器，导致浮层关闭后又立即重新打开。
+
+**决策**：在 input 监听器中添加 `if (!e.isTrusted) return;`，忽略程序触发的事件。
+
 ---
 
 ## 文件清单
 
-### 新增文件
+### 核心文件
 
 | 文件 | 说明 |
 |------|------|
-| `src/utils/text-processor.js` | 文本处理工具：分词、停用词、句子分割、截断、相似度计算 |
+| `src/utils/text-processor.js` | 文本处理工具：分词、停用词、句子分割、截断、相似度计算、HTML 转义 |
 | `src/core/completion-engine.js` | 补全引擎：关键词/短语提取、相关性评分、补全生成、排序去重 |
-| `src/core/session-extractor.js` | ~~会话内容提取（已废弃，保留文件但不再引用）~~ |
+| `src/core/input-tracker.js` | 输入框监听：debounce、OpenViking 调用、浮层触发、blur 处理 |
+| `src/panels/association/suggestions.js` | 建议浮层：多选 UI、checkbox 同步、键盘导航、合并式插入 |
 | `src/services/openviking-client.js` | OpenViking HTTP 客户端 |
 | `src/services/config.js` | 配置管理（OpenViking + 补全算法） |
-| `src/services/session-mapper.js` | ~~会话 ID 提取（已废弃）~~ |
-| `src/panels/association/suggestions.js` | 建议浮层：渲染、键盘导航、鼠标交互 |
 
-### 修改文件
+### 样式文件
 
-| 文件 | 变更内容 |
-|------|----------|
-| `src/core/input-tracker.js` | 集成 completion-engine，移除 session-extractor 引用 |
-| `src/core/state.js` | 添加 `initState()` 从 storage 加载状态，修复 platform 持久化问题 |
-| `src/core/router.js` | 更新 association 面板导入路径 |
-| `src/panels/association/index.js` | 阈值配置 UI 改为滑块 + 数字输入框，范围 0.2~0.8 |
-| `src/entry/content.js` | 添加 `initState()` 调用和输入联想启动逻辑 |
-| `src/platforms/higo.js` | 添加 messages 配置（当前未使用） |
-| `src/platforms/deepseek.js` | 添加 messages 配置（当前未使用） |
-| `content.css` | 新增来源标记样式、选中态样式 |
+| 文件 | 说明 |
+|------|------|
+| `content.css` | 浮层容器、头部、列表项、checkbox、来源标记、操作按钮、高亮态、勾选态 |
 
 ---
 
@@ -545,6 +677,6 @@ EchoMem: generated 1 completions
 
 ## 参考
 
-- [原始方案提案](../proposals/2026-05-09-smart-completion-unified.md)
+- [原始方案提案](../legacy/2026-05-09-smart-completion-unified.md)
 - [OpenViking ContextLevel 定义](../../OpenViking-0.3.12/openviking/core/context.py)
 - [输入联想实现计划](../proposals/2026-05-07-input-association-implementation-plan.md)
