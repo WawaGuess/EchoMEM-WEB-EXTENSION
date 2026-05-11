@@ -10,6 +10,8 @@ import {
 } from '../core/panel.js';
 import { bindPanelNavigation } from '../core/router.js';
 import { bindRuntimeMessages } from '../services/messaging.js';
+import { initState } from '../core/state.js';
+import { startInputTracking, tryBindInputElement } from '../core/input-tracker.js';
 
 console.log('EchoMem Extension: Content script loaded');
 
@@ -32,16 +34,38 @@ function refreshContentScriptMount() {
   addCustomButtons();
   syncOriginalSidebarContent();
   bindPanelNavigation();
+  // DOM 变化时尝试绑定输入框监听
+  tryBindInputElement();
+
+  // 如果平台刚被检测出来，启动输入联想
+  const platform = getCurrentPlatform();
+  if (platform && !window.echomemInputTrackingStarted) {
+    window.echomemInputTrackingStarted = true;
+    console.log('EchoMem: Starting input tracking on DOM change for', platform.config.name);
+    startInputTracking(platform.config);
+  }
 }
 
 const lifecycle = createDomLifecycle({
   onDomChange: refreshContentScriptMount
 });
 
-function start() {
+async function start() {
+  await initState();
   lifecycle.start();
   refreshContentScriptMount();
   bindRuntimeMessages();
+
+  // 启动输入联想监听
+  // 注意：平台检测在 addCustomButtons() 中执行，所以这里重新获取
+  const platform = getCurrentPlatform();
+  if (platform && !window.echomemInputTrackingStarted) {
+    window.echomemInputTrackingStarted = true;
+    console.log('EchoMem: Starting input tracking for', platform.config.name);
+    startInputTracking(platform.config);
+  } else if (!platform) {
+    console.log('EchoMem: Platform not detected yet, input tracking will start on next DOM change');
+  }
 }
 
 if (document.readyState === 'loading') {

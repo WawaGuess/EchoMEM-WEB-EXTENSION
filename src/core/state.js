@@ -1,13 +1,45 @@
-const state = {
+const DEFAULT_STATE = {
   platform: null,
   association: {
-    enabled: false
+    enabled: false,
+    triggerThreshold: 3,
+    debounceMs: 300,
+    maxSuggestions: 5,
   },
   panel: {
     isOpen: false,
     currentRoute: null
   }
 };
+
+let state = { ...DEFAULT_STATE };
+let initialized = false;
+
+export async function initState() {
+  if (initialized) return;
+  try {
+    const result = await chrome.storage.local.get('echomemState');
+    if (result.echomemState) {
+      const saved = result.echomemState;
+      state = {
+        ...DEFAULT_STATE,
+        ...saved,
+        platform: null  // 平台需要每次重新检测，不持久化
+      };
+    }
+  } catch (err) {
+    console.warn('EchoMem: failed to load state', err);
+  }
+  initialized = true;
+}
+
+function persistState() {
+  try {
+    chrome.storage.local.set({ echomemState: state });
+  } catch (err) {
+    console.warn('EchoMem: failed to persist state', err);
+  }
+}
 
 export function getState() {
   return state;
@@ -27,6 +59,7 @@ export function getAssociationEnabled() {
 
 export function toggleAssociationEnabled() {
   state.association.enabled = !state.association.enabled;
+  persistState();
   return state.association.enabled;
 }
 

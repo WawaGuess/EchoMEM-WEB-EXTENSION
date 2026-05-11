@@ -36,6 +36,42 @@
       },
       insertPosition: "before"
     },
+    messages: {
+      // 聊天消息 DOM 选择器（多候选，按优先级排序）
+      // HIGO 使用 MUI 组件，消息通常在滚动容器内
+      messageContainers: [
+        // 常见消息列表容器
+        '[class*="MessageList"]',
+        '[class*="message-list"]',
+        '[class*="chat-messages"]',
+        '[class*="conversation"]',
+        // MUI 滚动容器
+        ".MuiPaper-root > .MuiList-root",
+        ".MuiDrawer-paper > div > div",
+        // 更宽泛的兜底
+        ".MuiPaper-root"
+      ],
+      userMessages: [
+        // HIGO 通常通过布局区分用户/AI，右侧为用户
+        '[class*="UserMessage"]',
+        '[class*="user-message"]',
+        '[class*="user"]',
+        // 通过 align-items: flex-end 等样式特征
+        '[style*="flex-end"]'
+      ],
+      assistantMessages: [
+        '[class*="AssistantMessage"]',
+        '[class*="assistant-message"]',
+        '[class*="assistant"]',
+        '[class*="bot-message"]',
+        '[class*="ai-message"]'
+      ],
+      allMessages: [
+        // 兜底：所有包含文本的 div
+        'div[class*="Mui"]',
+        "div"
+      ]
+    },
     panelHost: {
       type: "sidebar",
       containerSelector: ".MuiDrawer-anchorRight .MuiDrawer-paper",
@@ -94,6 +130,28 @@
       },
       insertPosition: "before"
     },
+    messages: {
+      messageContainers: [
+        ".ds-chat-message-list",
+        '[class*="chat-message-list"]',
+        '[class*="ChatMessageList"]',
+        "main > div > div"
+      ],
+      userMessages: [
+        ".ds-chat-message-user",
+        '[class*="message-user"]',
+        '[class*="MessageUser"]'
+      ],
+      assistantMessages: [
+        ".ds-chat-message-assistant",
+        '[class*="message-assistant"]',
+        '[class*="MessageAssistant"]'
+      ],
+      allMessages: [
+        '[class*="chat-message"]',
+        '[class*="ChatMessage"]'
+      ]
+    },
     panelHost: {
       type: "overlay",
       containerSelector: null,
@@ -119,16 +177,46 @@
   };
 
   // src/core/state.js
-  var state = {
+  var DEFAULT_STATE = {
     platform: null,
     association: {
-      enabled: false
+      enabled: false,
+      triggerThreshold: 3,
+      debounceMs: 300,
+      maxSuggestions: 5
     },
     panel: {
       isOpen: false,
       currentRoute: null
     }
   };
+  var state = { ...DEFAULT_STATE };
+  var initialized = false;
+  async function initState() {
+    if (initialized) return;
+    try {
+      const result = await chrome.storage.local.get("echomemState");
+      if (result.echomemState) {
+        const saved = result.echomemState;
+        state = {
+          ...DEFAULT_STATE,
+          ...saved,
+          platform: null
+          // 平台需要每次重新检测，不持久化
+        };
+      }
+    } catch (err) {
+      console.warn("EchoMem: failed to load state", err);
+    }
+    initialized = true;
+  }
+  function persistState() {
+    try {
+      chrome.storage.local.set({ echomemState: state });
+    } catch (err) {
+      console.warn("EchoMem: failed to persist state", err);
+    }
+  }
   function getPlatform() {
     return state.platform;
   }
@@ -140,6 +228,7 @@
   }
   function toggleAssociationEnabled() {
     state.association.enabled = !state.association.enabled;
+    persistState();
     return state.association.enabled;
   }
   function setPanelOpen(isOpen) {
@@ -572,6 +661,682 @@
   `;
   }
 
+  // src/services/config.js
+  var DEFAULT_OPENVIKING_CONFIG = {
+    baseUrl: "http://127.0.0.1:1933",
+    apiKey: "",
+    agentId: "echomem-extension",
+    accountId: "",
+    userId: ""
+  };
+  var DEFAULT_COMPLETION_CONFIG = {
+    phraseScoreThreshold: 0.2
+  };
+  async function getOpenVikingConfig() {
+    try {
+      const result = await chrome.storage.local.get("openvikingConfig");
+      return { ...DEFAULT_OPENVIKING_CONFIG, ...result.openvikingConfig || {} };
+    } catch {
+      return { ...DEFAULT_OPENVIKING_CONFIG };
+    }
+  }
+  async function setOpenVikingConfig(config) {
+    await chrome.storage.local.set({ openvikingConfig: config });
+  }
+  async function getCompletionConfig() {
+    try {
+      const result = await chrome.storage.local.get("completionConfig");
+      return { ...DEFAULT_COMPLETION_CONFIG, ...result.completionConfig || {} };
+    } catch {
+      return { ...DEFAULT_COMPLETION_CONFIG };
+    }
+  }
+  async function setCompletionConfig(config) {
+    await chrome.storage.local.set({ completionConfig: config });
+  }
+
+  // src/services/openviking-client.js
+  var DEFAULT_CONFIG = {
+    baseUrl: "http://127.0.0.1:1933",
+    apiKey: "",
+    agentId: "echomem-extension",
+    accountId: "",
+    userId: "",
+    timeoutMs: 5e3
+  };
+  var OpenVikingClient = class {
+    constructor(config = {}) {
+      this.cfg = { ...DEFAULT_CONFIG, ...config };
+    }
+    async find(query, options = {}) {
+      var _a;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = { "Content-Type": "application/json" };
+        if (this.cfg.apiKey) {
+          headers["X-API-Key"] = this.cfg.apiKey;
+        }
+        if (this.cfg.accountId) {
+          headers["X-OpenViking-Account"] = this.cfg.accountId;
+        }
+        if (this.cfg.userId) {
+          headers["X-OpenViking-User"] = this.cfg.userId;
+        }
+        if (this.cfg.agentId) {
+          headers["X-OpenViking-Agent"] = this.cfg.agentId;
+        }
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/search/find`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            query,
+            target_uri: options.targetUri || "viking://user/memories",
+            limit: options.limit || 5,
+            score_threshold: options.scoreThreshold || 0
+          }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a = data.error) == null ? void 0 : _a.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async healthCheck() {
+      const response = await fetch(`${this.cfg.baseUrl}/health`, {
+        method: "GET"
+      });
+      return response.ok;
+    }
+  };
+  function createClient(config) {
+    return new OpenVikingClient(config);
+  }
+
+  // src/utils/text-processor.js
+  var STOP_WORDS = /* @__PURE__ */ new Set([
+    // 中文停用词
+    "\u7684",
+    "\u4E86",
+    "\u662F",
+    "\u5728",
+    "\u6211",
+    "\u6709",
+    "\u548C",
+    "\u5C31",
+    "\u4E0D",
+    "\u4EBA",
+    "\u90FD",
+    "\u4E00",
+    "\u4E00\u4E2A",
+    "\u4E0A",
+    "\u4E5F",
+    "\u5F88",
+    "\u5230",
+    "\u8BF4",
+    "\u8981",
+    "\u53BB",
+    "\u4F60",
+    "\u4F1A",
+    "\u7740",
+    "\u6CA1\u6709",
+    "\u770B",
+    "\u597D",
+    "\u81EA\u5DF1",
+    "\u8FD9",
+    "\u90A3",
+    "\u4E2D",
+    "\u4E3A",
+    "\u6765",
+    "\u4E2A",
+    "\u4EE5",
+    "\u5927",
+    "\u5730",
+    "\u5230",
+    "\u53CA",
+    "\u4E0E",
+    "\u6216",
+    "\u7B49",
+    "\u4E4B",
+    "\u800C",
+    "\u53EF\u4EE5",
+    "\u8FD9\u4E2A",
+    "\u90A3\u4E2A",
+    "\u4EC0\u4E48",
+    "\u600E\u4E48",
+    "\u5982\u4F55",
+    "\u8FD8\u662F",
+    "\u4F46\u662F",
+    "\u56E0\u4E3A",
+    "\u6240\u4EE5",
+    // 英文停用词
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "i",
+    "you",
+    "he",
+    "she",
+    "it",
+    "we",
+    "they",
+    "me",
+    "him",
+    "her",
+    "us",
+    "them",
+    "my",
+    "your",
+    "his",
+    "its",
+    "our",
+    "their",
+    "this",
+    "that",
+    "these",
+    "those",
+    "and",
+    "or",
+    "but",
+    "if",
+    "then",
+    "else",
+    "when",
+    "where",
+    "why",
+    "how",
+    "all",
+    "any",
+    "both",
+    "each",
+    "few",
+    "more",
+    "most",
+    "other",
+    "some",
+    "such",
+    "no",
+    "nor",
+    "not",
+    "only",
+    "own",
+    "same",
+    "so",
+    "than",
+    "too",
+    "very",
+    "can",
+    "just",
+    "should",
+    "now",
+    "to",
+    "of",
+    "in",
+    "for",
+    "on",
+    "with",
+    "at",
+    "from",
+    "by",
+    "about",
+    "into",
+    "through",
+    "during",
+    "before",
+    "after",
+    "above",
+    "below",
+    "between",
+    "under",
+    "again",
+    "further",
+    "then",
+    "once"
+  ]);
+  function tokenize(text) {
+    if (!text || typeof text !== "string") return [];
+    const tokens = [];
+    const regex = /[\u4e00-\u9fa5]{2,}|[a-zA-Z0-9]{2,}/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      tokens.push(match[0].toLowerCase());
+    }
+    return tokens;
+  }
+  function filterStopWords(tokens) {
+    return tokens.filter((w) => !STOP_WORDS.has(w));
+  }
+  function tokenizeAndFilter(text) {
+    return filterStopWords(tokenize(text));
+  }
+  function truncate(text, maxLength = 60) {
+    if (!text) return "";
+    if (text.length <= maxLength) return text;
+    return text.slice(0, maxLength) + "...";
+  }
+  function calculateOverlap(inputWords, textWords) {
+    if (!inputWords.size || !textWords.size) return 0;
+    let exactMatch = 0;
+    let partialMatch = 0;
+    for (const iw of inputWords) {
+      if (textWords.has(iw)) {
+        exactMatch += 2;
+        continue;
+      }
+      for (const tw of textWords) {
+        if (tw.includes(iw) || iw.includes(tw)) {
+          partialMatch += 1;
+          break;
+        }
+      }
+    }
+    return exactMatch + partialMatch;
+  }
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
+  // src/panels/association/suggestions.js
+  var selectedIndex = -1;
+  var currentSuggestions = [];
+  var keyboardBound = false;
+  var containerElement = null;
+  function renderCompletions(inputElement, completions) {
+    currentSuggestions = completions;
+    selectedIndex = completions.length > 0 ? 0 : -1;
+    const container = getOrCreateContainer();
+    containerElement = container;
+    if (!completions.length) {
+      hideSuggestions();
+      return;
+    }
+    const items = completions.map((c, i) => {
+      const isActive = i === selectedIndex;
+      const sourceBadge = c.source === "memory" ? '<span class="echomem-source-badge memory">\u8BB0\u5FC6</span>' : '<span class="echomem-source-badge session">\u4F1A\u8BDD</span>';
+      return `
+      <div class="echomem-suggestion-item ${isActive ? "echomem-suggestion-active" : ""}"
+           data-index="${i}"
+           style="${isActive ? "background: #e8eaf6;" : ""}">
+        <span class="suggestion-text">${escapeHtml(c.displayText)}</span>
+        <div class="suggestion-meta">
+          ${sourceBadge}
+          <span class="suggestion-score">${(c.score || 0).toFixed(2)}</span>
+        </div>
+      </div>
+    `;
+    }).join("");
+    container.innerHTML = items;
+    container.style.display = "block";
+    positionContainer(container, inputElement);
+    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const idx = Number(item.dataset.index);
+        insertSuggestion(inputElement, completions[idx]);
+      });
+      item.addEventListener("mouseenter", () => {
+        selectedIndex = Number(item.dataset.index);
+        updateSelection();
+      });
+    });
+  }
+  function hideSuggestions() {
+    const container = document.getElementById("echomem-suggestions");
+    if (container) {
+      container.style.display = "none";
+    }
+    selectedIndex = -1;
+    currentSuggestions = [];
+  }
+  function isSuggestionsVisible() {
+    const container = document.getElementById("echomem-suggestions");
+    return container && container.style.display !== "none";
+  }
+  function insertSuggestion(inputElement, completion) {
+    if (!completion) return;
+    const text = completion.insertText || "";
+    inputElement.value = text;
+    inputElement.selectionStart = inputElement.selectionEnd = text.length;
+    inputElement.focus();
+    hideSuggestions();
+  }
+  function updateSelection() {
+    const items = document.querySelectorAll(".echomem-suggestion-item");
+    items.forEach((item, i) => {
+      if (i === selectedIndex) {
+        item.classList.add("echomem-suggestion-active");
+        item.style.background = "#e8eaf6";
+      } else {
+        item.classList.remove("echomem-suggestion-active");
+        item.style.background = "";
+      }
+    });
+  }
+  function bindKeyboardNavigation(textarea) {
+    if (keyboardBound) return;
+    keyboardBound = true;
+    textarea.addEventListener("keydown", (e) => {
+      if (!isSuggestionsVisible()) return;
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          selectedIndex = Math.min(selectedIndex + 1, currentSuggestions.length - 1);
+          updateSelection();
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          selectedIndex = Math.max(selectedIndex - 1, 0);
+          updateSelection();
+          break;
+        case "Tab":
+          e.preventDefault();
+          if (selectedIndex >= 0 && currentSuggestions[selectedIndex]) {
+            insertSuggestion(textarea, currentSuggestions[selectedIndex]);
+          } else if (currentSuggestions.length > 0) {
+            insertSuggestion(textarea, currentSuggestions[0]);
+          }
+          break;
+        case "Enter":
+          if (selectedIndex >= 0 && currentSuggestions[selectedIndex]) {
+            e.preventDefault();
+            insertSuggestion(textarea, currentSuggestions[selectedIndex]);
+          }
+          break;
+        case "Escape":
+          hideSuggestions();
+          break;
+      }
+    });
+  }
+  function getOrCreateContainer() {
+    let container = document.getElementById("echomem-suggestions");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "echomem-suggestions";
+      container.className = "echomem-suggestions-container";
+      document.body.appendChild(container);
+    }
+    return container;
+  }
+  function positionContainer(container, inputElement) {
+    const rect = inputElement.getBoundingClientRect();
+    const containerHeight = Math.min(container.offsetHeight || 160, 200);
+    container.style.position = "fixed";
+    container.style.left = `${rect.left}px`;
+    container.style.top = `${rect.top - containerHeight - 8}px`;
+    container.style.width = `${rect.width}px`;
+    container.style.zIndex = "999999";
+  }
+
+  // src/core/completion-engine.js
+  var phraseScoreThreshold = 0.2;
+  async function refreshThreshold() {
+    const config = await getCompletionConfig();
+    phraseScoreThreshold = config.phraseScoreThreshold;
+  }
+  function extractKeywords(text, userInput, maxKeywords = 3) {
+    if (!text) return [];
+    const words = tokenizeAndFilter(text);
+    const userWords = new Set(tokenize(userInput));
+    const freq = {};
+    for (const w of words) {
+      freq[w] = (freq[w] || 0) + 1;
+    }
+    const scored = Object.entries(freq).map(([word, count]) => ({
+      word,
+      score: count * (userWords.has(word) ? 3 : 1)
+    }));
+    return scored.sort((a, b) => b.score - a.score).slice(0, maxKeywords).map((x) => x.word);
+  }
+  function extractPhrases(overview, userInput) {
+    if (!overview) {
+      console.log("EchoMem: extractPhrases overview is empty");
+      return [];
+    }
+    const lines = overview.split("\n");
+    const phrases = [];
+    const inputWords = new Set(tokenize(userInput));
+    console.log("EchoMem: extractPhrases inputWords", [...inputWords], "threshold", phraseScoreThreshold);
+    console.log("EchoMem: overview lines count", lines.length);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.length < 5) continue;
+      const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
+      if (listMatch) {
+        const phrase = listMatch[1].trim();
+        const phraseWords = new Set(tokenize(phrase));
+        const score = calculatePhraseScore(inputWords, phraseWords, phrase);
+        console.log("EchoMem: list item", phrase.slice(0, 40), "score", score, "threshold", phraseScoreThreshold);
+        if (score > phraseScoreThreshold) {
+          phrases.push({ phrase, score, type: "bullet" });
+        }
+        continue;
+      }
+      const quoteMatch = trimmed.match(/^[""'](.+)[""']\s*\(/);
+      if (quoteMatch) {
+        const phrase = quoteMatch[1].trim();
+        const phraseWords = new Set(tokenize(phrase));
+        const score = calculatePhraseScore(inputWords, phraseWords, phrase);
+        console.log("EchoMem: quote", phrase.slice(0, 40), "score", score);
+        if (score > phraseScoreThreshold) {
+          phrases.push({ phrase, score, type: "quote" });
+        }
+        continue;
+      }
+      if (!trimmed.startsWith("#") && !trimmed.startsWith("-") && !trimmed.startsWith("*")) {
+        const phraseWords = new Set(tokenize(trimmed));
+        const score = calculatePhraseScore(inputWords, phraseWords, trimmed);
+        console.log("EchoMem: text line", trimmed.slice(0, 40), "score", score, "threshold", phraseScoreThreshold + 0.25);
+        if (score > phraseScoreThreshold + 0.25) {
+          phrases.push({ phrase: trimmed, score, type: "text" });
+        }
+      }
+    }
+    console.log("EchoMem: extractPhrases result", phrases.length, "phrases");
+    return phrases.sort((a, b) => b.score - a.score).slice(0, 3);
+  }
+  function calculatePhraseScore(inputWords, phraseWords, phrase) {
+    if (!inputWords.size || !phraseWords.size) return 0;
+    const overlap = calculateOverlap(inputWords, phraseWords);
+    const intersection = new Set([...inputWords].filter((x) => phraseWords.has(x))).size;
+    const union = (/* @__PURE__ */ new Set([...inputWords, ...phraseWords])).size;
+    const jaccard = union > 0 ? intersection / union : 0;
+    const lengthPenalty = Math.min(phrase.length / 150, 1);
+    return (jaccard * 0.4 + overlap / (inputWords.size * 2) * 0.6) * (1 - lengthPenalty * 0.15);
+  }
+  function buildSuggestion(userInput, memory) {
+    var _a, _b;
+    const inputTrimmed = userInput.trim();
+    if (((_a = memory == null ? void 0 : memory.phrases) == null ? void 0 : _a.length) > 0) {
+      const bestPhrase = memory.phrases[0];
+      return {
+        type: "phrase",
+        displayText: `...${truncate(bestPhrase.phrase, 40)}`,
+        insertText: bestPhrase.phrase,
+        source: "memory",
+        sourceUri: memory.uri || "",
+        score: (memory.score || 0.5) * 0.7 + bestPhrase.score * 0.3,
+        fullText: memory.abstract || bestPhrase.phrase
+      };
+    }
+    if (((_b = memory == null ? void 0 : memory.keywords) == null ? void 0 : _b.length) > 0) {
+      const continuation = memory.keywords.join("\u3001");
+      const spacer = inputTrimmed.endsWith(" ") ? "" : " ";
+      return {
+        type: "keyword",
+        displayText: `${inputTrimmed} ... ${continuation}`,
+        insertText: `${inputTrimmed}${spacer}${continuation}`,
+        source: "memory",
+        sourceUri: memory.uri || "",
+        score: memory.score || 0.5,
+        fullText: memory.abstract || ""
+      };
+    }
+    return null;
+  }
+  function processMemories(userInput, memories) {
+    const suggestions = [];
+    for (const memory of memories.slice(0, 5)) {
+      const semanticScore = memory.score || 0;
+      if (semanticScore < phraseScoreThreshold) {
+        console.log("EchoMem: memory filtered out by semantic score", semanticScore, "<", phraseScoreThreshold, memory.uri);
+        continue;
+      }
+      const sourceText = memory.overview || memory.abstract || "";
+      const phrases = extractPhrases(sourceText, userInput);
+      console.log("EchoMem: memory", memory.uri, "semanticScore", semanticScore, "phrases", phrases.length);
+      const keywords = extractKeywords(memory.abstract || "", userInput, 3);
+      const enrichedMemory = { ...memory, phrases, keywords };
+      const suggestion = buildSuggestion(userInput, enrichedMemory);
+      if (suggestion) {
+        suggestions.push(suggestion);
+      } else {
+        console.log("EchoMem: no suggestion generated for", memory.uri);
+      }
+    }
+    return suggestions;
+  }
+  function rankAndDeduplicate(suggestions, maxResults = 3) {
+    suggestions.sort((a, b) => b.score - a.score);
+    const seen = /* @__PURE__ */ new Set();
+    const unique = [];
+    for (const s of suggestions) {
+      const key = s.insertText.slice(0, 50);
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(s);
+      }
+    }
+    return unique.slice(0, maxResults);
+  }
+  async function generateCompletions(userInput, memories, maxResults = 3) {
+    if (!userInput || !(memories == null ? void 0 : memories.length)) {
+      return [];
+    }
+    await refreshThreshold();
+    console.log("EchoMem: phraseScoreThreshold =", phraseScoreThreshold);
+    const suggestions = processMemories(userInput, memories);
+    console.log("EchoMem: raw suggestions =", suggestions.map((s) => ({ type: s.type, score: s.score, display: s.displayText })));
+    return rankAndDeduplicate(suggestions, maxResults);
+  }
+
+  // src/core/input-tracker.js
+  var client = null;
+  var debounceTimer = null;
+  var trackingPlatformConfig = null;
+  var keyboardNavBound = false;
+  async function getClient() {
+    if (!client) {
+      const config = await getOpenVikingConfig();
+      client = createClient(config);
+    }
+    return client;
+  }
+  function resetClient() {
+    client = null;
+  }
+  function startInputTracking(platformConfig) {
+    trackingPlatformConfig = platformConfig;
+    tryBindInputElement();
+  }
+  function tryBindInputElement() {
+    if (!trackingPlatformConfig) return;
+    const textarea = findInputElement(trackingPlatformConfig);
+    if (!textarea) {
+      console.log("EchoMem: input element not found, will retry on next DOM change");
+      return;
+    }
+    if (textarea.dataset.echomemTracking) return;
+    textarea.dataset.echomemTracking = "true";
+    console.log("EchoMem: input tracking started on", textarea);
+    if (!keyboardNavBound) {
+      bindKeyboardNavigation(textarea);
+      keyboardNavBound = true;
+    }
+    textarea.addEventListener("input", (e) => {
+      if (!getAssociationEnabled()) {
+        hideSuggestions();
+        return;
+      }
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        const text = e.target.value.trim();
+        if (text.length >= 3) {
+          try {
+            await handleInput(textarea, text);
+          } catch (err) {
+            console.warn("EchoMem: recall failed", err);
+            hideSuggestions();
+          }
+        } else {
+          hideSuggestions();
+        }
+      }, 300);
+    });
+    textarea.addEventListener("blur", () => {
+      setTimeout(() => hideSuggestions(), 200);
+    });
+  }
+  async function handleInput(textarea, userInput) {
+    let memories = [];
+    try {
+      const ovClient = await getClient();
+      console.log("EchoMem: recall triggered, query=", userInput);
+      const result = await ovClient.find(userInput, { limit: 5 });
+      memories = result.memories || [];
+      console.log("EchoMem: found", memories.length, "memories");
+      if (memories.length > 0) {
+        console.log("EchoMem: first memory keys", Object.keys(memories[0]));
+        console.log("EchoMem: first memory overview", memories[0].overview ? "present" : "missing");
+      }
+    } catch (err) {
+      console.warn("EchoMem: OpenViking recall failed", err);
+      hideSuggestions();
+      return;
+    }
+    if (!memories.length) {
+      hideSuggestions();
+      return;
+    }
+    const completions = await generateCompletions(userInput, memories, 3);
+    console.log("EchoMem: generated", completions.length, "completions");
+    if (completions.length > 0) {
+      renderCompletions(textarea, completions);
+    } else {
+      hideSuggestions();
+    }
+  }
+  function findInputElement(platformConfig) {
+    var _a, _b;
+    const selector = (_b = (_a = platformConfig.launcher) == null ? void 0 : _a.validateSelectors) == null ? void 0 : _b.textarea;
+    if (!selector) return null;
+    return document.querySelector(selector);
+  }
+
   // src/panels/association/index.js
   function getInputAssociationContent() {
     const inputAssociationEnabled = getAssociationEnabled();
@@ -614,10 +1379,61 @@
       <div style="margin-bottom: 16px;">
         <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u{1F4A1} \u529F\u80FD\u8BF4\u660E</p>
         <ul style="font-size: 13px; color: #666; padding-left: 18px; line-height: 1.8; margin: 0;">
-          <li>\u667A\u80FD\u8865\u5168\uFF1A\u6839\u636E\u4E0A\u4E0B\u6587\u81EA\u52A8\u8865\u5168\u4EE3\u7801\u548C\u6587\u672C</li>
-          <li>\u4EE3\u7801\u7247\u6BB5\u8054\u60F3\uFF1A\u5FEB\u901F\u63D2\u5165\u5E38\u7528\u4EE3\u7801\u7247\u6BB5</li>
-          <li>\u5386\u53F2\u8BB0\u5F55\u8054\u60F3\uFF1A\u57FA\u4E8E\u5386\u53F2\u8F93\u5165\u63D0\u4F9B\u5EFA\u8BAE</li>
+          <li>\u5386\u53F2\u8BB0\u5FC6\u53EC\u56DE\uFF1A\u6839\u636E\u8F93\u5165\u5B9E\u65F6\u53EC\u56DE OpenViking \u4E2D\u7684\u76F8\u5173\u8BB0\u5FC6</li>
+          <li>\u8BED\u4E49\u641C\u7D22\uFF1A\u652F\u6301\u8FD1\u4E49\u8BCD\u548C\u8BED\u4E49\u76F8\u5173\u5185\u5BB9\u7684\u53EC\u56DE</li>
+          <li>\u70B9\u51FB\u63D2\u5165\uFF1A\u70B9\u51FB\u5EFA\u8BAE\u5FEB\u901F\u63D2\u5165\u5230\u8F93\u5165\u6846</li>
         </ul>
+      </div>
+      <div id="echomem-ov-config" style="display: none;">
+        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u2699\uFE0F OpenViking \u914D\u7F6E</p>
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u670D\u52A1\u5730\u5740</label>
+          <input id="ov-base-url" type="text" value="http://127.0.0.1:1933"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">API Key\uFF08\u53EF\u9009\uFF09</label>
+          <input id="ov-api-key" type="password" value=""
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID</label>
+          <input id="ov-agent-id" type="text" value="echomem-extension"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+
+        <p style="font-weight: 600; color: #333; margin: 16px 0 10px; font-size: 14px;">\u{1F9E0} \u8865\u5168\u7B97\u6CD5\u914D\u7F6E</p>
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">
+            \u77ED\u8BED\u8FC7\u6EE4\u9608\u503C
+            <span style="color: #bbb; font-size: 11px;">\uFF08\u8D8A\u5C0F\u663E\u793A\u8D8A\u591A\uFF0C\u8D8A\u5927\u8D8A\u4E25\u683C\uFF09</span>
+          </label>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <input id="completion-threshold" type="range" min="0.2" max="0.8" step="0.01" value="0.2"
+              style="flex: 1; cursor: pointer;"
+            />
+            <input id="completion-threshold-number" type="number" min="0.2" max="0.8" step="0.01" value="0.2"
+              style="width: 60px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; text-align: center;"
+            />
+          </div>
+        </div>
+
+        <button id="ov-save-config" style="
+          width: 100%;
+          padding: 10px;
+          background: #667eea;
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          font-size: 13px;
+          cursor: pointer;
+        ">\u4FDD\u5B58\u914D\u7F6E</button>
+      </div>
+      <div style="margin-top: 12px; text-align: center;">
+        <a id="echomem-toggle-config" href="#" style="font-size: 12px; color: #667eea; text-decoration: none;">\u663E\u793A\u9AD8\u7EA7\u914D\u7F6E</a>
       </div>
       <div style="
         padding: 12px;
@@ -626,8 +1442,9 @@
         font-size: 13px;
         border-left: 3px solid #667eea;
         color: #666;
+        margin-top: 12px;
       ">
-        \u{1F4A1} \u63D0\u793A\uFF1A\u8F93\u5165\u65F6\u6309 Tab \u952E\u5FEB\u901F\u63A5\u53D7\u8054\u60F3\u5EFA\u8BAE
+        \u{1F4A1} \u63D0\u793A\uFF1A\u8F93\u5165\u65F6\u81EA\u52A8\u53EC\u56DE\u76F8\u5173\u8BB0\u5FC6\uFF0C\u70B9\u51FB\u5EFA\u8BAE\u5373\u53EF\u63D2\u5165
       </div>
     </div>
   `;
@@ -645,6 +1462,65 @@
         if (callback) callback();
       });
     }
+  }
+  function bindConfigUI() {
+    const toggleLink = document.getElementById("echomem-toggle-config");
+    const configDiv = document.getElementById("echomem-ov-config");
+    if (toggleLink && configDiv && !toggleLink.dataset.bound) {
+      toggleLink.dataset.bound = "true";
+      toggleLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        const isHidden = configDiv.style.display === "none";
+        configDiv.style.display = isHidden ? "block" : "none";
+        toggleLink.textContent = isHidden ? "\u9690\u85CF\u9AD8\u7EA7\u914D\u7F6E" : "\u663E\u793A\u9AD8\u7EA7\u914D\u7F6E";
+      });
+    }
+    const thresholdInput = document.getElementById("completion-threshold");
+    const thresholdNumber = document.getElementById("completion-threshold-number");
+    if (thresholdInput && thresholdNumber && !thresholdInput.dataset.bound) {
+      thresholdInput.dataset.bound = "true";
+      thresholdInput.addEventListener("input", () => {
+        thresholdNumber.value = thresholdInput.value;
+      });
+      thresholdNumber.addEventListener("input", () => {
+        let val = parseFloat(thresholdNumber.value);
+        if (isNaN(val)) return;
+        if (val < 0.2) val = 0.2;
+        if (val > 0.8) val = 0.8;
+        thresholdInput.value = val;
+      });
+    }
+    const saveBtn = document.getElementById("ov-save-config");
+    if (saveBtn && !saveBtn.dataset.bound) {
+      saveBtn.dataset.bound = "true";
+      saveBtn.addEventListener("click", async (e) => {
+        var _a, _b, _c, _d, _e, _f, _g;
+        e.preventDefault();
+        e.stopPropagation();
+        const baseUrl = (_b = (_a = document.getElementById("ov-base-url")) == null ? void 0 : _a.value) == null ? void 0 : _b.trim();
+        const apiKey = (_d = (_c = document.getElementById("ov-api-key")) == null ? void 0 : _c.value) == null ? void 0 : _d.trim();
+        const agentId = (_f = (_e = document.getElementById("ov-agent-id")) == null ? void 0 : _e.value) == null ? void 0 : _f.trim();
+        const phraseScoreThreshold2 = parseFloat(((_g = document.getElementById("completion-threshold")) == null ? void 0 : _g.value) || "0.2");
+        await setOpenVikingConfig({ baseUrl, apiKey, agentId });
+        await setCompletionConfig({ phraseScoreThreshold: phraseScoreThreshold2 });
+        resetClient();
+        alert("\u914D\u7F6E\u5DF2\u4FDD\u5B58");
+      });
+    }
+  }
+  async function loadConfigValues() {
+    const ovConfig = await getOpenVikingConfig();
+    const completionConfig = await getCompletionConfig();
+    const baseUrlInput = document.getElementById("ov-base-url");
+    const apiKeyInput = document.getElementById("ov-api-key");
+    const agentIdInput = document.getElementById("ov-agent-id");
+    const thresholdInput = document.getElementById("completion-threshold");
+    const thresholdNumber = document.getElementById("completion-threshold-number");
+    if (baseUrlInput) baseUrlInput.value = ovConfig.baseUrl;
+    if (apiKeyInput) apiKeyInput.value = ovConfig.apiKey;
+    if (agentIdInput) agentIdInput.value = ovConfig.agentId;
+    if (thresholdInput) thresholdInput.value = completionConfig.phraseScoreThreshold;
+    if (thresholdNumber) thresholdNumber.value = completionConfig.phraseScoreThreshold;
   }
 
   // src/panels/feedback/index.js
@@ -1240,7 +2116,7 @@
     openCustomPanel("EchoMem", getEchoMemHomeContent());
     bindPanelNavigation();
   }
-  function navigateToEchoMemPanel(panelIdOrTitle) {
+  async function navigateToEchoMemPanel(panelIdOrTitle) {
     const panel = getPanelDefinition(panelIdOrTitle);
     if (!panel) return;
     setCurrentRoute({ type: "panel", panelId: panel.id });
@@ -1249,6 +2125,10 @@
       onBack: openEchoMemHomePanel
     });
     bindPanelNavigation();
+    if (panel.id === "association") {
+      await loadConfigValues();
+      bindConfigUI();
+    }
   }
   function navigateToSkillSection(sectionId) {
     const route = skillStoreRoutes[sectionId];
@@ -1270,11 +2150,13 @@
     });
     bindPanelControls();
   }
-  function refreshInputAssociationPanel() {
+  async function refreshInputAssociationPanel() {
     const contentDiv = getPanelBodyElement();
     if (contentDiv) {
       contentDiv.innerHTML = getInputAssociationContent();
       bindToggleButton(handleInputAssociationToggle);
+      await loadConfigValues();
+      bindConfigUI();
     }
   }
   function handleInputAssociationToggle() {
@@ -1283,6 +2165,7 @@
   }
   function bindPanelControls() {
     bindToggleButton(handleInputAssociationToggle);
+    bindConfigUI();
   }
   function bindPanelNavigation(root = document) {
     const customPanel = root.querySelector(".claw-custom-panel");
@@ -1481,14 +2364,30 @@
     addCustomButtons();
     syncOriginalSidebarContent();
     bindPanelNavigation();
+    tryBindInputElement();
+    const platform = getCurrentPlatform();
+    if (platform && !window.echomemInputTrackingStarted) {
+      window.echomemInputTrackingStarted = true;
+      console.log("EchoMem: Starting input tracking on DOM change for", platform.config.name);
+      startInputTracking(platform.config);
+    }
   }
   var lifecycle = createDomLifecycle({
     onDomChange: refreshContentScriptMount
   });
-  function start() {
+  async function start() {
+    await initState();
     lifecycle.start();
     refreshContentScriptMount();
     bindRuntimeMessages();
+    const platform = getCurrentPlatform();
+    if (platform && !window.echomemInputTrackingStarted) {
+      window.echomemInputTrackingStarted = true;
+      console.log("EchoMem: Starting input tracking for", platform.config.name);
+      startInputTracking(platform.config);
+    } else if (!platform) {
+      console.log("EchoMem: Platform not detected yet, input tracking will start on next DOM change");
+    }
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", start, { once: true });

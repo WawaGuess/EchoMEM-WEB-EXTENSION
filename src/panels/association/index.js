@@ -1,6 +1,13 @@
 // 输入联想面板内容
 
 import { getAssociationEnabled, toggleAssociationEnabled } from '../../core/state.js';
+import {
+  getOpenVikingConfig,
+  setOpenVikingConfig,
+  getCompletionConfig,
+  setCompletionConfig,
+} from '../../services/config.js';
+import { resetClient } from '../../core/input-tracker.js';
 
 export function getInputAssociationContent() {
   const inputAssociationEnabled = getAssociationEnabled();
@@ -44,10 +51,61 @@ export function getInputAssociationContent() {
       <div style="margin-bottom: 16px;">
         <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">💡 功能说明</p>
         <ul style="font-size: 13px; color: #666; padding-left: 18px; line-height: 1.8; margin: 0;">
-          <li>智能补全：根据上下文自动补全代码和文本</li>
-          <li>代码片段联想：快速插入常用代码片段</li>
-          <li>历史记录联想：基于历史输入提供建议</li>
+          <li>历史记忆召回：根据输入实时召回 OpenViking 中的相关记忆</li>
+          <li>语义搜索：支持近义词和语义相关内容的召回</li>
+          <li>点击插入：点击建议快速插入到输入框</li>
         </ul>
+      </div>
+      <div id="echomem-ov-config" style="display: none;">
+        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">⚙️ OpenViking 配置</p>
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">服务地址</label>
+          <input id="ov-base-url" type="text" value="http://127.0.0.1:1933"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">API Key（可选）</label>
+          <input id="ov-api-key" type="password" value=""
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID</label>
+          <input id="ov-agent-id" type="text" value="echomem-extension"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+
+        <p style="font-weight: 600; color: #333; margin: 16px 0 10px; font-size: 14px;">🧠 补全算法配置</p>
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">
+            短语过滤阈值
+            <span style="color: #bbb; font-size: 11px;">（越小显示越多，越大越严格）</span>
+          </label>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <input id="completion-threshold" type="range" min="0.2" max="0.8" step="0.01" value="0.2"
+              style="flex: 1; cursor: pointer;"
+            />
+            <input id="completion-threshold-number" type="number" min="0.2" max="0.8" step="0.01" value="0.2"
+              style="width: 60px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; text-align: center;"
+            />
+          </div>
+        </div>
+
+        <button id="ov-save-config" style="
+          width: 100%;
+          padding: 10px;
+          background: #667eea;
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          font-size: 13px;
+          cursor: pointer;
+        ">保存配置</button>
+      </div>
+      <div style="margin-top: 12px; text-align: center;">
+        <a id="echomem-toggle-config" href="#" style="font-size: 12px; color: #667eea; text-decoration: none;">显示高级配置</a>
       </div>
       <div style="
         padding: 12px;
@@ -56,8 +114,9 @@ export function getInputAssociationContent() {
         font-size: 13px;
         border-left: 3px solid #667eea;
         color: #666;
+        margin-top: 12px;
       ">
-        💡 提示：输入时按 Tab 键快速接受联想建议
+        💡 提示：输入时自动召回相关记忆，点击建议即可插入
       </div>
     </div>
   `;
@@ -81,4 +140,71 @@ export function bindToggleButton(callback) {
       if (callback) callback();
     });
   }
+}
+
+export function bindConfigUI() {
+  // 切换配置显示
+  const toggleLink = document.getElementById('echomem-toggle-config');
+  const configDiv = document.getElementById('echomem-ov-config');
+  if (toggleLink && configDiv && !toggleLink.dataset.bound) {
+    toggleLink.dataset.bound = 'true';
+    toggleLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      const isHidden = configDiv.style.display === 'none';
+      configDiv.style.display = isHidden ? 'block' : 'none';
+      toggleLink.textContent = isHidden ? '隐藏高级配置' : '显示高级配置';
+    });
+  }
+
+  // 阈值滑块与数字输入框双向同步
+  const thresholdInput = document.getElementById('completion-threshold');
+  const thresholdNumber = document.getElementById('completion-threshold-number');
+  if (thresholdInput && thresholdNumber && !thresholdInput.dataset.bound) {
+    thresholdInput.dataset.bound = 'true';
+    thresholdInput.addEventListener('input', () => {
+      thresholdNumber.value = thresholdInput.value;
+    });
+    thresholdNumber.addEventListener('input', () => {
+      let val = parseFloat(thresholdNumber.value);
+      if (isNaN(val)) return;
+      if (val < 0.2) val = 0.2;
+      if (val > 0.8) val = 0.8;
+      thresholdInput.value = val;
+    });
+  }
+
+  // 保存配置
+  const saveBtn = document.getElementById('ov-save-config');
+  if (saveBtn && !saveBtn.dataset.bound) {
+    saveBtn.dataset.bound = 'true';
+    saveBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const baseUrl = document.getElementById('ov-base-url')?.value?.trim();
+      const apiKey = document.getElementById('ov-api-key')?.value?.trim();
+      const agentId = document.getElementById('ov-agent-id')?.value?.trim();
+      const phraseScoreThreshold = parseFloat(document.getElementById('completion-threshold')?.value || '0.2');
+      await setOpenVikingConfig({ baseUrl, apiKey, agentId });
+      await setCompletionConfig({ phraseScoreThreshold });
+      resetClient();
+      alert('配置已保存');
+    });
+  }
+}
+
+export async function loadConfigValues() {
+  const ovConfig = await getOpenVikingConfig();
+  const completionConfig = await getCompletionConfig();
+
+  const baseUrlInput = document.getElementById('ov-base-url');
+  const apiKeyInput = document.getElementById('ov-api-key');
+  const agentIdInput = document.getElementById('ov-agent-id');
+  const thresholdInput = document.getElementById('completion-threshold');
+  const thresholdNumber = document.getElementById('completion-threshold-number');
+
+  if (baseUrlInput) baseUrlInput.value = ovConfig.baseUrl;
+  if (apiKeyInput) apiKeyInput.value = ovConfig.apiKey;
+  if (agentIdInput) agentIdInput.value = ovConfig.agentId;
+  if (thresholdInput) thresholdInput.value = completionConfig.phraseScoreThreshold;
+  if (thresholdNumber) thresholdNumber.value = completionConfig.phraseScoreThreshold;
 }

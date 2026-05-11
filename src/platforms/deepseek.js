@@ -43,6 +43,28 @@ export const deepseekConfig = {
     },
     insertPosition: 'before'
   },
+  messages: {
+    messageContainers: [
+      '.ds-chat-message-list',
+      '[class*="chat-message-list"]',
+      '[class*="ChatMessageList"]',
+      'main > div > div'
+    ],
+    userMessages: [
+      '.ds-chat-message-user',
+      '[class*="message-user"]',
+      '[class*="MessageUser"]'
+    ],
+    assistantMessages: [
+      '.ds-chat-message-assistant',
+      '[class*="message-assistant"]',
+      '[class*="MessageAssistant"]'
+    ],
+    allMessages: [
+      '[class*="chat-message"]',
+      '[class*="ChatMessage"]'
+    ]
+  },
   panelHost: {
     type: 'overlay',
     containerSelector: null,

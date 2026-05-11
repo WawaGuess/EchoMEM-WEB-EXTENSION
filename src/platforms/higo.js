@@ -36,6 +36,42 @@ export const higoConfig = {
     },
     insertPosition: 'before'
   },
+  messages: {
+    // 聊天消息 DOM 选择器（多候选，按优先级排序）
+    // HIGO 使用 MUI 组件，消息通常在滚动容器内
+    messageContainers: [
+      // 常见消息列表容器
+      '[class*="MessageList"]',
+      '[class*="message-list"]',
+      '[class*="chat-messages"]',
+      '[class*="conversation"]',
+      // MUI 滚动容器
+      '.MuiPaper-root > .MuiList-root',
+      '.MuiDrawer-paper > div > div',
+      // 更宽泛的兜底
+      '.MuiPaper-root'
+    ],
+    userMessages: [
+      // HIGO 通常通过布局区分用户/AI，右侧为用户
+      '[class*="UserMessage"]',
+      '[class*="user-message"]',
+      '[class*="user"]',
+      // 通过 align-items: flex-end 等样式特征
+      '[style*="flex-end"]'
+    ],
+    assistantMessages: [
+      '[class*="AssistantMessage"]',
+      '[class*="assistant-message"]',
+      '[class*="assistant"]',
+      '[class*="bot-message"]',
+      '[class*="ai-message"]'
+    ],
+    allMessages: [
+      // 兜底：所有包含文本的 div
+      'div[class*="Mui"]',
+      'div'
+    ]
+  },
   panelHost: {
     type: 'sidebar',
     containerSelector: '.MuiDrawer-anchorRight .MuiDrawer-paper',

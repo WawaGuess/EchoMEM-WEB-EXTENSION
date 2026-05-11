@@ -17,6 +17,8 @@ import {
 } from '../panels/index.js';
 import {
   bindToggleButton,
+  bindConfigUI,
+  loadConfigValues,
   getInputAssociationContent,
   toggleInputAssociation
 } from '../panels/association/index.js';
@@ -50,7 +52,7 @@ export function openEchoMemHomePanel() {
   bindPanelNavigation();
 }
 
-export function navigateToEchoMemPanel(panelIdOrTitle) {
+export async function navigateToEchoMemPanel(panelIdOrTitle) {
   const panel = getPanelDefinition(panelIdOrTitle);
   if (!panel) return;
 
@@ -60,6 +62,12 @@ export function navigateToEchoMemPanel(panelIdOrTitle) {
     onBack: openEchoMemHomePanel
   });
   bindPanelNavigation();
+
+  // 如果是输入联想面板，加载配置值
+  if (panel.id === 'association') {
+    await loadConfigValues();
+    bindConfigUI();
+  }
 }
 
 export function navigateToSkillSection(sectionId) {
@@ -90,12 +98,14 @@ export function closePanel() {
   restoreOriginalPanel();
 }
 
-export function refreshInputAssociationPanel() {
+export async function refreshInputAssociationPanel() {
   const contentDiv = getPanelBodyElement();
 
   if (contentDiv) {
     contentDiv.innerHTML = getInputAssociationContent();
     bindToggleButton(handleInputAssociationToggle);
+    await loadConfigValues();
+    bindConfigUI();
   }
 }
 
@@ -106,6 +116,7 @@ function handleInputAssociationToggle() {
 
 export function bindPanelControls() {
   bindToggleButton(handleInputAssociationToggle);
+  bindConfigUI();
 }
 
 export function bindPanelNavigation(root = document) {

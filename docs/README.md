@@ -9,7 +9,8 @@ docs/
 ├── README.md
 ├── architecture/
 │   ├── platform-detection.md
-│   └── detection-flow.mmd
+│   ├── detection-flow.mmd
+│   └── 2026-05-11-smart-completion-implementation.md
 ├── design/
 │   └── echomem-launcher-sidebar.md
 ├── proposals/
@@ -26,6 +27,7 @@ docs/
 | [design/echomem-launcher-sidebar.md](./design/echomem-launcher-sidebar.md) | 当前 `EchoMem` 单入口按钮与右侧功能导航设计 |
 | [architecture/platform-detection.md](./architecture/platform-detection.md) | 平台检测、入口注入、面板模式与新平台扩展说明 |
 | [architecture/detection-flow.mmd](./architecture/detection-flow.mmd) | 平台检测流程图，Mermaid 格式 |
+| [architecture/2026-05-11-smart-completion-implementation.md](./architecture/2026-05-11-smart-completion-implementation.md) | 智能补全功能实现总结：OpenViking 召回 + 本地算法 + 键盘导航 |
 | [proposals/README.md](./proposals/README.md) | 后续方案草稿区的使用规则 |
 
 ## 方案记录
@@ -33,6 +35,7 @@ docs/
 | 文档 | 说明 |
 |------|------|
 | [proposals/2026-05-02-modular-content-architecture.md](./proposals/2026-05-02-modular-content-architecture.md) | 内容脚本模块化与可扩展架构方案（已采用） |
+| [proposals/2026-05-09-smart-completion-unified.md](./proposals/2026-05-09-smart-completion-unified.md) | 智能补全综合方案（已实现，会话提取已废弃） |
 
 ## 历史归档
 
