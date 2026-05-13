@@ -65,16 +65,37 @@ export function getInputAssociationContent() {
           />
         </div>
         <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">API Key（可选）</label>
-          <input id="ov-api-key" type="password" value=""
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
-        </div>
-        <div style="margin-bottom: 10px;">
           <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID</label>
           <input id="ov-agent-id" type="text" value="echomem-extension"
             style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
           />
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #333; cursor: pointer;">
+            <input id="ov-auth-enabled" type="checkbox" style="cursor: pointer;"
+            />
+            <span>启用认证模式（API Key / Account / User）</span>
+          </label>
+        </div>
+        <div id="ov-auth-fields" style="display: none;">
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">API Key</label>
+            <input id="ov-api-key" type="password" value=""
+              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+            />
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Account</label>
+            <input id="ov-account-id" type="text" value="default"
+              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+            />
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">User</label>
+            <input id="ov-user-id" type="text" value="default"
+              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+            />
+          </div>
         </div>
 
         <p style="font-weight: 600; color: #333; margin: 16px 0 10px; font-size: 14px;">🧠 补全算法配置</p>
@@ -156,6 +177,16 @@ export function bindConfigUI() {
     });
   }
 
+  // 认证开关：控制认证字段显示/隐藏
+  const authCheckbox = document.getElementById('ov-auth-enabled');
+  const authFields = document.getElementById('ov-auth-fields');
+  if (authCheckbox && authFields && !authCheckbox.dataset.bound) {
+    authCheckbox.dataset.bound = 'true';
+    authCheckbox.addEventListener('change', () => {
+      authFields.style.display = authCheckbox.checked ? 'block' : 'none';
+    });
+  }
+
   // 阈值滑块与数字输入框双向同步
   const thresholdInput = document.getElementById('completion-threshold');
   const thresholdNumber = document.getElementById('completion-threshold-number');
@@ -181,10 +212,13 @@ export function bindConfigUI() {
       e.preventDefault();
       e.stopPropagation();
       const baseUrl = document.getElementById('ov-base-url')?.value?.trim();
-      const apiKey = document.getElementById('ov-api-key')?.value?.trim();
       const agentId = document.getElementById('ov-agent-id')?.value?.trim();
+      const authEnabled = document.getElementById('ov-auth-enabled')?.checked || false;
+      const apiKey = document.getElementById('ov-api-key')?.value?.trim();
+      const accountId = document.getElementById('ov-account-id')?.value?.trim();
+      const userId = document.getElementById('ov-user-id')?.value?.trim();
       const phraseScoreThreshold = parseFloat(document.getElementById('completion-threshold')?.value || '0.2');
-      await setOpenVikingConfig({ baseUrl, apiKey, agentId });
+      await setOpenVikingConfig({ baseUrl, agentId, authEnabled, apiKey, accountId, userId });
       await setCompletionConfig({ phraseScoreThreshold });
       resetClient();
       alert('配置已保存');
@@ -199,12 +233,20 @@ export async function loadConfigValues() {
   const baseUrlInput = document.getElementById('ov-base-url');
   const apiKeyInput = document.getElementById('ov-api-key');
   const agentIdInput = document.getElementById('ov-agent-id');
+  const accountIdInput = document.getElementById('ov-account-id');
+  const userIdInput = document.getElementById('ov-user-id');
+  const authCheckbox = document.getElementById('ov-auth-enabled');
+  const authFields = document.getElementById('ov-auth-fields');
   const thresholdInput = document.getElementById('completion-threshold');
   const thresholdNumber = document.getElementById('completion-threshold-number');
 
   if (baseUrlInput) baseUrlInput.value = ovConfig.baseUrl;
   if (apiKeyInput) apiKeyInput.value = ovConfig.apiKey;
   if (agentIdInput) agentIdInput.value = ovConfig.agentId;
+  if (accountIdInput) accountIdInput.value = ovConfig.accountId;
+  if (userIdInput) userIdInput.value = ovConfig.userId;
+  if (authCheckbox) authCheckbox.checked = ovConfig.authEnabled;
+  if (authFields) authFields.style.display = ovConfig.authEnabled ? 'block' : 'none';
   if (thresholdInput) thresholdInput.value = completionConfig.phraseScoreThreshold;
   if (thresholdNumber) thresholdNumber.value = completionConfig.phraseScoreThreshold;
 }

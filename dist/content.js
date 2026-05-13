@@ -724,8 +724,9 @@
     baseUrl: "http://127.0.0.1:1933",
     apiKey: "",
     agentId: "echomem-extension",
-    accountId: "",
-    userId: ""
+    authEnabled: false,
+    accountId: "default",
+    userId: "default"
   };
   var DEFAULT_COMPLETION_CONFIG = {
     phraseScoreThreshold: 0.2
@@ -758,8 +759,9 @@
     baseUrl: "http://127.0.0.1:1933",
     apiKey: "",
     agentId: "echomem-extension",
-    accountId: "",
-    userId: "",
+    authEnabled: false,
+    accountId: "default",
+    userId: "default",
     timeoutMs: 5e3
   };
   var OpenVikingClient = class {
@@ -772,17 +774,19 @@
       const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
       try {
         const headers = { "Content-Type": "application/json" };
-        if (this.cfg.apiKey) {
-          headers["X-API-Key"] = this.cfg.apiKey;
-        }
-        if (this.cfg.accountId) {
-          headers["X-OpenViking-Account"] = this.cfg.accountId;
-        }
-        if (this.cfg.userId) {
-          headers["X-OpenViking-User"] = this.cfg.userId;
-        }
         if (this.cfg.agentId) {
           headers["X-OpenViking-Agent"] = this.cfg.agentId;
+        }
+        if (this.cfg.authEnabled) {
+          if (this.cfg.apiKey) {
+            headers["X-API-Key"] = this.cfg.apiKey;
+          }
+          if (this.cfg.accountId) {
+            headers["X-OpenViking-Account"] = this.cfg.accountId;
+          }
+          if (this.cfg.userId) {
+            headers["X-OpenViking-User"] = this.cfg.userId;
+          }
         }
         const response = await fetch(`${this.cfg.baseUrl}/api/v1/search/find`, {
           method: "POST",
@@ -1660,16 +1664,37 @@ ${lines.join("\n")}`;
           />
         </div>
         <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">API Key\uFF08\u53EF\u9009\uFF09</label>
-          <input id="ov-api-key" type="password" value=""
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
-        </div>
-        <div style="margin-bottom: 10px;">
           <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID</label>
           <input id="ov-agent-id" type="text" value="echomem-extension"
             style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
           />
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #333; cursor: pointer;">
+            <input id="ov-auth-enabled" type="checkbox" style="cursor: pointer;"
+            />
+            <span>\u542F\u7528\u8BA4\u8BC1\u6A21\u5F0F\uFF08API Key / Account / User\uFF09</span>
+          </label>
+        </div>
+        <div id="ov-auth-fields" style="display: none;">
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">API Key</label>
+            <input id="ov-api-key" type="password" value=""
+              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+            />
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Account</label>
+            <input id="ov-account-id" type="text" value="default"
+              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+            />
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">User</label>
+            <input id="ov-user-id" type="text" value="default"
+              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+            />
+          </div>
         </div>
 
         <p style="font-weight: 600; color: #333; margin: 16px 0 10px; font-size: 14px;">\u{1F9E0} \u8865\u5168\u7B97\u6CD5\u914D\u7F6E</p>
@@ -1742,6 +1767,14 @@ ${lines.join("\n")}`;
         toggleLink.textContent = isHidden ? "\u9690\u85CF\u9AD8\u7EA7\u914D\u7F6E" : "\u663E\u793A\u9AD8\u7EA7\u914D\u7F6E";
       });
     }
+    const authCheckbox = document.getElementById("ov-auth-enabled");
+    const authFields = document.getElementById("ov-auth-fields");
+    if (authCheckbox && authFields && !authCheckbox.dataset.bound) {
+      authCheckbox.dataset.bound = "true";
+      authCheckbox.addEventListener("change", () => {
+        authFields.style.display = authCheckbox.checked ? "block" : "none";
+      });
+    }
     const thresholdInput = document.getElementById("completion-threshold");
     const thresholdNumber = document.getElementById("completion-threshold-number");
     if (thresholdInput && thresholdNumber && !thresholdInput.dataset.bound) {
@@ -1761,14 +1794,17 @@ ${lines.join("\n")}`;
     if (saveBtn && !saveBtn.dataset.bound) {
       saveBtn.dataset.bound = "true";
       saveBtn.addEventListener("click", async (e2) => {
-        var _a2, _b2, _c2, _d2, _e, _f, _g;
+        var _a2, _b2, _c2, _d2, _e, _f, _g, _h, _i, _j, _k, _l;
         e2.preventDefault();
         e2.stopPropagation();
         const baseUrl = (_b2 = (_a2 = document.getElementById("ov-base-url")) == null ? void 0 : _a2.value) == null ? void 0 : _b2.trim();
-        const apiKey = (_d2 = (_c2 = document.getElementById("ov-api-key")) == null ? void 0 : _c2.value) == null ? void 0 : _d2.trim();
-        const agentId = (_f = (_e = document.getElementById("ov-agent-id")) == null ? void 0 : _e.value) == null ? void 0 : _f.trim();
-        const phraseScoreThreshold2 = parseFloat(((_g = document.getElementById("completion-threshold")) == null ? void 0 : _g.value) || "0.2");
-        await setOpenVikingConfig({ baseUrl, apiKey, agentId });
+        const agentId = (_d2 = (_c2 = document.getElementById("ov-agent-id")) == null ? void 0 : _c2.value) == null ? void 0 : _d2.trim();
+        const authEnabled = ((_e = document.getElementById("ov-auth-enabled")) == null ? void 0 : _e.checked) || false;
+        const apiKey = (_g = (_f = document.getElementById("ov-api-key")) == null ? void 0 : _f.value) == null ? void 0 : _g.trim();
+        const accountId = (_i = (_h = document.getElementById("ov-account-id")) == null ? void 0 : _h.value) == null ? void 0 : _i.trim();
+        const userId = (_k = (_j = document.getElementById("ov-user-id")) == null ? void 0 : _j.value) == null ? void 0 : _k.trim();
+        const phraseScoreThreshold2 = parseFloat(((_l = document.getElementById("completion-threshold")) == null ? void 0 : _l.value) || "0.2");
+        await setOpenVikingConfig({ baseUrl, agentId, authEnabled, apiKey, accountId, userId });
         await setCompletionConfig({ phraseScoreThreshold: phraseScoreThreshold2 });
         resetClient();
         alert("\u914D\u7F6E\u5DF2\u4FDD\u5B58");
@@ -1781,11 +1817,19 @@ ${lines.join("\n")}`;
     const baseUrlInput = document.getElementById("ov-base-url");
     const apiKeyInput = document.getElementById("ov-api-key");
     const agentIdInput = document.getElementById("ov-agent-id");
+    const accountIdInput = document.getElementById("ov-account-id");
+    const userIdInput = document.getElementById("ov-user-id");
+    const authCheckbox = document.getElementById("ov-auth-enabled");
+    const authFields = document.getElementById("ov-auth-fields");
     const thresholdInput = document.getElementById("completion-threshold");
     const thresholdNumber = document.getElementById("completion-threshold-number");
     if (baseUrlInput) baseUrlInput.value = ovConfig.baseUrl;
     if (apiKeyInput) apiKeyInput.value = ovConfig.apiKey;
     if (agentIdInput) agentIdInput.value = ovConfig.agentId;
+    if (accountIdInput) accountIdInput.value = ovConfig.accountId;
+    if (userIdInput) userIdInput.value = ovConfig.userId;
+    if (authCheckbox) authCheckbox.checked = ovConfig.authEnabled;
+    if (authFields) authFields.style.display = ovConfig.authEnabled ? "block" : "none";
     if (thresholdInput) thresholdInput.value = completionConfig.phraseScoreThreshold;
     if (thresholdNumber) thresholdNumber.value = completionConfig.phraseScoreThreshold;
   }

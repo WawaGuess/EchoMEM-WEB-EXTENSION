@@ -4,8 +4,9 @@ const DEFAULT_CONFIG = {
   baseUrl: 'http://127.0.0.1:1933',
   apiKey: '',
   agentId: 'echomem-extension',
-  accountId: '',
-  userId: '',
+  authEnabled: false,
+  accountId: 'default',
+  userId: 'default',
   timeoutMs: 5000,
 };
 
@@ -21,17 +22,19 @@ class OpenVikingClient {
     try {
       const headers = { 'Content-Type': 'application/json' };
 
-      if (this.cfg.apiKey) {
-        headers['X-API-Key'] = this.cfg.apiKey;
-      }
-      if (this.cfg.accountId) {
-        headers['X-OpenViking-Account'] = this.cfg.accountId;
-      }
-      if (this.cfg.userId) {
-        headers['X-OpenViking-User'] = this.cfg.userId;
-      }
       if (this.cfg.agentId) {
         headers['X-OpenViking-Agent'] = this.cfg.agentId;
+      }
+      if (this.cfg.authEnabled) {
+        if (this.cfg.apiKey) {
+          headers['X-API-Key'] = this.cfg.apiKey;
+        }
+        if (this.cfg.accountId) {
+          headers['X-OpenViking-Account'] = this.cfg.accountId;
+        }
+        if (this.cfg.userId) {
+          headers['X-OpenViking-User'] = this.cfg.userId;
+        }
       }
 
       const response = await fetch(`${this.cfg.baseUrl}/api/v1/search/find`, {

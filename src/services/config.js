@@ -4,8 +4,9 @@ const DEFAULT_OPENVIKING_CONFIG = {
   baseUrl: 'http://127.0.0.1:1933',
   apiKey: '',
   agentId: 'echomem-extension',
-  accountId: '',
-  userId: '',
+  authEnabled: false,
+  accountId: 'default',
+  userId: 'default',
 };
 
 const DEFAULT_COMPLETION_CONFIG = {
