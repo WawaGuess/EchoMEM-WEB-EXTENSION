@@ -27,7 +27,7 @@ docs/
 | [design/echomem-launcher-sidebar.md](./design/echomem-launcher-sidebar.md) | 当前 `EchoMem` 单入口按钮与右侧功能导航设计 |
 | [architecture/platform-detection.md](./architecture/platform-detection.md) | 平台检测、入口注入、面板模式与新平台扩展说明 |
 | [architecture/detection-flow.mmd](./architecture/detection-flow.mmd) | 平台检测流程图，Mermaid 格式 |
-| [architecture/2026-05-11-smart-completion-implementation.md](./architecture/2026-05-11-smart-completion-implementation.md) | 智能补全功能实现总结：OpenViking 召回 + 本地算法 + 多选浮层 + 合并式插入 |
+| [architecture/2026-05-11-smart-completion-implementation.md](./architecture/2026-05-11-smart-completion-implementation.md) | 智能补全功能实现总结：OpenViking 召回 + 本地算法 + 多选浮层 + 合并式插入；含 OpenViking 认证开关（authEnabled）逻辑 |
 | [proposals/README.md](./proposals/README.md) | 后续方案草稿区的使用规则 |
 
 ## 方案记录

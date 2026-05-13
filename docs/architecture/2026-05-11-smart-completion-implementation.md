@@ -3,6 +3,7 @@
 ## 状态
 
 已上线 / 2026-05-11（多选模式重构完成）
+更新 / 2026-05-13（OpenViking 认证开关）
 
 ## 功能概述
 
@@ -432,7 +433,34 @@ Body: {
 }
 ```
 
-**超时**：默认 5000ms，使用 `AbortController` 处理超时。
+**超时**：默认 5000ms,使用 `AbortController` 处理超时。
+
+#### 5.1 请求 Header 与认证模式
+
+```javascript
+const headers = { 'Content-Type': 'application/json' };
+
+// Agent 标识：始终发送（非认证字段）
+if (this.cfg.agentId) {
+  headers['X-OpenViking-Agent'] = this.cfg.agentId;
+}
+
+// 仅在认证开启时才发送认证相关 Header
+if (this.cfg.authEnabled) {
+  if (this.cfg.apiKey)    headers['X-API-Key'] = this.cfg.apiKey;
+  if (this.cfg.accountId) headers['X-OpenViking-Account'] = this.cfg.accountId;
+  if (this.cfg.userId)    headers['X-OpenViking-User'] = this.cfg.userId;
+}
+```
+
+| Header | 何时发送 | 来源配置项 |
+|--------|----------|------------|
+| `X-OpenViking-Agent` | 始终发送（非空时） | `agentId` |
+| `X-API-Key` | 仅 `authEnabled = true` | `apiKey` |
+| `X-OpenViking-Account` | 仅 `authEnabled = true` | `accountId` |
+| `X-OpenViking-User` | 仅 `authEnabled = true` | `userId` |
+
+**设计要点**：`agentId` 是 OpenViking 用来标识调用方的元信息，与是否开启认证无关；而 `apiKey / accountId / userId` 都是 OpenViking 认证模式下才需要的鉴权字段，因此用 `authEnabled` 统一开关控制是否注入。
 
 ---
 
@@ -443,19 +471,56 @@ Body: {
 | 配置项 | 默认值 | 范围 | 说明 |
 |--------|--------|------|------|
 | `baseUrl` | `http://127.0.0.1:1933` | - | OpenViking 服务地址 |
-| `apiKey` | `''` | - | API Key（可选） |
-| `agentId` | `'echomem-extension'` | - | Agent 标识 |
+| `agentId` | `'echomem-extension'` | - | Agent 标识（始终发送） |
+| `authEnabled` | `false` | true / false | 是否启用认证模式 |
+| `apiKey` | `''` | - | API Key（认证开启后必填） |
+| `accountId` | `'default'` | - | Account 名（认证开启后随请求发送） |
+| `userId` | `'default'` | - | User 名（认证开启后随请求发送） |
 | `phraseScoreThreshold` | `0.2` | 0.2 ~ 0.8 | 短语过滤阈值 |
 
 #### 6.2 配置面板 UI
 
-- 滑块：`type="range"`，范围 0.2 ~ 0.8，步长 0.01
-- 数字输入框：`type="number"`，同范围，宽度 60px
-- 双向同步：滑块拖动更新输入框，输入框输入更新滑块（自动限制边界）
+```
+┌─ 高级配置 ────────────────────────────────────┐
+│ 服务地址     [ http://127.0.0.1:1933        ] │
+│ Agent ID    [ echomem-extension             ] │
+│ ☐ 启用认证模式（API Key / Account / User）   │ ← 认证开关
+│ ┌─ 认证字段（开关勾选后显示） ──────────────┐│
+│ │ API Key  [ ********                       ]││
+│ │ Account  [ default                        ]││
+│ │ User     [ default                        ]││
+│ └────────────────────────────────────────────┘│
+│                                               │
+│ 短语过滤阈值  [滑块] [0.20]                   │
+│                                               │
+│           [ 保存配置 ]                        │
+└───────────────────────────────────────────────┘
+```
 
-#### 6.3 配置持久化
+- **认证开关**：默认关闭，关闭时认证字段（API Key / Account / User）整体隐藏
+- **勾选认证模式**：`ov-auth-fields` 容器显示，露出 3 个认证输入框
+- **滑块 / 数字输入框**：双向同步，范围 0.2 ~ 0.8，步长 0.01
+- **保存配置**：通过 `chrome.storage.local` 持久化，调用 `resetClient()` 让下次请求使用新配置
 
-使用 `chrome.storage.local` 持久化配置，保存后调用 `resetClient()` 重置客户端以使用新配置。
+#### 6.3 加载与保存
+
+```javascript
+// 加载：根据 authEnabled 同步开关状态与认证字段显示
+authCheckbox.checked = ovConfig.authEnabled;
+authFields.style.display = ovConfig.authEnabled ? 'block' : 'none';
+
+// 保存：读取开关 + 所有字段，整体写入 storage
+await setOpenVikingConfig({
+  baseUrl, agentId,
+  authEnabled,
+  apiKey, accountId, userId
+});
+resetClient();   // 客户端单例失效，下次调用重新读取配置
+```
+
+#### 6.4 配置持久化
+
+使用 `chrome.storage.local` 持久化配置。`getOpenVikingConfig()` 会与 `DEFAULT_OPENVIKING_CONFIG` 合并，保证旧版本用户升级后新字段（如 `authEnabled`）有合理默认值。
 
 ---
 
@@ -611,6 +676,20 @@ state = {
 **问题**：该事件会触发 `input-tracker.js` 的监听器，导致浮层关闭后又立即重新打开。
 
 **决策**：在 input 监听器中添加 `if (!e.isTrusted) return;`，忽略程序触发的事件。
+
+### 8. 为什么用 `authEnabled` 开关控制认证 Header？
+
+**背景**：OpenViking 可以以"无认证模式"或"认证模式"运行。早期代码无论是否需要认证都会发送 `X-API-Key / X-OpenViking-Account / X-OpenViking-User`，这在 OpenViking 默认无认证场景下不会出错，但语义不准确，配置面板里也强制用户填写 Account / User，体验差。
+
+**问题**：用户的 OpenViking 实例可能完全没开认证，也可能开了 API Key + Account + User 三件套，需要前端能两种模式都干净支持。
+
+**决策**：
+1. 默认 `authEnabled = false`，配置面板里只展示 **服务地址 / Agent ID**；
+2. 用户勾选"启用认证模式"后，才显示 **API Key / Account / User** 三个输入框；
+3. `OpenVikingClient.find` 只在 `authEnabled = true` 时才把 3 个认证 Header 注入请求；
+4. `X-OpenViking-Agent` 是身份标识，与认证无关，始终发送。
+
+这样既能向后兼容旧的无认证部署，也能干净适配新开启认证的实例，无需要求用户清空字段或反复改逻辑。
 
 ---
 

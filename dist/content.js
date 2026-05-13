@@ -1303,14 +1303,6 @@ ${lines.join("\n")}`;
           selectedIndex = Math.max(selectedIndex - 1, 0);
           updateHighlight(container);
           break;
-        case " ":
-          if (selectedIndex >= 0 && currentSuggestions[selectedIndex]) {
-            e2.preventDefault();
-            const key = getItemKey(currentSuggestions[selectedIndex], selectedIndex);
-            toggleKey(key);
-            syncUi(container);
-          }
-          break;
         case "Enter":
           if (checkedKeys.size > 0) {
             e2.preventDefault();

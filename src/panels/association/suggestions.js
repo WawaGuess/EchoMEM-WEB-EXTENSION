@@ -413,15 +413,6 @@ export function bindKeyboardNavigation(textarea) {
         updateHighlight(container);
         break;
 
-      case ' ': // 空格：切换当前高亮行勾选
-        if (selectedIndex >= 0 && currentSuggestions[selectedIndex]) {
-          e.preventDefault();
-          const key = getItemKey(currentSuggestions[selectedIndex], selectedIndex);
-          toggleKey(key);
-          syncUi(container);
-        }
-        break;
-
       case 'Enter':
         // Enter = 确定（仅在有勾选时阻止默认行为）
         if (checkedKeys.size > 0) {
