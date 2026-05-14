@@ -7,8 +7,9 @@
 
 import { escapeHtml } from '../../utils/text-processor.js';
 
-// 记忆段标题
-const MEM_HEADER = '当前我的相关记忆如下：';
+// 记忆段标签
+const MEM_TAG_OPEN = '<relevant-memories>';
+const MEM_TAG_CLOSE = '</relevant-memories>';
 
 let selectedIndex = -1;            // 键盘高亮索引（仅视觉聚焦）
 let currentSuggestions = [];       // 当前浮层数据
@@ -297,28 +298,22 @@ function formatItem(it) {
 
 /**
  * 从 userText 中剥离记忆段，返回用户原文。
- * 用 lastIndexOf 找到最后一个 MEM_HEADER，删除它及之后的所有内容。
- * 如果检测到多个 MEM_HEADER（嵌套），清空 committedItems 并从第一个位置截断，彻底清理。
+ * 正则匹配并删除所有 <relevant-memories>...</relevant-memories> 标签块。
+ * 如果检测到多个标签块，清空 committedItems 一并清除。
  */
 function stripMemoryBlock(userText) {
   const text = userText || '';
-  const headerCount = (text.match(new RegExp(MEM_HEADER, 'g')) || []).length;
+  const regex = new RegExp(`\\s*${MEM_TAG_OPEN}[\\s\\S]*?${MEM_TAG_CLOSE}\\s*`, 'g');
+  const hasMatch = regex.test(text);
 
-  if (headerCount === 0) {
+  if (!hasMatch) {
     committedItems.clear();
     return text.replace(/\s+$/, '');
   }
 
-  if (headerCount > 1) {
-    // 嵌套：清空缓存，从第一个 MEM_HEADER 位置截断，彻底清理
-    committedItems.clear();
-    const idx = text.indexOf(MEM_HEADER);
-    return idx !== -1 ? text.slice(0, idx).replace(/\s+$/, '') : text.replace(/\s+$/, '');
-  }
-
-  // 正常：删除最后一个 MEM_HEADER 及之后的内容
-  const idx = text.lastIndexOf(MEM_HEADER);
-  return idx !== -1 ? text.slice(0, idx).replace(/\s+$/, '') : text.replace(/\s+$/, '');
+  // 存在标签块：清空缓存，去掉所有标签块
+  committedItems.clear();
+  return text.replace(regex, '').replace(/\s+$/, '');
 }
 
 /**
@@ -347,7 +342,7 @@ function composeAndInsert(textarea, userText, selected) {
 
   const lines = bodies.map((b, i) => `${i + 1}. ${b}`);
   const prefix = basePart ? `${basePart}\n\n` : '';
-  const next = `${prefix}${MEM_HEADER}\n${lines.join('\n')}`;
+  const next = `${prefix}${MEM_TAG_OPEN}\n${lines.join('\n')}\n${MEM_TAG_CLOSE}`;
 
   textarea.value = next;
   try {

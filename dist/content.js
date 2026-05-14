@@ -1023,7 +1023,8 @@
   }
 
   // src/panels/association/suggestions.js
-  var MEM_HEADER = "\u5F53\u524D\u6211\u7684\u76F8\u5173\u8BB0\u5FC6\u5982\u4E0B\uFF1A";
+  var MEM_TAG_OPEN = "<relevant-memories>";
+  var MEM_TAG_CLOSE = "</relevant-memories>";
   var selectedIndex = -1;
   var currentSuggestions = [];
   var checkedKeys = /* @__PURE__ */ new Set();
@@ -1231,18 +1232,14 @@
   }
   function stripMemoryBlock(userText) {
     const text = userText || "";
-    const headerCount = (text.match(new RegExp(MEM_HEADER, "g")) || []).length;
-    if (headerCount === 0) {
+    const regex = new RegExp(`\\s*${MEM_TAG_OPEN}[\\s\\S]*?${MEM_TAG_CLOSE}\\s*`, "g");
+    const hasMatch = regex.test(text);
+    if (!hasMatch) {
       committedItems.clear();
       return text.replace(/\s+$/, "");
     }
-    if (headerCount > 1) {
-      committedItems.clear();
-      const idx2 = text.indexOf(MEM_HEADER);
-      return idx2 !== -1 ? text.slice(0, idx2).replace(/\s+$/, "") : text.replace(/\s+$/, "");
-    }
-    const idx = text.lastIndexOf(MEM_HEADER);
-    return idx !== -1 ? text.slice(0, idx).replace(/\s+$/, "") : text.replace(/\s+$/, "");
+    committedItems.clear();
+    return text.replace(regex, "").replace(/\s+$/, "");
   }
   function composeAndInsert(textarea, userText, selected) {
     if (!textarea) return;
@@ -1259,8 +1256,9 @@
     const prefix = basePart ? `${basePart}
 
 ` : "";
-    const next = `${prefix}${MEM_HEADER}
-${lines.join("\n")}`;
+    const next = `${prefix}${MEM_TAG_OPEN}
+${lines.join("\n")}
+${MEM_TAG_CLOSE}`;
     textarea.value = next;
     try {
       textarea.selectionStart = textarea.selectionEnd = next.length;
