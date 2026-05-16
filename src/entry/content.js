@@ -12,6 +12,8 @@ import { bindPanelNavigation } from '../core/router.js';
 import { bindRuntimeMessages } from '../services/messaging.js';
 import { initState } from '../core/state.js';
 import { startInputTracking, tryBindInputElement } from '../core/input-tracker.js';
+import { startRecording } from '../core/session-recorder.js';
+import { shouldRecord } from '../config/loader.js';
 
 console.log('EchoMem Extension: Content script loaded');
 
@@ -44,6 +46,11 @@ function refreshContentScriptMount() {
     console.log('EchoMem: Starting input tracking on DOM change for', platform.config.name);
     startInputTracking(platform.config);
   }
+
+  // 会话记录：每次 DOM 变化都尝试启动/继续记录（startRecording 是幂等的）
+  if (platform && shouldRecord(platform.key)) {
+    startRecording(platform.key);
+  }
 }
 
 const lifecycle = createDomLifecycle({
@@ -65,6 +72,13 @@ async function start() {
     startInputTracking(platform.config);
   } else if (!platform) {
     console.log('EchoMem: Platform not detected yet, input tracking will start on next DOM change');
+  }
+
+  // 启动会话记录（幂等的 startRecording 可多次调用）
+  if (platform && shouldRecord(platform.key)) {
+    startRecording(platform.key);
+  } else if (!platform) {
+    console.log('EchoMem: Platform not detected yet, session recording will start on next DOM change');
   }
 }
 

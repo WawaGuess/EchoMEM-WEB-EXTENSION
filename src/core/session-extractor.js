@@ -42,9 +42,13 @@ function queryWithFallback(selectors) {
 function findMessagesInContainer(container, selectors) {
   for (const selector of selectors) {
     try {
-      const elements = container.querySelectorAll(selector);
+      let elements = Array.from(container.querySelectorAll(selector));
       if (elements.length > 0) {
-        return Array.from(elements);
+        // 过滤嵌套：如果一个元素被另一个匹配元素包含，只保留最外层
+        elements = elements.filter((el, i, arr) =>
+          !arr.some((other, j) => i !== j && other !== el && other.contains(el))
+        );
+        return elements;
       }
     } catch (e) {
       continue;
@@ -54,42 +58,62 @@ function findMessagesInContainer(container, selectors) {
 }
 
 /**
+ * 检查元素是否在 DOM 中且占据布局空间（排除 display:none 和 detached）
+ * 使用 getBoundingClientRect 比 offsetParent 更可靠，避免 position:fixed 误报
+ * @param {Element} el
+ * @returns {boolean}
+ */
+function isElementVisible(el) {
+  if (!el.isConnected) return false;
+  const rect = el.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
+/**
+ * 清理元素后提取文本
+ * @param {Element} element
+ * @returns {string}
+ */
+function getCleanText(element) {
+  const clone = element.cloneNode(true);
+  const noiseSelectors = [
+    'button', 'svg', 'img', 'script', 'style',
+    '.ds-think-content'   // DeepSeek: 排除思考过程
+  ];
+  for (const sel of noiseSelectors) {
+    clone.querySelectorAll?.(sel)?.forEach(el => el.remove());
+  }
+  return clone.textContent?.trim() || '';
+}
+
+/**
  * 提取元素的文本内容
  * @param {Element} element
  * @returns {string}
  */
 function extractText(element) {
-  // 优先使用 textContent，过滤掉代码块、按钮等
-  const clone = element.cloneNode(true);
-
-  // 移除常见的非内容元素
-  const noiseSelectors = [
-    'button', 'svg', 'img', 'script', 'style',
-    '[class*="copy"]',
-    '[class*="action"]',
-    '[class*="toolbar"]'
-  ];
-
-  for (const sel of noiseSelectors) {
-    clone.querySelectorAll?.(sel)?.forEach(el => el.remove());
-  }
-
-  return clone.textContent?.trim() || '';
+  // 通用文本提取：清理噪音后返回元素文本
+  return getCleanText(element);
 }
 
 /**
- * 启发式判断元素是否为用户消息（HIGO 中用户消息通常在右侧）
+ * 启发式判断元素是否为用户消息
  * @param {Element} el
  * @returns {boolean}
  */
 function isUserMessageHeuristic(el) {
+  // DeepSeek: 包含 .ds-think-content（思考过程）或 .ds-assistant-message-main-content（最终答案）的是助手消息
+  if (el.querySelector('.ds-assistant-message-main-content, .ds-think-content')) {
+    return false;
+  }
+
   // 检查 class 名（最可靠的标志）
   const className = el.className || '';
   if (className.includes('user') || className.includes('User')) {
     return true;
   }
 
-  // 检查是否靠右对齐
+  // 检查是否靠右对齐（HIGO 等平台的特征）
   try {
     const style = window.getComputedStyle(el);
     const parentStyle = el.parentElement ? window.getComputedStyle(el.parentElement) : null;
@@ -105,7 +129,8 @@ function isUserMessageHeuristic(el) {
     // 忽略 getComputedStyle 错误
   }
 
-  return false;
+  // 默认假设是用户消息（当无法确定时，让不包含助手特征的消息成为用户消息）
+  return true;
 }
 
 /**
@@ -125,14 +150,27 @@ function extractMessagesFromScrollContainer(container) {
     if (child.querySelector('textarea, input')) continue;
     if (child.tagName === 'TEXTAREA' || child.tagName === 'INPUT') continue;
 
-    const text = extractText(child);
-    if (text.length < 3 || text.length > 500) continue;
+    // 过滤不可见的元素
+    if (!isElementVisible(child)) continue;
 
     // 判断角色
     const isUser = isUserMessageHeuristic(child);
+    const role = isUser ? 'user' : 'assistant';
+
+    let text;
+    if (role === 'assistant') {
+      // DeepSeek 助手消息：最终答案只在 .ds-assistant-message-main-content 中
+      // .ds-markdown 在思考过程里也有，不能作为 fallback，否则会误提取思考内容
+      const answerEl = child.querySelector('.ds-assistant-message-main-content');
+      if (!answerEl) continue; // 还在思考阶段，跳过
+      text = getCleanText(answerEl);
+    } else {
+      text = extractText(child);
+    }
+    if (!text) continue;
 
     messages.push({
-      role: isUser ? 'user' : 'assistant',
+      role,
       text,
       el: child
     });
@@ -147,6 +185,12 @@ function extractMessagesFromScrollContainer(container) {
  * @returns {Element|null}
  */
 function findSmartMessageContainer() {
+  // DeepSeek 特殊处理
+  const dsVirtualList = document.querySelector('.ds-virtual-list');
+  if (dsVirtualList) {
+    return dsVirtualList;
+  }
+
   // 1. 找所有可滚动的 div
   const scrollables = Array.from(document.querySelectorAll('div')).filter(div => {
     const style = window.getComputedStyle(div);
@@ -154,18 +198,11 @@ function findSmartMessageContainer() {
            style.overflowY === 'auto' || style.overflowY === 'scroll';
   });
 
-  // 2. 排除太小的（不是消息列表）和包含输入框的
+  // 2. 排除太小的；保留包含输入框的（DeepSeek 的消息容器包含 textarea）
   const candidates = scrollables.filter(div => {
-    // 排除包含 textarea 的（可能是输入框容器）
-    if (div.querySelector('textarea')) return false;
-
-    // 排除太小的
     const rect = div.getBoundingClientRect();
     if (rect.height < 200) return false;
-
-    // 排除侧边栏（通常较窄）
     if (rect.width < 300 && rect.width > 0) return false;
-
     return true;
   });
 
@@ -182,6 +219,30 @@ function findSmartMessageContainer() {
   }
 
   return null;
+}
+
+/**
+ * 去重并清理消息数组
+ * - 按 DOM 元素引用去重（同一节点只保留第一次出现）
+ * - 相邻同 role + text 合并
+ */
+function finalizeMessages(raw) {
+  const seenEls = new WeakSet();
+  const result = [];
+  for (const m of raw) {
+    if (m.el) {
+      if (seenEls.has(m.el)) continue;
+      seenEls.add(m.el);
+    }
+    const last = result[result.length - 1];
+    if (last && last.role === m.role && last.text === m.text) continue;
+    result.push({
+      role: m.role,
+      text: m.text,
+      timestamp: Date.now()
+    });
+  }
+  return result;
 }
 
 /**
@@ -214,15 +275,17 @@ export function extractSessionMessages(platformId) {
       const allElements = [];
 
       for (const el of userMsgs) {
+        if (!isElementVisible(el)) continue;
         const text = extractText(el);
-        if (text.length >= 3) {
+        if (text) {
           allElements.push({ el, role: 'user', text });
         }
       }
 
       for (const el of assistantMsgs) {
+        if (!isElementVisible(el)) continue;
         const text = extractText(el);
-        if (text.length >= 3) {
+        if (text) {
           allElements.push({ el, role: 'assistant', text });
         }
       }
@@ -235,6 +298,7 @@ export function extractSessionMessages(platformId) {
 
       for (const item of allElements) {
         messages.push({
+          el: item.el,
           role: item.role,
           text: item.text,
           timestamp: Date.now()
@@ -242,7 +306,7 @@ export function extractSessionMessages(platformId) {
       }
 
       console.log('EchoMem: extracted', messages.length, 'session messages for', platformId, '(from selectors)');
-      return messages;
+      return finalizeMessages(messages);
     }
 
     // 3. 无法区分角色，使用通用选择器
@@ -252,25 +316,64 @@ export function extractSessionMessages(platformId) {
     if (genericMsgs.length > 50) {
       console.log('EchoMem: too many generic matches (' + genericMsgs.length + '), using direct children');
       genericMsgs = Array.from(container.children).filter(el => {
+        if (!isElementVisible(el)) return false;
         const text = extractText(el);
-        return text.length >= 3 && text.length <= 500;
+        return !!text;
       });
     }
 
     if (genericMsgs.length > 0) {
+      let skippedInvisible = 0;
+      let skippedShort = 0;
+      let skippedNoAnswer = 0;
       for (let i = 0; i < genericMsgs.length; i++) {
-        const text = extractText(genericMsgs[i]);
-        if (text.length >= 3) {
-          messages.push({
-            role: i % 2 === 0 ? 'user' : 'assistant',
-            text,
-            timestamp: Date.now()
-          });
+        const el = genericMsgs[i];
+        // 过滤不可见的元素（虚拟列表可能缓存了旧会话的隐藏消息）
+        if (!isElementVisible(el)) {
+          skippedInvisible++;
+          continue;
         }
+
+        const isUser = isUserMessageHeuristic(el);
+        const role = isUser ? 'user' : 'assistant';
+
+        let text;
+        if (role === 'assistant') {
+          // DeepSeek 助手消息：最终答案只在 .ds-assistant-message-main-content 中
+          // .ds-markdown 在思考过程里也有，不能作为 fallback，否则会误提取思考内容
+          const answerEl = el.querySelector('.ds-assistant-message-main-content');
+          if (!answerEl) {
+            // 还在思考阶段，没有答案元素，跳过
+            skippedNoAnswer++;
+            console.log('EchoMem: msg[' + i + '] role=assistant skipped=no-answer-element');
+            continue;
+          }
+          text = getCleanText(answerEl);
+        } else {
+          text = extractText(el);
+        }
+
+        if (!text) {
+          skippedShort++;
+          continue;
+        }
+        console.log('EchoMem: msg[' + i + '] role=' + role +
+          ' visible=' + isElementVisible(el) + ' textLen=' + text.length +
+          ' cls=' + (el.className || '').split(' ').slice(0, 3).join(' '));
+        messages.push({
+          el,
+          role,
+          text,
+          timestamp: Date.now()
+        });
       }
 
-      console.log('EchoMem: extracted', messages.length, 'session messages for', platformId, '(from generic selectors)');
-      return messages;
+      console.log('EchoMem: extracted', messages.length, 'session messages for', platformId,
+        '(from generic selectors, total=' + genericMsgs.length,
+        'skipped invisible=' + skippedInvisible,
+        'skipped short=' + skippedShort,
+        'skipped no-answer=' + skippedNoAnswer + ')');
+      return finalizeMessages(messages);
     }
   }
 
@@ -283,6 +386,7 @@ export function extractSessionMessages(platformId) {
 
     for (const m of extracted) {
       messages.push({
+        el: m.el,
         role: m.role,
         text: m.text,
         timestamp: Date.now()
@@ -290,11 +394,11 @@ export function extractSessionMessages(platformId) {
     }
 
     console.log('EchoMem: extracted', messages.length, 'session messages for', platformId, '(from smart detection)');
-    return messages;
+    return finalizeMessages(messages);
   }
 
   console.log('EchoMem: failed to extract session messages for', platformId);
-  return messages;
+  return finalizeMessages(messages);
 }
 
 /**

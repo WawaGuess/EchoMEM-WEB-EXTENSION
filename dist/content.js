@@ -5,119 +5,152 @@
       __defProp(target, name, { get: all[name], enumerable: true });
   };
 
-  // src/platforms/higo.js
-  var higoConfig = {
-    id: "higo",
-    name: "HIGO Office",
-    detection: {
-      urlPatterns: ["/home/session/", "/home/workspace/"],
-      titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office"],
-      domFeatures: {
-        required: [
-          { selector: ".MuiDrawer-root", description: "MUI \u62BD\u5C49\u7EC4\u4EF6" },
-          { selector: ".MuiPaper-root", description: "MUI Paper \u5BB9\u5668" }
-        ],
-        optional: [
-          { selector: 'textarea[id^="_r_"]', description: "React \u8F93\u5165\u6846" },
-          { selector: '[data-testid="ArrowUpwardIcon"]', description: "\u53D1\u9001\u6309\u94AE\u56FE\u6807" },
-          { selector: ".MuiDrawer-anchorRight", description: "\u53F3\u4FA7\u62BD\u5C49" }
+  // src/config/platforms.json
+  var platforms_default = {
+    version: 1,
+    platforms: [
+      {
+        id: "higo",
+        name: "HIGO Office",
+        enabled: true,
+        record: false,
+        detection: {
+          urlPatterns: ["/home/session/", "/home/workspace/"],
+          titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office"],
+          domFeatures: {
+            required: [".MuiDrawer-root", ".MuiPaper-root"],
+            optional: ["textarea[id^='_r_']", "[data-testid='ArrowUpwardIcon']", ".MuiDrawer-anchorRight"]
+          },
+          contentKeywords: ["higo", "HIGO", "Higo2"]
+        },
+        launcher: {
+          text: "EchoMem",
+          containerSelector: ".MuiPaper-root",
+          validateSelectors: {
+            textarea: "textarea[id^='_r_']",
+            sendButton: "[data-testid='ArrowUpwardIcon']"
+          },
+          style: {
+            display: "flex",
+            gap: "8px",
+            padding: "0 12px 8px",
+            background: "rgb(255, 251, 254)",
+            alignItems: "center",
+            justifyContent: "flex-start"
+          },
+          insertPosition: "before"
+        },
+        messages: {
+          messageContainers: [
+            "[class*='MessageList']",
+            "[class*='message-list']",
+            "[class*='chat-messages']",
+            "[class*='conversation']",
+            ".MuiPaper-root > .MuiList-root",
+            ".MuiDrawer-paper > div > div",
+            ".MuiPaper-root"
+          ],
+          userMessages: [
+            "[class*='UserMessage']",
+            "[class*='user-message']",
+            "[class*='user']",
+            "[style*='flex-end']"
+          ],
+          assistantMessages: [
+            "[class*='AssistantMessage']",
+            "[class*='assistant-message']",
+            "[class*='assistant']",
+            "[class*='bot-message']",
+            "[class*='ai-message']"
+          ],
+          allMessages: ["div[class*='Mui']", "div"]
+        },
+        panelHost: {
+          type: "sidebar",
+          containerSelector: ".MuiDrawer-anchorRight .MuiDrawer-paper"
+        },
+        sessionId: {
+          type: "regex",
+          pattern: "/home/session/([a-f0-9-]+)",
+          flags: "i"
+        },
+        menuItems: [
+          { panelId: "resources" },
+          { panelId: "association" },
+          { panelId: "feedback" },
+          { panelId: "skillStore" },
+          { panelId: "performance" }
         ]
       },
-      contentKeywords: ["higo", "HIGO", "Higo2"]
-    },
-    launcher: {
-      text: "EchoMem",
-      containerSelector: ".MuiPaper-root",
-      validateSelectors: {
-        textarea: 'textarea[id^="_r_"]',
-        sendButton: '[data-testid="ArrowUpwardIcon"]'
-      },
-      style: {
-        display: "flex",
-        gap: "8px",
-        padding: "0 12px 8px",
-        background: "rgb(255, 251, 254)",
-        alignItems: "center",
-        justifyContent: "flex-start"
-      },
-      insertPosition: "before"
-    },
-    messages: {
-      // 聊天消息 DOM 选择器（多候选，按优先级排序）
-      // HIGO 使用 MUI 组件，消息通常在滚动容器内
-      messageContainers: [
-        // 常见消息列表容器
-        '[class*="MessageList"]',
-        '[class*="message-list"]',
-        '[class*="chat-messages"]',
-        '[class*="conversation"]',
-        // MUI 滚动容器
-        ".MuiPaper-root > .MuiList-root",
-        ".MuiDrawer-paper > div > div",
-        // 更宽泛的兜底
-        ".MuiPaper-root"
-      ],
-      userMessages: [
-        // HIGO 通常通过布局区分用户/AI，右侧为用户
-        '[class*="UserMessage"]',
-        '[class*="user-message"]',
-        '[class*="user"]',
-        // 通过 align-items: flex-end 等样式特征
-        '[style*="flex-end"]'
-      ],
-      assistantMessages: [
-        '[class*="AssistantMessage"]',
-        '[class*="assistant-message"]',
-        '[class*="assistant"]',
-        '[class*="bot-message"]',
-        '[class*="ai-message"]'
-      ],
-      allMessages: [
-        // 兜底：所有包含文本的 div
-        'div[class*="Mui"]',
-        "div"
-      ]
-    },
-    panelHost: {
-      type: "sidebar",
-      containerSelector: ".MuiDrawer-anchorRight .MuiDrawer-paper",
-      overlayConfig: null
-    },
-    menuItems: [
-      { panelId: "resources" },
-      { panelId: "association" },
-      { panelId: "feedback" },
-      { panelId: "skillStore" },
-      { panelId: "performance" }
+      {
+        id: "deepseek",
+        name: "DeepSeek",
+        enabled: true,
+        record: true,
+        detection: {
+          urlPatterns: ["chat.deepseek.com"],
+          titleKeywords: ["DeepSeek"],
+          domFeatures: {
+            required: ["textarea[placeholder*='DeepSeek']", "._24fad49"],
+            optional: ["._020ab5b", "[role='button']"]
+          },
+          contentKeywords: ["deepseek", "\u6DF1\u5EA6\u601D\u8003", "\u667A\u80FD\u641C\u7D22"]
+        },
+        launcher: {
+          text: "EchoMem",
+          containerSelector: "._77cefa5, ._24fad49",
+          validateSelectors: {
+            textarea: "textarea[placeholder*='DeepSeek']"
+          },
+          style: {
+            display: "flex",
+            gap: "8px",
+            padding: "0 12px 8px",
+            alignItems: "center",
+            justifyContent: "flex-start"
+          },
+          insertPosition: "before",
+          dynamicBackground: true
+        },
+        messages: {
+          messageContainers: [
+            ".ds-virtual-list",
+            "[class*='virtual-list']"
+          ],
+          userMessages: [],
+          assistantMessages: [],
+          allMessages: [".ds-message"]
+        },
+        panelHost: {
+          type: "overlay",
+          overlayConfig: {
+            position: "right",
+            width: "400px",
+            backdrop: true
+          }
+        },
+        sessionId: {
+          type: "path",
+          segment: -1
+        },
+        menuItems: [
+          { panelId: "resources" },
+          { panelId: "association" },
+          { panelId: "feedback" },
+          { panelId: "skillStore" },
+          { panelId: "performance" }
+        ]
+      }
     ]
   };
 
-  // src/platforms/deepseek.js
-  var deepseekConfig = {
-    id: "deepseek",
-    name: "DeepSeek",
-    detection: {
-      urlPatterns: ["chat.deepseek.com"],
-      titleKeywords: ["DeepSeek"],
-      domFeatures: {
-        required: [
-          { selector: 'textarea[placeholder*="DeepSeek"]', description: "DeepSeek \u8F93\u5165\u6846" },
-          { selector: "._24fad49", description: "\u8F93\u5165\u6846\u5BB9\u5668" }
-        ],
-        optional: [
-          { selector: "._020ab5b", description: "\u5E95\u90E8\u6309\u94AE\u533A\u57DF" },
-          { selector: '[role="button"]', description: "\u529F\u80FD\u6309\u94AE" }
-        ]
-      },
-      contentKeywords: ["deepseek", "\u6DF1\u5EA6\u601D\u8003", "\u667A\u80FD\u641C\u7D22"]
-    },
-    launcher: {
-      text: "EchoMem",
-      containerSelector: "._77cefa5, ._24fad49",
-      validateSelectors: {
-        textarea: 'textarea[placeholder*="DeepSeek"]'
-      },
-      getBackgroundColor: () => {
+  // src/config/loader.js
+  function enrichConfig(config) {
+    var _a2;
+    const enriched = { ...config };
+    if (enriched.id === "deepseek" && ((_a2 = enriched.launcher) == null ? void 0 : _a2.dynamicBackground)) {
+      enriched.launcher = { ...enriched.launcher };
+      enriched.launcher.getBackgroundColor = () => {
         const inputArea = document.querySelector("._77cefa5");
         if (inputArea) {
           const style = window.getComputedStyle(inputArea);
@@ -126,61 +159,21 @@
           }
         }
         return "#fff";
-      },
-      style: {
-        display: "flex",
-        gap: "8px",
-        padding: "0 12px 8px",
-        alignItems: "center",
-        justifyContent: "flex-start"
-      },
-      insertPosition: "before"
-    },
-    messages: {
-      messageContainers: [
-        ".ds-chat-message-list",
-        '[class*="chat-message-list"]',
-        '[class*="ChatMessageList"]',
-        "main > div > div"
-      ],
-      userMessages: [
-        ".ds-chat-message-user",
-        '[class*="message-user"]',
-        '[class*="MessageUser"]'
-      ],
-      assistantMessages: [
-        ".ds-chat-message-assistant",
-        '[class*="message-assistant"]',
-        '[class*="MessageAssistant"]'
-      ],
-      allMessages: [
-        '[class*="chat-message"]',
-        '[class*="ChatMessage"]'
-      ]
-    },
-    panelHost: {
-      type: "overlay",
-      containerSelector: null,
-      overlayConfig: {
-        position: "right",
-        width: "400px",
-        backdrop: true
-      }
-    },
-    menuItems: [
-      { panelId: "resources" },
-      { panelId: "association" },
-      { panelId: "feedback" },
-      { panelId: "skillStore" },
-      { panelId: "performance" }
-    ]
-  };
+      };
+    }
+    return enriched;
+  }
+  var PLATFORM_CONFIGS = {};
+  for (const config of platforms_default.platforms || []) {
+    PLATFORM_CONFIGS[config.id] = enrichConfig(config);
+  }
+  function shouldRecord(platformId) {
+    const config = PLATFORM_CONFIGS[platformId];
+    return (config == null ? void 0 : config.record) === true && (config == null ? void 0 : config.enabled) !== false;
+  }
 
   // src/platforms/registry.js
-  var platformRegistry = {
-    higo: higoConfig,
-    deepseek: deepseekConfig
-  };
+  var platformRegistry = PLATFORM_CONFIGS;
 
   // src/core/state.js
   var DEFAULT_STATE = {
@@ -251,6 +244,11 @@
   function setCurrentPlatform(platform2) {
     setPlatform(platform2);
   }
+  function getSelector(feature) {
+    if (typeof feature === "string") return feature;
+    if (feature && typeof feature === "object") return feature.selector;
+    return null;
+  }
   function detectPlatformMultiLayer(detection) {
     const logs = [];
     if (detection.urlPatterns) {
@@ -277,18 +275,22 @@
       const { required, optional } = detection.domFeatures;
       if (required && required.length > 0) {
         for (const feature of required) {
-          const exists = document.querySelector(feature.selector) !== null;
+          const selector = getSelector(feature);
+          if (!selector) continue;
+          const exists = document.querySelector(selector) !== null;
           if (!exists) {
-            console.log(`Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u7F3A\u5C11\u5FC5\u8981DOM: ${feature.description}`);
+            const desc = typeof feature === "object" ? feature.description : selector;
+            console.log(`Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u7F3A\u5C11\u5FC5\u8981DOM: ${desc}`);
             return false;
           }
         }
         logs.push("\u2713 \u5FC5\u8981DOM\u5143\u7D20\u5168\u90E8\u5B58\u5728");
       }
       if (optional && optional.length > 0) {
-        const optionalMatch = optional.some(
-          (feature) => document.querySelector(feature.selector) !== null
-        );
+        const optionalMatch = optional.some((feature) => {
+          const selector = getSelector(feature);
+          return selector && document.querySelector(selector) !== null;
+        });
         if (!optionalMatch) {
           console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u65E0\u53EF\u9009DOM\u7279\u5F81\u5339\u914D");
           return false;
@@ -813,6 +815,129 @@
         method: "GET"
       });
       return response.ok;
+    }
+    async createSession(sessionId = null) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = { "Content-Type": "application/json" };
+        if (this.cfg.agentId) {
+          headers["X-OpenViking-Agent"] = this.cfg.agentId;
+        }
+        if (this.cfg.authEnabled) {
+          if (this.cfg.apiKey) {
+            headers["X-API-Key"] = this.cfg.apiKey;
+          }
+          if (this.cfg.accountId) {
+            headers["X-OpenViking-Account"] = this.cfg.accountId;
+          }
+          if (this.cfg.userId) {
+            headers["X-OpenViking-User"] = this.cfg.userId;
+          }
+        }
+        const body = {};
+        if (sessionId) {
+          body.session_id = sessionId;
+        }
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async addMessage(sessionId, message) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = { "Content-Type": "application/json" };
+        if (this.cfg.agentId) {
+          headers["X-OpenViking-Agent"] = this.cfg.agentId;
+        }
+        if (this.cfg.authEnabled) {
+          if (this.cfg.apiKey) {
+            headers["X-API-Key"] = this.cfg.apiKey;
+          }
+          if (this.cfg.accountId) {
+            headers["X-OpenViking-Account"] = this.cfg.accountId;
+          }
+          if (this.cfg.userId) {
+            headers["X-OpenViking-User"] = this.cfg.userId;
+          }
+        }
+        const response = await fetch(
+          `${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              role: message.role,
+              content: message.text
+            }),
+            signal: controller.signal
+          }
+        );
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async appendMessages(sessionId, messages) {
+      const results = [];
+      for (const msg of messages) {
+        const result = await this.addMessage(sessionId, msg);
+        results.push(result);
+      }
+      return results;
+    }
+    async commitSession(sessionId) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = { "Content-Type": "application/json" };
+        if (this.cfg.agentId) {
+          headers["X-OpenViking-Agent"] = this.cfg.agentId;
+        }
+        if (this.cfg.authEnabled) {
+          if (this.cfg.apiKey) {
+            headers["X-API-Key"] = this.cfg.apiKey;
+          }
+          if (this.cfg.accountId) {
+            headers["X-OpenViking-Account"] = this.cfg.accountId;
+          }
+          if (this.cfg.userId) {
+            headers["X-OpenViking-User"] = this.cfg.userId;
+          }
+        }
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/commit`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ wait: true }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
     }
   };
   function createClient(config) {
@@ -41519,6 +41644,755 @@ ${MEM_TAG_CLOSE}`;
     });
   }
 
+  // src/core/session-extractor.js
+  function getMessageSelectors(platformId) {
+    const config = platformRegistry[platformId];
+    return (config == null ? void 0 : config.messages) || null;
+  }
+  function queryWithFallback(selectors) {
+    for (const selector of selectors) {
+      try {
+        const elements = document.querySelectorAll(selector);
+        if (elements.length > 0) {
+          return Array.from(elements);
+        }
+      } catch (e2) {
+        continue;
+      }
+    }
+    return [];
+  }
+  function findMessagesInContainer(container, selectors) {
+    for (const selector of selectors) {
+      try {
+        let elements = Array.from(container.querySelectorAll(selector));
+        if (elements.length > 0) {
+          elements = elements.filter(
+            (el, i, arr) => !arr.some((other, j) => i !== j && other !== el && other.contains(el))
+          );
+          return elements;
+        }
+      } catch (e2) {
+        continue;
+      }
+    }
+    return [];
+  }
+  function isElementVisible(el) {
+    if (!el.isConnected) return false;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+  function getCleanText(element) {
+    var _a2, _b2, _c2;
+    const clone5 = element.cloneNode(true);
+    const noiseSelectors = [
+      "button",
+      "svg",
+      "img",
+      "script",
+      "style",
+      ".ds-think-content"
+      // DeepSeek: 排除思考过程
+    ];
+    for (const sel of noiseSelectors) {
+      (_b2 = (_a2 = clone5.querySelectorAll) == null ? void 0 : _a2.call(clone5, sel)) == null ? void 0 : _b2.forEach((el) => el.remove());
+    }
+    return ((_c2 = clone5.textContent) == null ? void 0 : _c2.trim()) || "";
+  }
+  function extractText(element) {
+    return getCleanText(element);
+  }
+  function isUserMessageHeuristic(el) {
+    if (el.querySelector(".ds-assistant-message-main-content, .ds-think-content")) {
+      return false;
+    }
+    const className = el.className || "";
+    if (className.includes("user") || className.includes("User")) {
+      return true;
+    }
+    try {
+      const style = window.getComputedStyle(el);
+      const parentStyle = el.parentElement ? window.getComputedStyle(el.parentElement) : null;
+      if (style.alignSelf === "flex-end" || style.marginLeft === "auto") {
+        return true;
+      }
+      if (parentStyle && (parentStyle.justifyContent === "flex-end" || parentStyle.alignItems === "flex-end")) {
+        return true;
+      }
+    } catch (e2) {
+    }
+    return true;
+  }
+  function extractMessagesFromScrollContainer(container) {
+    const messages = [];
+    const children = Array.from(container.children);
+    for (const child of children) {
+      if (child.querySelector("textarea, input")) continue;
+      if (child.tagName === "TEXTAREA" || child.tagName === "INPUT") continue;
+      if (!isElementVisible(child)) continue;
+      const isUser = isUserMessageHeuristic(child);
+      const role = isUser ? "user" : "assistant";
+      let text;
+      if (role === "assistant") {
+        const answerEl = child.querySelector(".ds-assistant-message-main-content");
+        if (!answerEl) continue;
+        text = getCleanText(answerEl);
+      } else {
+        text = extractText(child);
+      }
+      if (!text) continue;
+      messages.push({
+        role,
+        text,
+        el: child
+      });
+    }
+    return messages;
+  }
+  function findSmartMessageContainer() {
+    const dsVirtualList = document.querySelector(".ds-virtual-list");
+    if (dsVirtualList) {
+      return dsVirtualList;
+    }
+    const scrollables = Array.from(document.querySelectorAll("div")).filter((div2) => {
+      const style = window.getComputedStyle(div2);
+      return style.overflow === "auto" || style.overflow === "scroll" || style.overflowY === "auto" || style.overflowY === "scroll";
+    });
+    const candidates = scrollables.filter((div2) => {
+      const rect = div2.getBoundingClientRect();
+      if (rect.height < 200) return false;
+      if (rect.width < 300 && rect.width > 0) return false;
+      return true;
+    });
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => {
+        const rectA = a.getBoundingClientRect();
+        const rectB = b.getBoundingClientRect();
+        return rectB.height - rectA.height;
+      });
+      return candidates[0];
+    }
+    return null;
+  }
+  function finalizeMessages(raw) {
+    const seenEls = /* @__PURE__ */ new WeakSet();
+    const result = [];
+    for (const m2 of raw) {
+      if (m2.el) {
+        if (seenEls.has(m2.el)) continue;
+        seenEls.add(m2.el);
+      }
+      const last = result[result.length - 1];
+      if (last && last.role === m2.role && last.text === m2.text) continue;
+      result.push({
+        role: m2.role,
+        text: m2.text,
+        timestamp: Date.now()
+      });
+    }
+    return result;
+  }
+  function extractSessionMessages(platformId) {
+    const selectors = getMessageSelectors(platformId);
+    if (!selectors) {
+      console.log("EchoMem: no message selectors for platform", platformId);
+      return [];
+    }
+    const messages = [];
+    const containers = queryWithFallback(selectors.messageContainers);
+    if (containers.length > 0) {
+      const container = containers[0];
+      const userMsgs = findMessagesInContainer(container, selectors.userMessages);
+      const assistantMsgs = findMessagesInContainer(container, selectors.assistantMessages);
+      if (userMsgs.length > 0 || assistantMsgs.length > 0) {
+        const allElements = [];
+        for (const el of userMsgs) {
+          if (!isElementVisible(el)) continue;
+          const text = extractText(el);
+          if (text) {
+            allElements.push({ el, role: "user", text });
+          }
+        }
+        for (const el of assistantMsgs) {
+          if (!isElementVisible(el)) continue;
+          const text = extractText(el);
+          if (text) {
+            allElements.push({ el, role: "assistant", text });
+          }
+        }
+        allElements.sort((a, b) => {
+          const posA = a.el.compareDocumentPosition(b.el);
+          return posA & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+        });
+        for (const item of allElements) {
+          messages.push({
+            el: item.el,
+            role: item.role,
+            text: item.text,
+            timestamp: Date.now()
+          });
+        }
+        console.log("EchoMem: extracted", messages.length, "session messages for", platformId, "(from selectors)");
+        return finalizeMessages(messages);
+      }
+      let genericMsgs = findMessagesInContainer(container, selectors.allMessages);
+      if (genericMsgs.length > 50) {
+        console.log("EchoMem: too many generic matches (" + genericMsgs.length + "), using direct children");
+        genericMsgs = Array.from(container.children).filter((el) => {
+          if (!isElementVisible(el)) return false;
+          const text = extractText(el);
+          return !!text;
+        });
+      }
+      if (genericMsgs.length > 0) {
+        let skippedInvisible = 0;
+        let skippedShort = 0;
+        let skippedNoAnswer = 0;
+        for (let i = 0; i < genericMsgs.length; i++) {
+          const el = genericMsgs[i];
+          if (!isElementVisible(el)) {
+            skippedInvisible++;
+            continue;
+          }
+          const isUser = isUserMessageHeuristic(el);
+          const role = isUser ? "user" : "assistant";
+          let text;
+          if (role === "assistant") {
+            const answerEl = el.querySelector(".ds-assistant-message-main-content");
+            if (!answerEl) {
+              skippedNoAnswer++;
+              console.log("EchoMem: msg[" + i + "] role=assistant skipped=no-answer-element");
+              continue;
+            }
+            text = getCleanText(answerEl);
+          } else {
+            text = extractText(el);
+          }
+          if (!text) {
+            skippedShort++;
+            continue;
+          }
+          console.log("EchoMem: msg[" + i + "] role=" + role + " visible=" + isElementVisible(el) + " textLen=" + text.length + " cls=" + (el.className || "").split(" ").slice(0, 3).join(" "));
+          messages.push({
+            el,
+            role,
+            text,
+            timestamp: Date.now()
+          });
+        }
+        console.log(
+          "EchoMem: extracted",
+          messages.length,
+          "session messages for",
+          platformId,
+          "(from generic selectors, total=" + genericMsgs.length,
+          "skipped invisible=" + skippedInvisible,
+          "skipped short=" + skippedShort,
+          "skipped no-answer=" + skippedNoAnswer + ")"
+        );
+        return finalizeMessages(messages);
+      }
+    }
+    console.log("EchoMem: no message container found via selectors, trying smart detection");
+    const smartContainer = findSmartMessageContainer();
+    if (smartContainer) {
+      const extracted = extractMessagesFromScrollContainer(smartContainer);
+      for (const m2 of extracted) {
+        messages.push({
+          el: m2.el,
+          role: m2.role,
+          text: m2.text,
+          timestamp: Date.now()
+        });
+      }
+      console.log("EchoMem: extracted", messages.length, "session messages for", platformId, "(from smart detection)");
+      return finalizeMessages(messages);
+    }
+    console.log("EchoMem: failed to extract session messages for", platformId);
+    return finalizeMessages(messages);
+  }
+
+  // src/services/session-mapper.js
+  function extractSessionId(platformId) {
+    const config = platformRegistry[platformId];
+    if (!config || !config.sessionId) return null;
+    const { type, pattern, flags, segment } = config.sessionId;
+    if (type === "regex" && pattern) {
+      const regex = new RegExp(pattern, flags || "");
+      const match = window.location.pathname.match(regex);
+      return (match == null ? void 0 : match[1]) || null;
+    }
+    if (type === "path") {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      const idx = segment ?? -1;
+      if (idx >= 0) {
+        return parts[idx] || null;
+      }
+      return parts[parts.length + idx] || null;
+    }
+    return null;
+  }
+
+  // src/core/session-recorder.js
+  var recorderState = {
+    platformId: null,
+    rawSessionId: null,
+    openVikingSessionId: null,
+    lastMessages: [],
+    pendingQueue: [],
+    observer: null,
+    debounceTimer: null,
+    isRecording: false,
+    ovClient: null,
+    assistantStableTimer: null,
+    streamingTimeoutTimer: null,
+    streamingSnapshot: null,
+    streamingWasActive: false
+  };
+  var PENDING_QUEUE_MAX = 100;
+  var DEBOUNCE_MS = 500;
+  var STABLE_CHECK_INTERVAL_MS = 500;
+  var SENT_SIGNATURE_TTL_MS = 6e5;
+  var sentSignatures = /* @__PURE__ */ new Map();
+  function getMessageSignature(msg) {
+    return `${msg.role}:${msg.text}`;
+  }
+  function filterRecentlySent(messages) {
+    const now = Date.now();
+    for (const [sig, ts] of sentSignatures) {
+      if (now - ts > SENT_SIGNATURE_TTL_MS) sentSignatures.delete(sig);
+    }
+    return messages.filter((m2) => {
+      const sig = getMessageSignature(m2);
+      if (sentSignatures.has(sig)) {
+        console.log("EchoMem: skip recently sent message", sig.slice(0, 50));
+        return false;
+      }
+      sentSignatures.set(sig, now);
+      return true;
+    });
+  }
+  async function getOvClient() {
+    if (!recorderState.ovClient) {
+      const config = await getOpenVikingConfig();
+      recorderState.ovClient = createClient(config);
+    }
+    return recorderState.ovClient;
+  }
+  function getSessionStorageKey() {
+    return `echomem_session_${recorderState.platformId}_${recorderState.rawSessionId}`;
+  }
+  async function loadSessionMapping() {
+    try {
+      const key = getSessionStorageKey();
+      const result = await chrome.storage.local.get(key);
+      return result[key] || null;
+    } catch {
+      return null;
+    }
+  }
+  async function saveSessionMapping(openVikingSessionId) {
+    try {
+      const key = getSessionStorageKey();
+      await chrome.storage.local.set({ [key]: openVikingSessionId });
+    } catch (err) {
+      console.warn("EchoMem: failed to save session mapping", err);
+    }
+  }
+  function diffMessages(newMessages, oldMessages) {
+    if (!oldMessages || oldMessages.length === 0) {
+      return newMessages;
+    }
+    const minLen = Math.min(newMessages.length, oldMessages.length);
+    let prefixMatch = true;
+    for (let i = 0; i < minLen; i++) {
+      if (newMessages[i].role !== oldMessages[i].role) {
+        prefixMatch = false;
+        break;
+      }
+    }
+    if (prefixMatch) {
+      const added2 = newMessages.slice(oldMessages.length);
+      const oldSignatures2 = new Set(oldMessages.map((m2) => `${m2.role}:${m2.text}`));
+      const uniqueAdded2 = added2.filter((m2) => !oldSignatures2.has(`${m2.role}:${m2.text}`));
+      if (uniqueAdded2.length !== added2.length) {
+        console.log("EchoMem diag: prefix diff dropped duplicates", added2.length - uniqueAdded2.length);
+      }
+      return uniqueAdded2;
+    }
+    for (let oldStart = 0; oldStart < oldMessages.length; oldStart++) {
+      const suffix = oldMessages.slice(oldStart);
+      if (suffix.length > newMessages.length) continue;
+      let match = true;
+      for (let i = 0; i < suffix.length; i++) {
+        if (newMessages[i].role !== suffix[i].role) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        const added2 = newMessages.slice(suffix.length);
+        const oldSignatures2 = new Set(oldMessages.map((m2) => `${m2.role}:${m2.text}`));
+        const uniqueAdded2 = added2.filter((m2) => !oldSignatures2.has(`${m2.role}:${m2.text}`));
+        if (uniqueAdded2.length !== added2.length) {
+          console.log("EchoMem diag: suffix diff dropped duplicates", added2.length - uniqueAdded2.length);
+        }
+        return uniqueAdded2;
+      }
+    }
+    const added = newMessages;
+    const oldSignatures = new Set(oldMessages.map((m2) => `${m2.role}:${m2.text}`));
+    const uniqueAdded = added.filter((m2) => !oldSignatures.has(`${m2.role}:${m2.text}`));
+    if (uniqueAdded.length !== added.length) {
+      console.log("EchoMem diag: diff dropped duplicates", added.length - uniqueAdded.length);
+    }
+    return uniqueAdded;
+  }
+  function findMessageContainer(platformId) {
+    var _a2;
+    const config = PLATFORM_CONFIGS[platformId];
+    if ((_a2 = config == null ? void 0 : config.messages) == null ? void 0 : _a2.messageContainers) {
+      for (const selector of config.messages.messageContainers) {
+        try {
+          const el = document.querySelector(selector);
+          if (el) {
+            console.log("EchoMem: message container found via selector", selector);
+            return el;
+          }
+        } catch (e2) {
+          continue;
+        }
+      }
+    }
+    const smart = findSmartMessageContainer2();
+    if (smart) {
+      console.log("EchoMem: message container found via smart detection", smart.className);
+      return smart;
+    }
+    return null;
+  }
+  function findSmartMessageContainer2() {
+    const dsVirtualList = document.querySelector(".ds-virtual-list");
+    if (dsVirtualList) {
+      return dsVirtualList;
+    }
+    const scrollables = Array.from(document.querySelectorAll("div")).filter((div2) => {
+      const style = window.getComputedStyle(div2);
+      return style.overflow === "auto" || style.overflow === "scroll" || style.overflowY === "auto" || style.overflowY === "scroll";
+    });
+    const candidates = scrollables.filter((div2) => {
+      const rect = div2.getBoundingClientRect();
+      if (rect.height < 200) return false;
+      if (rect.width < 300 && rect.width > 0) return false;
+      return true;
+    });
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => {
+        const rectA = a.getBoundingClientRect();
+        const rectB = b.getBoundingClientRect();
+        return rectB.height - rectA.height;
+      });
+      return candidates[0];
+    }
+    const allDivs = Array.from(document.querySelectorAll("div")).filter((div2) => {
+      const rect = div2.getBoundingClientRect();
+      return rect.height > 300 && rect.width > 300;
+    });
+    if (allDivs.length > 0) {
+      allDivs.sort((a, b) => {
+        const rectA = a.getBoundingClientRect();
+        const rectB = b.getBoundingClientRect();
+        return rectB.height * rectB.width - rectA.height * rectA.width;
+      });
+      return allDivs[0];
+    }
+    return null;
+  }
+  async function flushPendingMessages() {
+    if (recorderState.pendingQueue.length === 0) return;
+    const messages = [...recorderState.pendingQueue];
+    recorderState.pendingQueue = [];
+    try {
+      if (!recorderState.openVikingSessionId) {
+        const client3 = await getOvClient();
+        const result = await client3.createSession(recorderState.rawSessionId);
+        recorderState.openVikingSessionId = result.session_id || result.id || result;
+        await saveSessionMapping(recorderState.openVikingSessionId);
+        console.log("EchoMem: session created", recorderState.openVikingSessionId);
+      }
+      const client2 = await getOvClient();
+      await client2.appendMessages(recorderState.openVikingSessionId, messages);
+      console.log("EchoMem: flushed pending messages", messages.length);
+    } catch (err) {
+      console.warn("EchoMem: failed to flush messages, re-queuing", err);
+      recorderState.pendingQueue.unshift(...messages);
+      if (recorderState.pendingQueue.length > PENDING_QUEUE_MAX) {
+        recorderState.pendingQueue = recorderState.pendingQueue.slice(-PENDING_QUEUE_MAX);
+      }
+    }
+  }
+  async function doSendMessages(messages) {
+    if (!messages || messages.length === 0) return;
+    messages = filterRecentlySent(messages);
+    if (messages.length === 0) return;
+    console.log("EchoMem diag: posting=", messages.map((m2) => m2.role + ":" + m2.text.slice(0, 30)));
+    console.log("EchoMem: detected", messages.length, "new messages");
+    await flushPendingMessages();
+    if (recorderState.openVikingSessionId) {
+      try {
+        const client2 = await getOvClient();
+        await client2.appendMessages(recorderState.openVikingSessionId, messages);
+        console.log("EchoMem: appended", messages.length, "messages");
+      } catch (err) {
+        console.warn("EchoMem: append failed, queueing", err);
+        recorderState.pendingQueue.push(...messages);
+      }
+    } else {
+      try {
+        const client2 = await getOvClient();
+        const result = await client2.createSession(recorderState.rawSessionId);
+        recorderState.openVikingSessionId = result.session_id || result.id || result;
+        await saveSessionMapping(recorderState.openVikingSessionId);
+        console.log("EchoMem: session created", recorderState.openVikingSessionId);
+        await client2.appendMessages(recorderState.openVikingSessionId, messages);
+        console.log("EchoMem: appended", messages.length, "messages");
+      } catch (err) {
+        console.warn("EchoMem: create session failed, queueing", err);
+        recorderState.pendingQueue.push(...messages);
+      }
+    }
+  }
+  function findDeepSeekSendButton() {
+    var _a2, _b2, _c2;
+    const isSendBtn = (btn) => {
+      var _a3;
+      const path = ((_a3 = btn.querySelector("svg path")) == null ? void 0 : _a3.getAttribute("d")) || "";
+      return path.startsWith("M8.3125") || path.startsWith("M2 4.88");
+    };
+    const textarea = document.querySelector("textarea");
+    if (textarea) {
+      const containers = [
+        textarea.closest("form"),
+        textarea.closest('[class*="chat"]'),
+        textarea.closest('[class*="input"]'),
+        (_a2 = textarea.parentElement) == null ? void 0 : _a2.parentElement,
+        (_c2 = (_b2 = textarea.parentElement) == null ? void 0 : _b2.parentElement) == null ? void 0 : _c2.parentElement
+      ].filter(Boolean);
+      for (const container of containers) {
+        const btns = container.querySelectorAll('.ds-icon-button--l[role="button"]');
+        for (const btn of btns) {
+          if (isSendBtn(btn)) return btn;
+        }
+      }
+    }
+    const allBtns = document.querySelectorAll('.ds-icon-button--l[role="button"]');
+    const candidates = [];
+    for (const btn of allBtns) {
+      if (isSendBtn(btn)) {
+        candidates.push({ btn, top: btn.getBoundingClientRect().top });
+      }
+    }
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => b.top - a.top);
+    return candidates[0].btn;
+  }
+  function isDeepSeekStreaming() {
+    var _a2;
+    const btn = findDeepSeekSendButton();
+    if (!btn) return false;
+    const path = ((_a2 = btn.querySelector("svg path")) == null ? void 0 : _a2.getAttribute("d")) || "";
+    return path.startsWith("M2 4.88");
+  }
+  function startStreamingCheck() {
+    stopStreamingCheck();
+    if (!isDeepSeekStreaming()) {
+      console.log("EchoMem: streaming already finished, sending immediately");
+      const currentMessages = extractSessionMessages(recorderState.platformId);
+      sendStreamingResult(currentMessages);
+      return;
+    }
+    recorderState.streamingWasActive = true;
+    recorderState.streamingTimeoutTimer = setTimeout(() => {
+      console.log("EchoMem: streaming check timeout, forcing send");
+      stopStreamingCheck();
+      const currentMessages = extractSessionMessages(recorderState.platformId);
+      sendStreamingResult(currentMessages);
+    }, 6e4);
+    recorderState.assistantStableTimer = setInterval(async () => {
+      const streaming = isDeepSeekStreaming();
+      if (streaming) {
+        recorderState.streamingWasActive = true;
+        console.log("EchoMem: assistant streaming detected");
+      } else if (recorderState.streamingWasActive) {
+        console.log("EchoMem: assistant streaming finished (button back to arrow)");
+        stopStreamingCheck();
+        const currentMessages = extractSessionMessages(recorderState.platformId);
+        await sendStreamingResult(currentMessages);
+      }
+    }, STABLE_CHECK_INTERVAL_MS);
+  }
+  function stopStreamingCheck() {
+    if (recorderState.assistantStableTimer) {
+      clearInterval(recorderState.assistantStableTimer);
+      recorderState.assistantStableTimer = null;
+    }
+    if (recorderState.streamingTimeoutTimer) {
+      clearTimeout(recorderState.streamingTimeoutTimer);
+      recorderState.streamingTimeoutTimer = null;
+    }
+    recorderState.streamingWasActive = false;
+  }
+  async function sendStreamingResult(currentMessages) {
+    if (!recorderState.streamingSnapshot) return;
+    const changes = [];
+    for (let i = recorderState.streamingSnapshot.length; i < currentMessages.length; i++) {
+      changes.push(currentMessages[i]);
+    }
+    recorderState.lastMessages = currentMessages;
+    recorderState.streamingSnapshot = null;
+    if (changes.length > 0) {
+      await doSendMessages(changes);
+    }
+  }
+  async function onMessagesChanged() {
+    const newMessages = extractSessionMessages(recorderState.platformId);
+    console.log("EchoMem diag: newMessages=", newMessages.map((m2) => m2.role + ":" + m2.text.slice(0, 30)));
+    if (recorderState.streamingSnapshot) {
+      const lastNew2 = newMessages[newMessages.length - 1];
+      if ((lastNew2 == null ? void 0 : lastNew2.role) === "user") {
+        stopStreamingCheck();
+        recorderState.streamingSnapshot = null;
+      } else {
+        return;
+      }
+    }
+    const lastNew = newMessages[newMessages.length - 1];
+    const lastOld = recorderState.lastMessages[recorderState.lastMessages.length - 1];
+    const isNewAssistant = (lastNew == null ? void 0 : lastNew.role) === "assistant" && (!lastOld || lastOld.role !== "assistant");
+    if (isNewAssistant) {
+      recorderState.streamingSnapshot = [...recorderState.lastMessages];
+      startStreamingCheck();
+      return;
+    }
+    const added = diffMessages(newMessages, recorderState.lastMessages);
+    recorderState.lastMessages = newMessages;
+    if (added.length === 0) return;
+    await doSendMessages(added);
+  }
+  function debouncedOnChange() {
+    clearTimeout(recorderState.debounceTimer);
+    recorderState.debounceTimer = setTimeout(() => {
+      onMessagesChanged().catch((err) => {
+        console.warn("EchoMem: onMessagesChanged error", err);
+      });
+    }, DEBOUNCE_MS);
+  }
+  function isMeaningfulMutation(mutation) {
+    var _a2, _b2;
+    if (mutation.type !== "childList") return false;
+    for (const node of mutation.addedNodes) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        if ((_a2 = node.classList) == null ? void 0 : _a2.contains("claw-echomem-launcher-bar")) continue;
+        if ((_b2 = node.closest) == null ? void 0 : _b2.call(node, ".claw-echomem-launcher-bar")) continue;
+        return true;
+      }
+    }
+    for (const node of mutation.removedNodes) {
+      if (node.nodeType === Node.ELEMENT_NODE) return true;
+    }
+    return false;
+  }
+  function attachObserver(container) {
+    if (recorderState.observer) {
+      recorderState.observer.disconnect();
+    }
+    recorderState.observer = new MutationObserver((mutations) => {
+      const hasMeaningfulChange = mutations.some(isMeaningfulMutation);
+      if (!hasMeaningfulChange) return;
+      debouncedOnChange();
+    });
+    recorderState.observer.observe(container, {
+      childList: true,
+      subtree: true
+    });
+    console.log("EchoMem: MutationObserver attached to message container");
+    const currentMessages = extractSessionMessages(recorderState.platformId);
+    if (recorderState.openVikingSessionId) {
+      recorderState.lastMessages = currentMessages;
+      console.log("EchoMem: restored session baseline, skipping", currentMessages.length, "existing messages");
+    } else {
+      recorderState.lastMessages = [];
+      console.log("EchoMem: new session, will send", currentMessages.length, "existing messages");
+      if (currentMessages.length > 0) {
+        onMessagesChanged().catch((err) => {
+          console.warn("EchoMem: initial message send failed", err);
+        });
+      }
+    }
+  }
+  async function startRecording(platformId) {
+    if (!shouldRecord(platformId)) {
+      return;
+    }
+    const newRawSessionId = extractSessionId(platformId);
+    if (!newRawSessionId) {
+      if (recorderState.isRecording) {
+        stopRecording();
+      }
+      return;
+    }
+    if (recorderState.isRecording && recorderState.rawSessionId !== newRawSessionId) {
+      console.log("EchoMem: session id changed", recorderState.rawSessionId, "->", newRawSessionId, ", resetting recorder");
+      if (recorderState.observer) {
+        recorderState.observer.disconnect();
+        recorderState.observer = null;
+      }
+      clearTimeout(recorderState.debounceTimer);
+      recorderState.debounceTimer = null;
+      stopStreamingCheck();
+      recorderState.rawSessionId = newRawSessionId;
+      recorderState.openVikingSessionId = null;
+      recorderState.lastMessages = [];
+      recorderState.pendingQueue = [];
+      recorderState.streamingSnapshot = null;
+    }
+    if (!recorderState.isRecording) {
+      recorderState.platformId = platformId;
+      recorderState.rawSessionId = newRawSessionId;
+      recorderState.isRecording = true;
+      console.log("EchoMem: start recording for", platformId, "session", newRawSessionId);
+      const savedSessionId = await loadSessionMapping();
+      if (savedSessionId) {
+        recorderState.openVikingSessionId = savedSessionId;
+        console.log("EchoMem: restored session mapping", savedSessionId);
+      }
+    }
+    if (!recorderState.observer) {
+      const container = findMessageContainer(platformId);
+      if (container) {
+        attachObserver(container);
+      }
+    }
+  }
+  function stopRecording() {
+    if (recorderState.observer) {
+      recorderState.observer.disconnect();
+      recorderState.observer = null;
+    }
+    clearTimeout(recorderState.debounceTimer);
+    recorderState.debounceTimer = null;
+    stopStreamingCheck();
+    recorderState.isRecording = false;
+    recorderState.rawSessionId = null;
+    recorderState.openVikingSessionId = null;
+    recorderState.lastMessages = [];
+    recorderState.pendingQueue = [];
+    recorderState.streamingSnapshot = null;
+    sentSignatures.clear();
+    console.log("EchoMem: recording stopped");
+  }
+
   // src/entry/content.js
   console.log("EchoMem Extension: Content script loaded");
   window.clawExtensionLoaded = true;
@@ -41543,6 +42417,9 @@ ${MEM_TAG_CLOSE}`;
       console.log("EchoMem: Starting input tracking on DOM change for", platform2.config.name);
       startInputTracking(platform2.config);
     }
+    if (platform2 && shouldRecord(platform2.key)) {
+      startRecording(platform2.key);
+    }
   }
   var lifecycle2 = createDomLifecycle({
     onDomChange: refreshContentScriptMount
@@ -41559,6 +42436,11 @@ ${MEM_TAG_CLOSE}`;
       startInputTracking(platform2.config);
     } else if (!platform2) {
       console.log("EchoMem: Platform not detected yet, input tracking will start on next DOM change");
+    }
+    if (platform2 && shouldRecord(platform2.key)) {
+      startRecording(platform2.key);
+    } else if (!platform2) {
+      console.log("EchoMem: Platform not detected yet, session recording will start on next DOM change");
     }
   }
   if (document.readyState === "loading") {

@@ -67,6 +67,149 @@ class OpenVikingClient {
     });
     return response.ok;
   }
+
+  async createSession(sessionId = null) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+
+      if (this.cfg.agentId) {
+        headers['X-OpenViking-Agent'] = this.cfg.agentId;
+      }
+      if (this.cfg.authEnabled) {
+        if (this.cfg.apiKey) {
+          headers['X-API-Key'] = this.cfg.apiKey;
+        }
+        if (this.cfg.accountId) {
+          headers['X-OpenViking-Account'] = this.cfg.accountId;
+        }
+        if (this.cfg.userId) {
+          headers['X-OpenViking-User'] = this.cfg.userId;
+        }
+      }
+
+      const body = {};
+      if (sessionId) {
+        body.session_id = sessionId;
+      }
+
+      const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data.status === 'error') {
+        throw new Error(data.error?.message || `HTTP ${response.status}`);
+      }
+
+      return data.result || data;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async addMessage(sessionId, message) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+
+      if (this.cfg.agentId) {
+        headers['X-OpenViking-Agent'] = this.cfg.agentId;
+      }
+      if (this.cfg.authEnabled) {
+        if (this.cfg.apiKey) {
+          headers['X-API-Key'] = this.cfg.apiKey;
+        }
+        if (this.cfg.accountId) {
+          headers['X-OpenViking-Account'] = this.cfg.accountId;
+        }
+        if (this.cfg.userId) {
+          headers['X-OpenViking-User'] = this.cfg.userId;
+        }
+      }
+
+      const response = await fetch(
+        `${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            role: message.role,
+            content: message.text,
+          }),
+          signal: controller.signal,
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data.status === 'error') {
+        throw new Error(data.error?.message || `HTTP ${response.status}`);
+      }
+
+      return data.result || data;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async appendMessages(sessionId, messages) {
+    const results = [];
+    for (const msg of messages) {
+      const result = await this.addMessage(sessionId, msg);
+      results.push(result);
+    }
+    return results;
+  }
+
+  async commitSession(sessionId) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+
+      if (this.cfg.agentId) {
+        headers['X-OpenViking-Agent'] = this.cfg.agentId;
+      }
+      if (this.cfg.authEnabled) {
+        if (this.cfg.apiKey) {
+          headers['X-API-Key'] = this.cfg.apiKey;
+        }
+        if (this.cfg.accountId) {
+          headers['X-OpenViking-Account'] = this.cfg.accountId;
+        }
+        if (this.cfg.userId) {
+          headers['X-OpenViking-User'] = this.cfg.userId;
+        }
+      }
+
+      const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/commit`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ wait: true }),
+        signal: controller.signal,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data.status === 'error') {
+        throw new Error(data.error?.message || `HTTP ${response.status}`);
+      }
+
+      return data.result || data;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }
 
 export function createClient(config) {

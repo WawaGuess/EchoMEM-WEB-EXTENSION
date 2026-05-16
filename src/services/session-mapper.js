@@ -1,15 +1,28 @@
 // 会话识别与映射 — 从页面提取 session ID 并映射为 OpenViking session ID
 
+import { PLATFORM_CONFIGS } from '../platforms/index.js';
+
 export function extractSessionId(platformId) {
-  if (platformId === 'higo') {
-    const match = window.location.pathname.match(/\/home\/session\/([a-f0-9-]+)/i);
+  const config = PLATFORM_CONFIGS[platformId];
+  if (!config || !config.sessionId) return null;
+
+  const { type, pattern, flags, segment } = config.sessionId;
+
+  if (type === 'regex' && pattern) {
+    const regex = new RegExp(pattern, flags || '');
+    const match = window.location.pathname.match(regex);
     return match?.[1] || null;
   }
-  if (platformId === 'deepseek') {
-    // DeepSeek 的 session 标识从 URL pathname 提取
+
+  if (type === 'path') {
     const parts = window.location.pathname.split('/').filter(Boolean);
-    return parts[parts.length - 1] || null;
+    const idx = segment ?? -1;
+    if (idx >= 0) {
+      return parts[idx] || null;
+    }
+    return parts[parts.length + idx] || null;
   }
+
   return null;
 }
 

@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "platforms": [
+    {
+      "id": "higo",
+      "name": "HIGO Office",
+      "enabled": true,
+      "record": false,
+      "detection": {
+        "urlPatterns": ["/home/session/", "/home/workspace/"],
+        "titleKeywords": ["Higo", "HIGO", "Higo2", "Higo Office"],
+        "domFeatures": {
+          "required": [".MuiDrawer-root", ".MuiPaper-root"],
+          "optional": ["textarea[id^='_r_']", "[data-testid='ArrowUpwardIcon']", ".MuiDrawer-anchorRight"]
+        },
+        "contentKeywords": ["higo", "HIGO", "Higo2"]
+      },
+      "launcher": {
+        "text": "EchoMem",
+        "containerSelector": ".MuiPaper-root",
+        "validateSelectors": {
+          "textarea": "textarea[id^='_r_']",
+          "sendButton": "[data-testid='ArrowUpwardIcon']"
+        },
+        "style": {
+          "display": "flex",
+          "gap": "8px",
+          "padding": "0 12px 8px",
+          "background": "rgb(255, 251, 254)",
+          "alignItems": "center",
+          "justifyContent": "flex-start"
+        },
+        "insertPosition": "before"
+      },
+      "messages": {
+        "messageContainers": [
+          "[class*='MessageList']",
+          "[class*='message-list']",
+          "[class*='chat-messages']",
+          "[class*='conversation']",
+          ".MuiPaper-root > .MuiList-root",
+          ".MuiDrawer-paper > div > div",
+          ".MuiPaper-root"
+        ],
+        "userMessages": [
+          "[class*='UserMessage']",
+          "[class*='user-message']",
+          "[class*='user']",
+          "[style*='flex-end']"
+        ],
+        "assistantMessages": [
+          "[class*='AssistantMessage']",
+          "[class*='assistant-message']",
+          "[class*='assistant']",
+          "[class*='bot-message']",
+          "[class*='ai-message']"
+        ],
+        "allMessages": ["div[class*='Mui']", "div"]
+      },
+      "panelHost": {
+        "type": "sidebar",
+        "containerSelector": ".MuiDrawer-anchorRight .MuiDrawer-paper"
+      },
+      "sessionId": {
+        "type": "regex",
+        "pattern": "/home/session/([a-f0-9-]+)",
+        "flags": "i"
+      },
+      "menuItems": [
+        { "panelId": "resources" },
+        { "panelId": "association" },
+        { "panelId": "feedback" },
+        { "panelId": "skillStore" },
+        { "panelId": "performance" }
+      ]
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "enabled": true,
+      "record": true,
+      "detection": {
+        "urlPatterns": ["chat.deepseek.com"],
+        "titleKeywords": ["DeepSeek"],
+        "domFeatures": {
+          "required": ["textarea[placeholder*='DeepSeek']", "._24fad49"],
+          "optional": ["._020ab5b", "[role='button']"]
+        },
+        "contentKeywords": ["deepseek", "深度思考", "智能搜索"]
+      },
+      "launcher": {
+        "text": "EchoMem",
+        "containerSelector": "._77cefa5, ._24fad49",
+        "validateSelectors": {
+          "textarea": "textarea[placeholder*='DeepSeek']"
+        },
+        "style": {
+          "display": "flex",
+          "gap": "8px",
+          "padding": "0 12px 8px",
+          "alignItems": "center",
+          "justifyContent": "flex-start"
+        },
+        "insertPosition": "before",
+        "dynamicBackground": true
+      },
+      "messages": {
+        "messageContainers": [
+          ".ds-virtual-list",
+          "[class*='virtual-list']"
+        ],
+        "userMessages": [],
+        "assistantMessages": [],
+        "allMessages": [".ds-message"]
+      },
+      "panelHost": {
+        "type": "overlay",
+        "overlayConfig": {
+          "position": "right",
+          "width": "400px",
+          "backdrop": true
+        }
+      },
+      "sessionId": {
+        "type": "path",
+        "segment": -1
+      },
+      "menuItems": [
+        { "panelId": "resources" },
+        { "panelId": "association" },
+        { "panelId": "feedback" },
+        { "panelId": "skillStore" },
+        { "panelId": "performance" }
+      ]
+    }
+  ]
+}

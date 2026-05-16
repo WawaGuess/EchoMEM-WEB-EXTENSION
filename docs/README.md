@@ -28,6 +28,7 @@ docs/
 | [architecture/platform-detection.md](./architecture/platform-detection.md) | 平台检测、入口注入、面板模式与新平台扩展说明 |
 | [architecture/detection-flow.mmd](./architecture/detection-flow.mmd) | 平台检测流程图，Mermaid 格式 |
 | [architecture/2026-05-11-smart-completion-implementation.md](./architecture/2026-05-11-smart-completion-implementation.md) | 智能补全功能实现总结：OpenViking 召回 + 本地算法 + 多选浮层 + 合并式插入；含 OpenViking 认证开关（authEnabled）逻辑 |
+| [architecture/2026-05-16-session-recording-implementation.md](./architecture/2026-05-16-session-recording-implementation.md) | 会话录制模块实现：DOM 提取、消息 diff、流式完成检测、OpenViking 同步，含去重与防重设计 |
 | [proposals/README.md](./proposals/README.md) | 后续方案草稿区的使用规则 |
 
 ## 方案记录

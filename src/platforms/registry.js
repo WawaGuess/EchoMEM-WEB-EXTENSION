@@ -1,7 +1,3 @@
-import { higoConfig } from './higo.js';
-import { deepseekConfig } from './deepseek.js';
+import { PLATFORM_CONFIGS } from '../config/loader.js';
 
-export const platformRegistry = {
-  higo: higoConfig,
-  deepseek: deepseekConfig
-};
+export const platformRegistry = PLATFORM_CONFIGS;

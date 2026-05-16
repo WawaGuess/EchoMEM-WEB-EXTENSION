@@ -11,6 +11,15 @@ export function setCurrentPlatform(platform) {
   setPlatform(platform);
 }
 
+/**
+ * 统一获取选择器字符串（兼容 JSON 字符串数组和旧版对象数组）
+ */
+function getSelector(feature) {
+  if (typeof feature === 'string') return feature;
+  if (feature && typeof feature === 'object') return feature.selector;
+  return null;
+}
+
 // 多层平台检测函数（4层全部满足才判定为目标页面）
 export function detectPlatformMultiLayer(detection) {
   const logs = [];
@@ -45,9 +54,12 @@ export function detectPlatformMultiLayer(detection) {
 
     if (required && required.length > 0) {
       for (const feature of required) {
-        const exists = document.querySelector(feature.selector) !== null;
+        const selector = getSelector(feature);
+        if (!selector) continue;
+        const exists = document.querySelector(selector) !== null;
         if (!exists) {
-          console.log(`Claw Extension: 平台检测未通过 - 缺少必要DOM: ${feature.description}`);
+          const desc = typeof feature === 'object' ? feature.description : selector;
+          console.log(`Claw Extension: 平台检测未通过 - 缺少必要DOM: ${desc}`);
           return false;
         }
       }
@@ -55,9 +67,10 @@ export function detectPlatformMultiLayer(detection) {
     }
 
     if (optional && optional.length > 0) {
-      const optionalMatch = optional.some(feature =>
-        document.querySelector(feature.selector) !== null
-      );
+      const optionalMatch = optional.some(feature => {
+        const selector = getSelector(feature);
+        return selector && document.querySelector(selector) !== null;
+      });
       if (!optionalMatch) {
         console.log('Claw Extension: 平台检测未通过 - 无可选DOM特征匹配');
         return false;
