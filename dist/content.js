@@ -42513,23 +42513,21 @@ ${MEM_TAG_CLOSE}`;
   var DEBOUNCE_MS = 500;
   var SENT_SIGNATURE_TTL_MS = 6e5;
   var sentSignatures = /* @__PURE__ */ new Map();
-  function getMessageSignature(msg) {
-    return `${msg.role}:${msg.text}`;
+  function getBatchFingerprint(messages) {
+    return recorderState.lastMessages.length + ":" + messages.length + ":" + messages.map((m2) => `${m2.role}:${m2.text}`).join("|");
   }
   function filterRecentlySent(messages) {
     const now = Date.now();
     for (const [sig, ts] of sentSignatures) {
       if (now - ts > SENT_SIGNATURE_TTL_MS) sentSignatures.delete(sig);
     }
-    return messages.filter((m2) => {
-      const sig = getMessageSignature(m2);
-      if (sentSignatures.has(sig)) {
-        console.log("EchoMem: skip recently sent message", sig.slice(0, 50));
-        return false;
-      }
-      sentSignatures.set(sig, now);
-      return true;
-    });
+    const fp = getBatchFingerprint(messages);
+    if (sentSignatures.has(fp)) {
+      console.log("EchoMem: skip recently sent batch", messages.length, "messages");
+      return [];
+    }
+    sentSignatures.set(fp, now);
+    return messages;
   }
   async function getOvClient() {
     if (!recorderState.ovClient) {
@@ -42565,38 +42563,26 @@ ${MEM_TAG_CLOSE}`;
     const minLen = Math.min(newMessages.length, oldMessages.length);
     let prefixMatch = true;
     for (let i = 0; i < minLen; i++) {
-      if (newMessages[i].role !== oldMessages[i].role) {
+      if (newMessages[i].role !== oldMessages[i].role || newMessages[i].text !== oldMessages[i].text) {
         prefixMatch = false;
         break;
       }
     }
     if (prefixMatch) {
-      const added2 = newMessages.slice(oldMessages.length);
-      const oldSignatures2 = new Set(oldMessages.map((m2) => `${m2.role}:${m2.text}`));
-      const uniqueAdded2 = added2.filter((m2) => !oldSignatures2.has(`${m2.role}:${m2.text}`));
-      if (uniqueAdded2.length !== added2.length) {
-        console.log("EchoMem diag: prefix diff dropped duplicates", added2.length - uniqueAdded2.length);
-      }
-      return uniqueAdded2;
+      return newMessages.slice(oldMessages.length);
     }
     for (let oldStart = 0; oldStart < oldMessages.length; oldStart++) {
       const suffix = oldMessages.slice(oldStart);
       if (suffix.length > newMessages.length) continue;
       let match = true;
       for (let i = 0; i < suffix.length; i++) {
-        if (newMessages[i].role !== suffix[i].role) {
+        if (newMessages[i].role !== suffix[i].role || newMessages[i].text !== suffix[i].text) {
           match = false;
           break;
         }
       }
       if (match) {
-        const added2 = newMessages.slice(suffix.length);
-        const oldSignatures2 = new Set(oldMessages.map((m2) => `${m2.role}:${m2.text}`));
-        const uniqueAdded2 = added2.filter((m2) => !oldSignatures2.has(`${m2.role}:${m2.text}`));
-        if (uniqueAdded2.length !== added2.length) {
-          console.log("EchoMem diag: suffix diff dropped duplicates", added2.length - uniqueAdded2.length);
-        }
-        return uniqueAdded2;
+        return newMessages.slice(suffix.length);
       }
     }
     const added = newMessages;

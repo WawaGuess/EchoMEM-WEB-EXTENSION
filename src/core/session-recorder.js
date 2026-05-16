@@ -38,8 +38,8 @@ const SENT_SIGNATURE_TTL_MS = 600000; // 10 分钟
 
 const sentSignatures = new Map();
 
-function getMessageSignature(msg) {
-  return `${msg.role}:${msg.text}`;
+function getBatchFingerprint(messages) {
+  return recorderState.lastMessages.length + ':' + messages.length + ':' + messages.map((m) => `${m.role}:${m.text}`).join('|');
 }
 
 function filterRecentlySent(messages) {
@@ -47,15 +47,13 @@ function filterRecentlySent(messages) {
   for (const [sig, ts] of sentSignatures) {
     if (now - ts > SENT_SIGNATURE_TTL_MS) sentSignatures.delete(sig);
   }
-  return messages.filter((m) => {
-    const sig = getMessageSignature(m);
-    if (sentSignatures.has(sig)) {
-      console.log('EchoMem: skip recently sent message', sig.slice(0, 50));
-      return false;
-    }
-    sentSignatures.set(sig, now);
-    return true;
-  });
+  const fp = getBatchFingerprint(messages);
+  if (sentSignatures.has(fp)) {
+    console.log('EchoMem: skip recently sent batch', messages.length, 'messages');
+    return [];
+  }
+  sentSignatures.set(fp, now);
+  return messages;
 }
 
 async function getOvClient() {
@@ -95,23 +93,19 @@ function diffMessages(newMessages, oldMessages) {
     return newMessages;
   }
 
-  // 1. 前缀匹配 —— 正常追加消息
+  // 1. 前缀匹配 —— 正常追加消息（同时比较 role + text）
   const minLen = Math.min(newMessages.length, oldMessages.length);
   let prefixMatch = true;
   for (let i = 0; i < minLen; i++) {
-    if (newMessages[i].role !== oldMessages[i].role) {
+    if (newMessages[i].role !== oldMessages[i].role ||
+        newMessages[i].text !== oldMessages[i].text) {
       prefixMatch = false;
       break;
     }
   }
   if (prefixMatch) {
-    const added = newMessages.slice(oldMessages.length);
-    const oldSignatures = new Set(oldMessages.map((m) => `${m.role}:${m.text}`));
-    const uniqueAdded = added.filter((m) => !oldSignatures.has(`${m.role}:${m.text}`));
-    if (uniqueAdded.length !== added.length) {
-      console.log('EchoMem diag: prefix diff dropped duplicates', added.length - uniqueAdded.length);
-    }
-    return uniqueAdded;
+    // 基于完整内容的索引对齐已经是精确的，直接返回 added
+    return newMessages.slice(oldMessages.length);
   }
 
   // 2. 后缀匹配 —— 虚拟列表卸载了前面的消息时，
@@ -122,19 +116,15 @@ function diffMessages(newMessages, oldMessages) {
 
     let match = true;
     for (let i = 0; i < suffix.length; i++) {
-      if (newMessages[i].role !== suffix[i].role) {
+      if (newMessages[i].role !== suffix[i].role ||
+          newMessages[i].text !== suffix[i].text) {
         match = false;
         break;
       }
     }
     if (match) {
-      const added = newMessages.slice(suffix.length);
-      const oldSignatures = new Set(oldMessages.map((m) => `${m.role}:${m.text}`));
-      const uniqueAdded = added.filter((m) => !oldSignatures.has(`${m.role}:${m.text}`));
-      if (uniqueAdded.length !== added.length) {
-        console.log('EchoMem diag: suffix diff dropped duplicates', added.length - uniqueAdded.length);
-      }
-      return uniqueAdded;
+      // 基于完整内容的索引对齐已经是精确的，直接返回 added
+      return newMessages.slice(suffix.length);
     }
   }
 

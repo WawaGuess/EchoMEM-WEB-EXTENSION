@@ -116,6 +116,7 @@ const recorderState = {
    new = [user1, assistant1, user2]
    → added = [user2]
    ```
+   匹配循环同时比较 `role` 和 `text`，确保索引对齐是精确的。对齐成功后直接返回 `added`，不再做额外的签名过滤。
 
 2. **后缀匹配**（虚拟列表卸载了前面的消息）：
    ```
@@ -124,9 +125,10 @@ const recorderState = {
    → 找到 old 的后缀 [assistant1] 与 new 开头对齐
    → added = [user2]
    ```
+   同样同时比较 `role` 和 `text`，对齐成功后直接返回。
 
-3. **签名去重兜底**（任何分支返回前都执行）：
-   计算 `oldMessages` 中所有 `role:text` 签名，从 `added` 中剔除已存在的消息。即使 diff 对齐逻辑误判，同一内容也不会被重复发送。
+3. **签名去重兜底**（仅当完全无法对齐时执行）：
+   如果前缀和后缀都无法对齐（页面大规模重构），计算 `oldMessages` 中所有 `role:text` 签名，从 `added` 中剔除已存在的消息。
 
 ### 4.4 流式完成检测（`startStreamingDetection` + 可插拔策略）
 
@@ -169,12 +171,13 @@ function startStreamingDetection() {
 ### 4.5 消息发送防重（`filterRecentlySent`）
 
 `doSendMessages` 在发送前调用 `filterRecentlySent`：
-- 维护全局 `sentSignatures` Map，键为 `role:text`，值为发送时间戳
+- 维护全局 `sentSignatures` Map，键为**整批消息指纹**，值为发送时间戳
+- 指纹格式：`lastMessages.length:messages.length:role1:text1|role2:text2|...`
 - 签名缓存 TTL 为 **10 分钟**
-- 若消息签名已存在于缓存中，直接跳过并打印日志
+- 若整批指纹已存在于缓存中，直接跳过并打印日志
 - `stopRecording` 时清空缓存，防止跨会话污染
 
-这是发送层的最后一道防线，即使 diff 层和提取层都漏了重复，同一内容在 10 分钟内也只会被 POST 一次。
+整批指纹包含会话当前长度前缀，确保不同轮次发送的相同内容消息（如用户连续发送同一问题）不会被误判为重复。同一批完全相同的消息在 10 分钟内只会被 POST 一次。
 
 ### 4.6 失败重试队列（`flushPendingMessages`）
 
@@ -244,7 +247,7 @@ function startStreamingDetection() {
 | `EchoMem diag: prefix diff dropped duplicates` | diff 前缀匹配分支拦截重复 | 确认重复来源 |
 | `EchoMem diag: suffix diff dropped duplicates` | diff 后缀匹配分支拦截重复 | 确认虚拟列表卸载场景 |
 | `EchoMem diag: diff dropped duplicates` | diff 兜底分支拦截重复 | 确认完全无法对齐场景 |
-| `EchoMem: skip recently sent message` | `filterRecentlySent` 拦截 | 确认发送层防重命中 |
+| `EchoMem: skip recently sent batch` | `filterRecentlySent` 拦截整批重复消息 | 确认发送层防重命中 |
 | `EchoMem: message container found via adapter` | adapter 找到容器 | 确认容器查找成功 |
 | `EchoMem: start recording for ...` | `startRecording` 进入活动状态 | 确认录制启动 |
 | `EchoMem: session id changed ... resetting recorder` | URL 变化触发重置 | 确认 session 切换 |
@@ -257,9 +260,9 @@ function startStreamingDetection() {
 
 ### 8.1 当前已知问题
 
-多轮对话后 OpenViking 中仍偶发重复消息（如 `user2, assistant2, user2, assistant2`）。当前三层防护（提取去重、diff 签名去重、发送签名防重）已能拦截大部分场景，但重复可能在以下情况发生：
+多轮对话后 OpenViking 中仍偶发重复消息（如 `user2, assistant2, user2, assistant2`）。重复可能在以下情况发生：
 - `sendStreamingResult` 与 `onMessagesChanged` 的非流式 diff 产生竞态
-- OpenViking 服务端端或网络层重试导致重复入库
+- OpenViking 服务端或网络层重试导致重复入库
 
 后续需要：
 1. 在 `sendStreamingResult` 中也增加 `filterRecentlySent` 调用（当前只在 `doSendMessages` 中）
