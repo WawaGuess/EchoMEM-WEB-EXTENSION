@@ -63,7 +63,17 @@
             "[class*='bot-message']",
             "[class*='ai-message']"
           ],
-          allMessages: ["div[class*='Mui']", "div"]
+          allMessages: ["div[class*='Mui']", "div"],
+          noiseSelectors: [],
+          smartContainerHints: [],
+          assistant: {
+            textSelector: null,
+            skipIfMissing: false,
+            roleSignals: []
+          }
+        },
+        streaming: {
+          strategy: "none"
         },
         panelHost: {
           type: "sidebar",
@@ -110,7 +120,11 @@
             justifyContent: "flex-start"
           },
           insertPosition: "before",
-          dynamicBackground: true
+          backgroundColorFrom: {
+            selector: "._77cefa5",
+            property: "backgroundColor",
+            fallback: "#fff"
+          }
         },
         messages: {
           messageContainers: [
@@ -119,7 +133,37 @@
           ],
           userMessages: [],
           assistantMessages: [],
-          allMessages: [".ds-message"]
+          allMessages: [".ds-message"],
+          noiseSelectors: [".ds-think-content"],
+          smartContainerHints: [".ds-virtual-list"],
+          assistant: {
+            textSelector: ".ds-assistant-message-main-content",
+            skipIfMissing: true,
+            roleSignals: [
+              ".ds-assistant-message-main-content",
+              ".ds-think-content"
+            ]
+          }
+        },
+        streaming: {
+          strategy: "button-svg-poll",
+          params: {
+            anchorSelector: "textarea",
+            anchorParents: [
+              "closest:form",
+              "closest:[class*=chat]",
+              "closest:[class*=input]",
+              "parent:2",
+              "parent:3"
+            ],
+            buttonSelector: ".ds-icon-button--l[role='button']",
+            iconSelector: "svg path",
+            iconAttr: "d",
+            streamingMatch: "startsWith:M2 4.88",
+            idleMatch: "startsWith:M8.3125",
+            pollIntervalMs: 500,
+            timeoutMs: 6e4
+          }
         },
         panelHost: {
           type: "overlay",
@@ -145,21 +189,31 @@
   };
 
   // src/config/loader.js
-  function enrichConfig(config) {
-    var _a2;
-    const enriched = { ...config };
-    if (enriched.id === "deepseek" && ((_a2 = enriched.launcher) == null ? void 0 : _a2.dynamicBackground)) {
-      enriched.launcher = { ...enriched.launcher };
-      enriched.launcher.getBackgroundColor = () => {
-        const inputArea = document.querySelector("._77cefa5");
-        if (inputArea) {
-          const style = window.getComputedStyle(inputArea);
-          if (style.backgroundColor && style.backgroundColor !== "rgba(0, 0, 0, 0)") {
-            return style.backgroundColor;
-          }
+  function buildLauncherBackgroundFn(launcher) {
+    const rule = launcher == null ? void 0 : launcher.backgroundColorFrom;
+    if (!(rule == null ? void 0 : rule.selector)) return null;
+    const property = rule.property || "backgroundColor";
+    const fallback = rule.fallback || null;
+    return () => {
+      try {
+        const target = document.querySelector(rule.selector);
+        if (target) {
+          const style = window.getComputedStyle(target);
+          const value = style[property];
+          if (value && value !== "rgba(0, 0, 0, 0)") return value;
         }
-        return "#fff";
-      };
+      } catch {
+      }
+      return fallback;
+    };
+  }
+  function enrichConfig(config) {
+    const enriched = { ...config };
+    if (enriched.launcher) {
+      const bgFn = buildLauncherBackgroundFn(enriched.launcher);
+      if (bgFn) {
+        enriched.launcher = { ...enriched.launcher, getBackgroundColor: bgFn };
+      }
     }
     return enriched;
   }
@@ -41644,26 +41698,613 @@ ${MEM_TAG_CLOSE}`;
     });
   }
 
+  // src/streaming/button-svg-poll.js
+  function matchRule(value, rule) {
+    if (!rule) return false;
+    const idx = rule.indexOf(":");
+    if (idx === -1) return value === rule;
+    const op = rule.slice(0, idx);
+    const arg = rule.slice(idx + 1);
+    switch (op) {
+      case "startsWith":
+        return value.startsWith(arg);
+      case "equals":
+        return value === arg;
+      case "contains":
+        return value.includes(arg);
+      case "regex":
+        try {
+          return new RegExp(arg).test(value);
+        } catch {
+          return false;
+        }
+      default:
+        return false;
+    }
+  }
+  function resolveAnchorParents(anchor, rules) {
+    const result = [];
+    for (const rule of rules || []) {
+      if (typeof rule !== "string") continue;
+      const idx = rule.indexOf(":");
+      if (idx === -1) continue;
+      const op = rule.slice(0, idx);
+      const arg = rule.slice(idx + 1);
+      try {
+        if (op === "closest") {
+          const c = anchor.closest(arg);
+          if (c) result.push(c);
+        } else if (op === "parent") {
+          const n = parseInt(arg, 10);
+          let p = anchor;
+          for (let i = 0; i < n && p; i++) p = p.parentElement;
+          if (p) result.push(p);
+        }
+      } catch {
+      }
+    }
+    return result;
+  }
+  function createButtonSvgPollDetector(params = {}) {
+    const {
+      anchorSelector = null,
+      anchorParents = [],
+      buttonSelector,
+      iconSelector = "svg path",
+      iconAttr = "d",
+      streamingMatch = null,
+      idleMatch = null,
+      pollIntervalMs = 500,
+      timeoutMs = 6e4
+    } = params;
+    function readIcon(btn) {
+      try {
+        const icon = btn.querySelector(iconSelector);
+        if (!icon) return "";
+        return icon.getAttribute(iconAttr) || "";
+      } catch {
+        return "";
+      }
+    }
+    function isCandidate(btn) {
+      const v = readIcon(btn);
+      return matchRule(v, streamingMatch) || matchRule(v, idleMatch);
+    }
+    function findButton() {
+      if (!buttonSelector) return null;
+      if (anchorSelector) {
+        const anchor = document.querySelector(anchorSelector);
+        if (anchor) {
+          const containers = resolveAnchorParents(anchor, anchorParents);
+          for (const c of containers) {
+            let btns;
+            try {
+              btns = c.querySelectorAll(buttonSelector);
+            } catch {
+              continue;
+            }
+            for (const btn of btns) {
+              if (isCandidate(btn)) return btn;
+            }
+          }
+        }
+      }
+      let all;
+      try {
+        all = document.querySelectorAll(buttonSelector);
+      } catch {
+        return null;
+      }
+      const candidates = [];
+      for (const btn of all) {
+        if (isCandidate(btn)) {
+          candidates.push({ btn, top: btn.getBoundingClientRect().top });
+        }
+      }
+      if (candidates.length === 0) return null;
+      candidates.sort((a, b) => b.top - a.top);
+      return candidates[0].btn;
+    }
+    function isStreaming() {
+      const btn = findButton();
+      if (!btn) return false;
+      return matchRule(readIcon(btn), streamingMatch);
+    }
+    let pollTimer = null;
+    let timeoutTimer = null;
+    let wasStreaming = false;
+    let fired = false;
+    let onCompleteRef = null;
+    function fire() {
+      if (fired) return;
+      fired = true;
+      cleanup();
+      try {
+        onCompleteRef && onCompleteRef();
+      } catch (err) {
+        console.warn("EchoMem: streaming onComplete threw", err);
+      }
+    }
+    function cleanup() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      if (timeoutTimer) {
+        clearTimeout(timeoutTimer);
+        timeoutTimer = null;
+      }
+    }
+    return {
+      start(onComplete) {
+        fired = false;
+        wasStreaming = false;
+        onCompleteRef = onComplete;
+        cleanup();
+        if (!isStreaming()) {
+          console.log("EchoMem: streaming already finished at start, firing immediately");
+          Promise.resolve().then(fire);
+          return;
+        }
+        wasStreaming = true;
+        timeoutTimer = setTimeout(() => {
+          console.log("EchoMem: streaming check timeout, forcing complete");
+          fire();
+        }, timeoutMs);
+        pollTimer = setInterval(() => {
+          if (fired) return;
+          const streaming = isStreaming();
+          if (streaming) {
+            wasStreaming = true;
+          } else if (wasStreaming) {
+            console.log("EchoMem: streaming finished (button back to idle icon)");
+            fire();
+          }
+        }, pollIntervalMs);
+      },
+      stop() {
+        fired = true;
+        onCompleteRef = null;
+        cleanup();
+      }
+    };
+  }
+
+  // src/streaming/text-stability.js
+  function createTextStabilityDetector(params = {}) {
+    const {
+      targetSelector = null,
+      stableMs = 1500,
+      pollIntervalMs = 300,
+      timeoutMs = 6e4
+    } = params;
+    let pollTimer = null;
+    let timeoutTimer = null;
+    let lastText = "";
+    let lastChangeAt = 0;
+    let fired = false;
+    let onCompleteRef = null;
+    function readText() {
+      if (!targetSelector) return document.body.textContent || "";
+      try {
+        const el = document.querySelector(targetSelector);
+        return el ? el.textContent || "" : "";
+      } catch {
+        return "";
+      }
+    }
+    function fire() {
+      if (fired) return;
+      fired = true;
+      cleanup();
+      try {
+        onCompleteRef && onCompleteRef();
+      } catch (err) {
+        console.warn("EchoMem: streaming onComplete threw", err);
+      }
+    }
+    function cleanup() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      if (timeoutTimer) {
+        clearTimeout(timeoutTimer);
+        timeoutTimer = null;
+      }
+    }
+    return {
+      start(onComplete) {
+        fired = false;
+        onCompleteRef = onComplete;
+        cleanup();
+        lastText = readText();
+        lastChangeAt = Date.now();
+        timeoutTimer = setTimeout(() => {
+          console.log("EchoMem: text-stability timeout, forcing complete");
+          fire();
+        }, timeoutMs);
+        pollTimer = setInterval(() => {
+          if (fired) return;
+          const cur = readText();
+          if (cur !== lastText) {
+            lastText = cur;
+            lastChangeAt = Date.now();
+            return;
+          }
+          if (Date.now() - lastChangeAt >= stableMs) {
+            console.log("EchoMem: text stable for", stableMs, "ms, marking complete");
+            fire();
+          }
+        }, pollIntervalMs);
+      },
+      stop() {
+        fired = true;
+        onCompleteRef = null;
+        cleanup();
+      }
+    };
+  }
+
+  // src/streaming/selector-state.js
+  function evalRule(value, rule) {
+    if (!rule) return false;
+    const idx = rule.indexOf(":");
+    if (idx === -1) return value === rule;
+    const op = rule.slice(0, idx);
+    const arg = rule.slice(idx + 1);
+    switch (op) {
+      case "startsWith":
+        return value.startsWith(arg);
+      case "equals":
+        return value === arg;
+      case "contains":
+        return value.includes(arg);
+      case "regex":
+        try {
+          return new RegExp(arg).test(value);
+        } catch {
+          return false;
+        }
+      default:
+        return false;
+    }
+  }
+  function matches(el, match) {
+    var _a2;
+    if (!el || !match) return false;
+    if (match.attr) {
+      const v = el.getAttribute(match.attr) || "";
+      return evalRule(v, match.rule);
+    }
+    if (match.class) {
+      const has = ((_a2 = el.classList) == null ? void 0 : _a2.contains(match.class)) ?? false;
+      return match.present === false ? !has : has;
+    }
+    return false;
+  }
+  function createSelectorStateDetector(params = {}) {
+    const {
+      targetSelector,
+      streamingMatch,
+      idleMatch,
+      pollIntervalMs = 300,
+      timeoutMs = 6e4
+    } = params;
+    let pollTimer = null;
+    let timeoutTimer = null;
+    let wasStreaming = false;
+    let fired = false;
+    let onCompleteRef = null;
+    function readState() {
+      if (!targetSelector) return { streaming: false, idle: true };
+      let el;
+      try {
+        el = document.querySelector(targetSelector);
+      } catch {
+        return { streaming: false, idle: false };
+      }
+      return {
+        streaming: matches(el, streamingMatch),
+        idle: matches(el, idleMatch)
+      };
+    }
+    function fire() {
+      if (fired) return;
+      fired = true;
+      cleanup();
+      try {
+        onCompleteRef && onCompleteRef();
+      } catch (err) {
+        console.warn("EchoMem: streaming onComplete threw", err);
+      }
+    }
+    function cleanup() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      if (timeoutTimer) {
+        clearTimeout(timeoutTimer);
+        timeoutTimer = null;
+      }
+    }
+    return {
+      start(onComplete) {
+        fired = false;
+        wasStreaming = false;
+        onCompleteRef = onComplete;
+        cleanup();
+        const initial = readState();
+        if (initial.idle && !initial.streaming) {
+          Promise.resolve().then(fire);
+          return;
+        }
+        if (initial.streaming) wasStreaming = true;
+        timeoutTimer = setTimeout(() => fire(), timeoutMs);
+        pollTimer = setInterval(() => {
+          if (fired) return;
+          const s = readState();
+          if (s.streaming) {
+            wasStreaming = true;
+          } else if (wasStreaming && s.idle) {
+            fire();
+          }
+        }, pollIntervalMs);
+      },
+      stop() {
+        fired = true;
+        onCompleteRef = null;
+        cleanup();
+      }
+    };
+  }
+
+  // src/streaming/registry.js
+  var strategies = {
+    "button-svg-poll": createButtonSvgPollDetector,
+    "text-stability": createTextStabilityDetector,
+    "selector-state": createSelectorStateDetector
+  };
+  function createStreamingDetector(streamingConfig) {
+    if (!streamingConfig) return null;
+    const name = streamingConfig.strategy;
+    if (!name || name === "none") return null;
+    const factory = strategies[name];
+    if (!factory) {
+      console.warn("EchoMem: unknown streaming strategy", name);
+      return null;
+    }
+    try {
+      return factory(streamingConfig.params || {});
+    } catch (err) {
+      console.warn("EchoMem: failed to create streaming detector", name, err);
+      return null;
+    }
+  }
+
+  // src/adapters/base-adapter.js
+  var DEFAULT_NOISE_SELECTORS = ["button", "svg", "img", "script", "style"];
+  function safeQuery(selector) {
+    try {
+      return document.querySelector(selector);
+    } catch {
+      return null;
+    }
+  }
+  var BaseAdapter = {
+    /**
+     * 查找消息容器：先尝试配置中的 messageContainers，再交给 smart container。
+     */
+    findMessageContainer(config) {
+      var _a2;
+      const containers = ((_a2 = config == null ? void 0 : config.messages) == null ? void 0 : _a2.messageContainers) || [];
+      for (const selector of containers) {
+        const el = safeQuery(selector);
+        if (el) return el;
+      }
+      return this.findSmartMessageContainer(config);
+    },
+    /**
+     * 通用智能容器：先按 smartContainerHints 找，再按可滚动 + 尺寸启发。
+     */
+    findSmartMessageContainer(config) {
+      var _a2;
+      const hints = ((_a2 = config == null ? void 0 : config.messages) == null ? void 0 : _a2.smartContainerHints) || [];
+      for (const selector of hints) {
+        const el = safeQuery(selector);
+        if (el) return el;
+      }
+      const scrollables = Array.from(document.querySelectorAll("div")).filter((div2) => {
+        const style = window.getComputedStyle(div2);
+        return style.overflow === "auto" || style.overflow === "scroll" || style.overflowY === "auto" || style.overflowY === "scroll";
+      });
+      const candidates = scrollables.filter((div2) => {
+        const rect = div2.getBoundingClientRect();
+        if (rect.height < 200) return false;
+        if (rect.width < 300 && rect.width > 0) return false;
+        return true;
+      });
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height);
+        return candidates[0];
+      }
+      const fallback = Array.from(document.querySelectorAll("div")).filter((div2) => {
+        const rect = div2.getBoundingClientRect();
+        return rect.height > 300 && rect.width > 300;
+      });
+      if (fallback.length > 0) {
+        fallback.sort((a, b) => {
+          const ra = a.getBoundingClientRect();
+          const rb2 = b.getBoundingClientRect();
+          return rb2.height * rb2.width - ra.height * ra.width;
+        });
+        return fallback[0];
+      }
+      return null;
+    },
+    /**
+     * 噪音选择器：清理元素文本前要剔除的子元素。从 config 拿，附加默认通用项。
+     */
+    getNoiseSelectors(config) {
+      var _a2;
+      const extra = ((_a2 = config == null ? void 0 : config.messages) == null ? void 0 : _a2.noiseSelectors) || [];
+      return [...DEFAULT_NOISE_SELECTORS, ...extra];
+    },
+    /**
+     * 角色判定：助手 / 用户。
+     * 默认规则：
+     *   - 元素内含 config.messages.assistant.roleSignals 任一选择器 → 助手
+     *   - className 含 'user' 或样式右对齐 → 用户
+     *   - 否则默认 user（保守策略）
+     */
+    isUserMessage(el, config) {
+      var _a2, _b2;
+      if (!el) return true;
+      const assistantSignals = ((_b2 = (_a2 = config == null ? void 0 : config.messages) == null ? void 0 : _a2.assistant) == null ? void 0 : _b2.roleSignals) || [];
+      for (const sel of assistantSignals) {
+        try {
+          if (el.querySelector(sel)) return false;
+        } catch {
+        }
+      }
+      const className = typeof el.className === "string" ? el.className : "";
+      if (className.includes("user") || className.includes("User")) return true;
+      try {
+        const style = window.getComputedStyle(el);
+        if (style.alignSelf === "flex-end" || style.marginLeft === "auto") return true;
+        const parent = el.parentElement ? window.getComputedStyle(el.parentElement) : null;
+        if (parent && (parent.justifyContent === "flex-end" || parent.alignItems === "flex-end")) {
+          return true;
+        }
+      } catch {
+      }
+      return true;
+    },
+    /**
+     * 助手消息是否仍在"思考中"（不应作为完整消息提取）。
+     * 默认：如果配置了 assistant.textSelector 且 skipIfMissing=true，
+     * 但元素内找不到对应子元素，则视为思考中。
+     */
+    isAssistantPending(el, config) {
+      var _a2, _b2, _c2, _d2;
+      const sel = (_b2 = (_a2 = config == null ? void 0 : config.messages) == null ? void 0 : _a2.assistant) == null ? void 0 : _b2.textSelector;
+      const skip = (_d2 = (_c2 = config == null ? void 0 : config.messages) == null ? void 0 : _c2.assistant) == null ? void 0 : _d2.skipIfMissing;
+      if (!sel || !skip) return false;
+      try {
+        return !el.querySelector(sel);
+      } catch {
+        return false;
+      }
+    },
+    /**
+     * 助手最终文本所在子元素：用于"思考过程在外层，最终答案在子元素"的平台。
+     * 返回 null 表示直接用整个 el。
+     */
+    getAssistantTextElement(el, config) {
+      var _a2, _b2;
+      const sel = (_b2 = (_a2 = config == null ? void 0 : config.messages) == null ? void 0 : _a2.assistant) == null ? void 0 : _b2.textSelector;
+      if (!sel) return el;
+      try {
+        return el.querySelector(sel) || null;
+      } catch {
+        return null;
+      }
+    },
+    /**
+     * 通用文本提取：克隆 → 剔除噪音 → trim。
+     */
+    cleanText(el, config) {
+      var _a2;
+      if (!el) return "";
+      const clone5 = el.cloneNode(true);
+      const noise = this.getNoiseSelectors(config);
+      for (const sel of noise) {
+        try {
+          clone5.querySelectorAll(sel).forEach((n) => n.remove());
+        } catch {
+        }
+      }
+      return ((_a2 = clone5.textContent) == null ? void 0 : _a2.trim()) || "";
+    },
+    /**
+     * 提取用户消息文本：默认使用 cleanText。
+     */
+    extractUserText(el, config) {
+      return this.cleanText(el, config);
+    },
+    /**
+     * 提取助手消息文本：先取 textSelector 子元素再清理。
+     * 如果 skipIfMissing=true 且子元素不存在，返回 null 表示该消息应跳过。
+     */
+    extractAssistantText(el, config) {
+      if (this.isAssistantPending(el, config)) return null;
+      const target = this.getAssistantTextElement(el, config) || el;
+      return this.cleanText(target, config);
+    },
+    /**
+     * 创建流式完成检测器。基于 config.streaming 调用策略注册表。
+     * 返回 null 表示不需要流式检测（每次 DOM 变化直接 diff）。
+     */
+    createStreamingDetector(config) {
+      return createStreamingDetector(config == null ? void 0 : config.streaming);
+    },
+    /**
+     * 启动器背景色：用于 launcher 主题适配。
+     * 默认按 config.launcher.backgroundColorFrom = { selector, property } 读取。
+     * 没配置则返回 null（launcher 自己使用默认值）。
+     */
+    getLauncherBackground(config) {
+      var _a2;
+      const rule = (_a2 = config == null ? void 0 : config.launcher) == null ? void 0 : _a2.backgroundColorFrom;
+      if (!(rule == null ? void 0 : rule.selector)) return null;
+      const target = safeQuery(rule.selector);
+      if (!target) return null;
+      const style = window.getComputedStyle(target);
+      const value = style[rule.property || "backgroundColor"];
+      if (!value || value === "rgba(0, 0, 0, 0)") return null;
+      return value;
+    }
+  };
+
+  // src/adapters/deepseek-adapter.js
+  var DeepseekAdapter = {
+    ...BaseAdapter
+  };
+
+  // src/adapters/higo-adapter.js
+  var HigoAdapter = {
+    ...BaseAdapter
+  };
+
+  // src/adapters/registry.js
+  var adapters = {
+    deepseek: DeepseekAdapter,
+    higo: HigoAdapter
+  };
+  function getAdapter(platformId) {
+    return adapters[platformId] || BaseAdapter;
+  }
+
   // src/core/session-extractor.js
-  function getMessageSelectors(platformId) {
-    const config = platformRegistry[platformId];
+  function getMessageSelectors(config) {
     return (config == null ? void 0 : config.messages) || null;
   }
   function queryWithFallback(selectors) {
-    for (const selector of selectors) {
+    for (const selector of selectors || []) {
       try {
         const elements = document.querySelectorAll(selector);
         if (elements.length > 0) {
           return Array.from(elements);
         }
-      } catch (e2) {
+      } catch {
         continue;
       }
     }
     return [];
   }
   function findMessagesInContainer(container, selectors) {
-    for (const selector of selectors) {
+    for (const selector of selectors || []) {
       try {
         let elements = Array.from(container.querySelectorAll(selector));
         if (elements.length > 0) {
@@ -41672,7 +42313,7 @@ ${MEM_TAG_CLOSE}`;
           );
           return elements;
         }
-      } catch (e2) {
+      } catch {
         continue;
       }
     }
@@ -41683,97 +42324,26 @@ ${MEM_TAG_CLOSE}`;
     const rect = el.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0;
   }
-  function getCleanText(element) {
-    var _a2, _b2, _c2;
-    const clone5 = element.cloneNode(true);
-    const noiseSelectors = [
-      "button",
-      "svg",
-      "img",
-      "script",
-      "style",
-      ".ds-think-content"
-      // DeepSeek: 排除思考过程
-    ];
-    for (const sel of noiseSelectors) {
-      (_b2 = (_a2 = clone5.querySelectorAll) == null ? void 0 : _a2.call(clone5, sel)) == null ? void 0 : _b2.forEach((el) => el.remove());
-    }
-    return ((_c2 = clone5.textContent) == null ? void 0 : _c2.trim()) || "";
-  }
-  function extractText(element) {
-    return getCleanText(element);
-  }
-  function isUserMessageHeuristic(el) {
-    if (el.querySelector(".ds-assistant-message-main-content, .ds-think-content")) {
-      return false;
-    }
-    const className = el.className || "";
-    if (className.includes("user") || className.includes("User")) {
-      return true;
-    }
-    try {
-      const style = window.getComputedStyle(el);
-      const parentStyle = el.parentElement ? window.getComputedStyle(el.parentElement) : null;
-      if (style.alignSelf === "flex-end" || style.marginLeft === "auto") {
-        return true;
-      }
-      if (parentStyle && (parentStyle.justifyContent === "flex-end" || parentStyle.alignItems === "flex-end")) {
-        return true;
-      }
-    } catch (e2) {
-    }
-    return true;
-  }
-  function extractMessagesFromScrollContainer(container) {
+  function extractMessagesFromScrollContainer(container, adapter, config) {
+    var _a2;
     const messages = [];
     const children = Array.from(container.children);
     for (const child of children) {
-      if (child.querySelector("textarea, input")) continue;
+      if ((_a2 = child.querySelector) == null ? void 0 : _a2.call(child, "textarea, input")) continue;
       if (child.tagName === "TEXTAREA" || child.tagName === "INPUT") continue;
       if (!isElementVisible(child)) continue;
-      const isUser = isUserMessageHeuristic(child);
-      const role = isUser ? "user" : "assistant";
+      const role = adapter.isUserMessage(child, config) ? "user" : "assistant";
       let text;
       if (role === "assistant") {
-        const answerEl = child.querySelector(".ds-assistant-message-main-content");
-        if (!answerEl) continue;
-        text = getCleanText(answerEl);
+        if (adapter.isAssistantPending(child, config)) continue;
+        text = adapter.extractAssistantText(child, config);
       } else {
-        text = extractText(child);
+        text = adapter.extractUserText(child, config);
       }
       if (!text) continue;
-      messages.push({
-        role,
-        text,
-        el: child
-      });
+      messages.push({ role, text, el: child });
     }
     return messages;
-  }
-  function findSmartMessageContainer() {
-    const dsVirtualList = document.querySelector(".ds-virtual-list");
-    if (dsVirtualList) {
-      return dsVirtualList;
-    }
-    const scrollables = Array.from(document.querySelectorAll("div")).filter((div2) => {
-      const style = window.getComputedStyle(div2);
-      return style.overflow === "auto" || style.overflow === "scroll" || style.overflowY === "auto" || style.overflowY === "scroll";
-    });
-    const candidates = scrollables.filter((div2) => {
-      const rect = div2.getBoundingClientRect();
-      if (rect.height < 200) return false;
-      if (rect.width < 300 && rect.width > 0) return false;
-      return true;
-    });
-    if (candidates.length > 0) {
-      candidates.sort((a, b) => {
-        const rectA = a.getBoundingClientRect();
-        const rectB = b.getBoundingClientRect();
-        return rectB.height - rectA.height;
-      });
-      return candidates[0];
-    }
-    return null;
   }
   function finalizeMessages(raw) {
     const seenEls = /* @__PURE__ */ new WeakSet();
@@ -41794,7 +42364,9 @@ ${MEM_TAG_CLOSE}`;
     return result;
   }
   function extractSessionMessages(platformId) {
-    const selectors = getMessageSelectors(platformId);
+    const config = platformRegistry[platformId];
+    const adapter = getAdapter(platformId);
+    const selectors = getMessageSelectors(config);
     if (!selectors) {
       console.log("EchoMem: no message selectors for platform", platformId);
       return [];
@@ -41809,17 +42381,14 @@ ${MEM_TAG_CLOSE}`;
         const allElements = [];
         for (const el of userMsgs) {
           if (!isElementVisible(el)) continue;
-          const text = extractText(el);
-          if (text) {
-            allElements.push({ el, role: "user", text });
-          }
+          const text = adapter.extractUserText(el, config);
+          if (text) allElements.push({ el, role: "user", text });
         }
         for (const el of assistantMsgs) {
           if (!isElementVisible(el)) continue;
-          const text = extractText(el);
-          if (text) {
-            allElements.push({ el, role: "assistant", text });
-          }
+          if (adapter.isAssistantPending(el, config)) continue;
+          const text = adapter.extractAssistantText(el, config);
+          if (text) allElements.push({ el, role: "assistant", text });
         }
         allElements.sort((a, b) => {
           const posA = a.el.compareDocumentPosition(b.el);
@@ -41841,45 +42410,40 @@ ${MEM_TAG_CLOSE}`;
         console.log("EchoMem: too many generic matches (" + genericMsgs.length + "), using direct children");
         genericMsgs = Array.from(container.children).filter((el) => {
           if (!isElementVisible(el)) return false;
-          const text = extractText(el);
+          const text = adapter.cleanText(el, config);
           return !!text;
         });
       }
       if (genericMsgs.length > 0) {
         let skippedInvisible = 0;
         let skippedShort = 0;
-        let skippedNoAnswer = 0;
+        let skippedPending = 0;
         for (let i = 0; i < genericMsgs.length; i++) {
           const el = genericMsgs[i];
           if (!isElementVisible(el)) {
             skippedInvisible++;
             continue;
           }
-          const isUser = isUserMessageHeuristic(el);
-          const role = isUser ? "user" : "assistant";
+          const role = adapter.isUserMessage(el, config) ? "user" : "assistant";
           let text;
           if (role === "assistant") {
-            const answerEl = el.querySelector(".ds-assistant-message-main-content");
-            if (!answerEl) {
-              skippedNoAnswer++;
-              console.log("EchoMem: msg[" + i + "] role=assistant skipped=no-answer-element");
+            if (adapter.isAssistantPending(el, config)) {
+              skippedPending++;
+              console.log("EchoMem: msg[" + i + "] role=assistant skipped=pending");
               continue;
             }
-            text = getCleanText(answerEl);
+            text = adapter.extractAssistantText(el, config);
           } else {
-            text = extractText(el);
+            text = adapter.extractUserText(el, config);
           }
           if (!text) {
             skippedShort++;
             continue;
           }
-          console.log("EchoMem: msg[" + i + "] role=" + role + " visible=" + isElementVisible(el) + " textLen=" + text.length + " cls=" + (el.className || "").split(" ").slice(0, 3).join(" "));
-          messages.push({
-            el,
-            role,
-            text,
-            timestamp: Date.now()
-          });
+          console.log(
+            "EchoMem: msg[" + i + "] role=" + role + " visible=" + isElementVisible(el) + " textLen=" + text.length + " cls=" + (el.className || "").split(" ").slice(0, 3).join(" ")
+          );
+          messages.push({ el, role, text, timestamp: Date.now() });
         }
         console.log(
           "EchoMem: extracted",
@@ -41889,22 +42453,17 @@ ${MEM_TAG_CLOSE}`;
           "(from generic selectors, total=" + genericMsgs.length,
           "skipped invisible=" + skippedInvisible,
           "skipped short=" + skippedShort,
-          "skipped no-answer=" + skippedNoAnswer + ")"
+          "skipped pending=" + skippedPending + ")"
         );
         return finalizeMessages(messages);
       }
     }
     console.log("EchoMem: no message container found via selectors, trying smart detection");
-    const smartContainer = findSmartMessageContainer();
+    const smartContainer = adapter.findSmartMessageContainer(config);
     if (smartContainer) {
-      const extracted = extractMessagesFromScrollContainer(smartContainer);
+      const extracted = extractMessagesFromScrollContainer(smartContainer, adapter, config);
       for (const m2 of extracted) {
-        messages.push({
-          el: m2.el,
-          role: m2.role,
-          text: m2.text,
-          timestamp: Date.now()
-        });
+        messages.push({ el: m2.el, role: m2.role, text: m2.text, timestamp: Date.now() });
       }
       console.log("EchoMem: extracted", messages.length, "session messages for", platformId, "(from smart detection)");
       return finalizeMessages(messages);
@@ -41937,6 +42496,8 @@ ${MEM_TAG_CLOSE}`;
   // src/core/session-recorder.js
   var recorderState = {
     platformId: null,
+    config: null,
+    adapter: null,
     rawSessionId: null,
     openVikingSessionId: null,
     lastMessages: [],
@@ -41945,14 +42506,11 @@ ${MEM_TAG_CLOSE}`;
     debounceTimer: null,
     isRecording: false,
     ovClient: null,
-    assistantStableTimer: null,
-    streamingTimeoutTimer: null,
-    streamingSnapshot: null,
-    streamingWasActive: false
+    streamingDetector: null,
+    streamingSnapshot: null
   };
   var PENDING_QUEUE_MAX = 100;
   var DEBOUNCE_MS = 500;
-  var STABLE_CHECK_INTERVAL_MS = 500;
   var SENT_SIGNATURE_TTL_MS = 6e5;
   var sentSignatures = /* @__PURE__ */ new Map();
   function getMessageSignature(msg) {
@@ -42049,63 +42607,13 @@ ${MEM_TAG_CLOSE}`;
     }
     return uniqueAdded;
   }
-  function findMessageContainer(platformId) {
-    var _a2;
-    const config = PLATFORM_CONFIGS[platformId];
-    if ((_a2 = config == null ? void 0 : config.messages) == null ? void 0 : _a2.messageContainers) {
-      for (const selector of config.messages.messageContainers) {
-        try {
-          const el = document.querySelector(selector);
-          if (el) {
-            console.log("EchoMem: message container found via selector", selector);
-            return el;
-          }
-        } catch (e2) {
-          continue;
-        }
-      }
-    }
-    const smart = findSmartMessageContainer2();
-    if (smart) {
-      console.log("EchoMem: message container found via smart detection", smart.className);
-      return smart;
-    }
-    return null;
-  }
-  function findSmartMessageContainer2() {
-    const dsVirtualList = document.querySelector(".ds-virtual-list");
-    if (dsVirtualList) {
-      return dsVirtualList;
-    }
-    const scrollables = Array.from(document.querySelectorAll("div")).filter((div2) => {
-      const style = window.getComputedStyle(div2);
-      return style.overflow === "auto" || style.overflow === "scroll" || style.overflowY === "auto" || style.overflowY === "scroll";
-    });
-    const candidates = scrollables.filter((div2) => {
-      const rect = div2.getBoundingClientRect();
-      if (rect.height < 200) return false;
-      if (rect.width < 300 && rect.width > 0) return false;
-      return true;
-    });
-    if (candidates.length > 0) {
-      candidates.sort((a, b) => {
-        const rectA = a.getBoundingClientRect();
-        const rectB = b.getBoundingClientRect();
-        return rectB.height - rectA.height;
-      });
-      return candidates[0];
-    }
-    const allDivs = Array.from(document.querySelectorAll("div")).filter((div2) => {
-      const rect = div2.getBoundingClientRect();
-      return rect.height > 300 && rect.width > 300;
-    });
-    if (allDivs.length > 0) {
-      allDivs.sort((a, b) => {
-        const rectA = a.getBoundingClientRect();
-        const rectB = b.getBoundingClientRect();
-        return rectB.height * rectB.width - rectA.height * rectA.width;
-      });
-      return allDivs[0];
+  function findMessageContainer() {
+    const { adapter, config } = recorderState;
+    if (!adapter || !config) return null;
+    const el = adapter.findMessageContainer(config);
+    if (el) {
+      console.log("EchoMem: message container found via adapter");
+      return el;
     }
     return null;
   }
@@ -42163,85 +42671,15 @@ ${MEM_TAG_CLOSE}`;
       }
     }
   }
-  function findDeepSeekSendButton() {
-    var _a2, _b2, _c2;
-    const isSendBtn = (btn) => {
-      var _a3;
-      const path = ((_a3 = btn.querySelector("svg path")) == null ? void 0 : _a3.getAttribute("d")) || "";
-      return path.startsWith("M8.3125") || path.startsWith("M2 4.88");
-    };
-    const textarea = document.querySelector("textarea");
-    if (textarea) {
-      const containers = [
-        textarea.closest("form"),
-        textarea.closest('[class*="chat"]'),
-        textarea.closest('[class*="input"]'),
-        (_a2 = textarea.parentElement) == null ? void 0 : _a2.parentElement,
-        (_c2 = (_b2 = textarea.parentElement) == null ? void 0 : _b2.parentElement) == null ? void 0 : _c2.parentElement
-      ].filter(Boolean);
-      for (const container of containers) {
-        const btns = container.querySelectorAll('.ds-icon-button--l[role="button"]');
-        for (const btn of btns) {
-          if (isSendBtn(btn)) return btn;
-        }
+  function disposeStreamingDetector() {
+    if (recorderState.streamingDetector) {
+      try {
+        recorderState.streamingDetector.stop();
+      } catch (err) {
+        console.warn("EchoMem: streaming detector stop threw", err);
       }
+      recorderState.streamingDetector = null;
     }
-    const allBtns = document.querySelectorAll('.ds-icon-button--l[role="button"]');
-    const candidates = [];
-    for (const btn of allBtns) {
-      if (isSendBtn(btn)) {
-        candidates.push({ btn, top: btn.getBoundingClientRect().top });
-      }
-    }
-    if (candidates.length === 0) return null;
-    candidates.sort((a, b) => b.top - a.top);
-    return candidates[0].btn;
-  }
-  function isDeepSeekStreaming() {
-    var _a2;
-    const btn = findDeepSeekSendButton();
-    if (!btn) return false;
-    const path = ((_a2 = btn.querySelector("svg path")) == null ? void 0 : _a2.getAttribute("d")) || "";
-    return path.startsWith("M2 4.88");
-  }
-  function startStreamingCheck() {
-    stopStreamingCheck();
-    if (!isDeepSeekStreaming()) {
-      console.log("EchoMem: streaming already finished, sending immediately");
-      const currentMessages = extractSessionMessages(recorderState.platformId);
-      sendStreamingResult(currentMessages);
-      return;
-    }
-    recorderState.streamingWasActive = true;
-    recorderState.streamingTimeoutTimer = setTimeout(() => {
-      console.log("EchoMem: streaming check timeout, forcing send");
-      stopStreamingCheck();
-      const currentMessages = extractSessionMessages(recorderState.platformId);
-      sendStreamingResult(currentMessages);
-    }, 6e4);
-    recorderState.assistantStableTimer = setInterval(async () => {
-      const streaming = isDeepSeekStreaming();
-      if (streaming) {
-        recorderState.streamingWasActive = true;
-        console.log("EchoMem: assistant streaming detected");
-      } else if (recorderState.streamingWasActive) {
-        console.log("EchoMem: assistant streaming finished (button back to arrow)");
-        stopStreamingCheck();
-        const currentMessages = extractSessionMessages(recorderState.platformId);
-        await sendStreamingResult(currentMessages);
-      }
-    }, STABLE_CHECK_INTERVAL_MS);
-  }
-  function stopStreamingCheck() {
-    if (recorderState.assistantStableTimer) {
-      clearInterval(recorderState.assistantStableTimer);
-      recorderState.assistantStableTimer = null;
-    }
-    if (recorderState.streamingTimeoutTimer) {
-      clearTimeout(recorderState.streamingTimeoutTimer);
-      recorderState.streamingTimeoutTimer = null;
-    }
-    recorderState.streamingWasActive = false;
   }
   async function sendStreamingResult(currentMessages) {
     if (!recorderState.streamingSnapshot) return;
@@ -42255,13 +42693,33 @@ ${MEM_TAG_CLOSE}`;
       await doSendMessages(changes);
     }
   }
+  function startStreamingDetection() {
+    var _a2, _b2;
+    disposeStreamingDetector();
+    const detector = (_b2 = (_a2 = recorderState.adapter) == null ? void 0 : _a2.createStreamingDetector) == null ? void 0 : _b2.call(_a2, recorderState.config);
+    if (!detector) {
+      const currentMessages = extractSessionMessages(recorderState.platformId);
+      sendStreamingResult(currentMessages).catch((err) => {
+        console.warn("EchoMem: immediate streaming send failed", err);
+      });
+      return;
+    }
+    recorderState.streamingDetector = detector;
+    detector.start(() => {
+      recorderState.streamingDetector = null;
+      const currentMessages = extractSessionMessages(recorderState.platformId);
+      sendStreamingResult(currentMessages).catch((err) => {
+        console.warn("EchoMem: streaming send failed", err);
+      });
+    });
+  }
   async function onMessagesChanged() {
     const newMessages = extractSessionMessages(recorderState.platformId);
     console.log("EchoMem diag: newMessages=", newMessages.map((m2) => m2.role + ":" + m2.text.slice(0, 30)));
     if (recorderState.streamingSnapshot) {
       const lastNew2 = newMessages[newMessages.length - 1];
       if ((lastNew2 == null ? void 0 : lastNew2.role) === "user") {
-        stopStreamingCheck();
+        disposeStreamingDetector();
         recorderState.streamingSnapshot = null;
       } else {
         return;
@@ -42272,7 +42730,7 @@ ${MEM_TAG_CLOSE}`;
     const isNewAssistant = (lastNew == null ? void 0 : lastNew.role) === "assistant" && (!lastOld || lastOld.role !== "assistant");
     if (isNewAssistant) {
       recorderState.streamingSnapshot = [...recorderState.lastMessages];
-      startStreamingCheck();
+      startStreamingDetection();
       return;
     }
     const added = diffMessages(newMessages, recorderState.lastMessages);
@@ -42320,7 +42778,11 @@ ${MEM_TAG_CLOSE}`;
     const currentMessages = extractSessionMessages(recorderState.platformId);
     if (recorderState.openVikingSessionId) {
       recorderState.lastMessages = currentMessages;
-      console.log("EchoMem: restored session baseline, skipping", currentMessages.length, "existing messages");
+      console.log(
+        "EchoMem: restored session baseline, skipping",
+        currentMessages.length,
+        "existing messages"
+      );
     } else {
       recorderState.lastMessages = [];
       console.log("EchoMem: new session, will send", currentMessages.length, "existing messages");
@@ -42343,14 +42805,20 @@ ${MEM_TAG_CLOSE}`;
       return;
     }
     if (recorderState.isRecording && recorderState.rawSessionId !== newRawSessionId) {
-      console.log("EchoMem: session id changed", recorderState.rawSessionId, "->", newRawSessionId, ", resetting recorder");
+      console.log(
+        "EchoMem: session id changed",
+        recorderState.rawSessionId,
+        "->",
+        newRawSessionId,
+        ", resetting recorder"
+      );
       if (recorderState.observer) {
         recorderState.observer.disconnect();
         recorderState.observer = null;
       }
       clearTimeout(recorderState.debounceTimer);
       recorderState.debounceTimer = null;
-      stopStreamingCheck();
+      disposeStreamingDetector();
       recorderState.rawSessionId = newRawSessionId;
       recorderState.openVikingSessionId = null;
       recorderState.lastMessages = [];
@@ -42359,6 +42827,8 @@ ${MEM_TAG_CLOSE}`;
     }
     if (!recorderState.isRecording) {
       recorderState.platformId = platformId;
+      recorderState.config = PLATFORM_CONFIGS[platformId] || null;
+      recorderState.adapter = getAdapter(platformId);
       recorderState.rawSessionId = newRawSessionId;
       recorderState.isRecording = true;
       console.log("EchoMem: start recording for", platformId, "session", newRawSessionId);
@@ -42369,7 +42839,7 @@ ${MEM_TAG_CLOSE}`;
       }
     }
     if (!recorderState.observer) {
-      const container = findMessageContainer(platformId);
+      const container = findMessageContainer();
       if (container) {
         attachObserver(container);
       }
@@ -42382,7 +42852,7 @@ ${MEM_TAG_CLOSE}`;
     }
     clearTimeout(recorderState.debounceTimer);
     recorderState.debounceTimer = null;
-    stopStreamingCheck();
+    disposeStreamingDetector();
     recorderState.isRecording = false;
     recorderState.rawSessionId = null;
     recorderState.openVikingSessionId = null;

@@ -14,33 +14,47 @@
 
 | 文件 | 职责 |
 |------|------|
-| `src/core/session-recorder.js` | MutationObserver 挂载、消息 diff、流式完成检测、OpenViking HTTP 同步 |
-| `src/core/session-extractor.js` | 从 DOM 提取当前会话的 `{role, text}` 消息数组 |
+| `src/core/session-recorder.js` | MutationObserver 挂载、消息 diff、流式状态机编排、OpenViking HTTP 同步。**平台无关**，所有差异通过 adapter / 配置注入 |
+| `src/core/session-extractor.js` | 通用 DOM 提取编排：按配置查找容器、按 adapter 判定角色 / 提取文本。**平台无关** |
+| `src/adapters/base-adapter.js` | adapter 基类：findMessageContainer / isUserMessage / extractAssistantText / createStreamingDetector 等，全部默认实现"配置驱动" |
+| `src/adapters/{deepseek,higo}-adapter.js` | 平台 adapter：当前差异已全部收敛到 JSON 配置，文件为空壳，预留覆盖点 |
+| `src/adapters/registry.js` | platformId → adapter 映射，未注册的平台回退到 BaseAdapter |
+| `src/streaming/registry.js` | 流式完成检测策略注册表：strategy name → factory(params) → detector |
+| `src/streaming/button-svg-poll.js` | 按钮图标特征轮询策略，参数化版本（适用 DeepSeek） |
+| `src/streaming/text-stability.js` | 文本稳定策略：N 毫秒不变即完成 |
+| `src/streaming/selector-state.js` | 元素 attr/class 状态切换策略 |
 | `src/services/openviking-client.js` | `OpenVikingClient`：封装 `createSession`、`addMessage`、`appendMessages`、`commitSession` |
 | `src/services/session-mapper.js` | 根据平台规则从 URL 提取 raw session ID |
-| `src/config/platforms.json` | 各平台的 DOM 选择器配置（消息容器、用户/助手消息选择器、session ID 提取规则） |
+| `src/config/platforms.json` | 各平台的声明式配置：DOM 选择器、噪音过滤、助手文本规则、流式策略与参数 |
+| `src/config/loader.js` | 加载 JSON 并附加运行时函数（如 `launcher.getBackgroundColor`），按通用规则工作、不写平台 id 分支 |
 
 ## 3. `session-extractor.js` 实现细节
 
 ### 3.1 提取流程
 
-`extractSessionMessages(platformId)` 按以下优先级尝试提取：
+`extractSessionMessages(platformId)` 是平台无关的编排器，按以下优先级尝试提取：
 
-1. **按角色区分选择器**：如果 `userMessages` 和 `assistantMessages` 选择器都能匹配到元素，分别提取后按 DOM 顺序合并。
-2. **通用选择器**（`allMessages`）：如果无法区分角色，使用通用选择器匹配所有消息，再通过 `isUserMessageHeuristic` 判断角色。
-3. **智能兜底**：通过 `findSmartMessageContainer` 查找页面中最大的可滚动区域，再从直接子元素中提取。
+1. **按角色区分选择器**：如果 `messages.userMessages` 和 `messages.assistantMessages` 选择器（来自 `platforms.json`）都能匹配到元素，分别经 `adapter.extractUserText` / `adapter.extractAssistantText` 提取，再按 DOM 顺序合并。
+2. **通用选择器**（`messages.allMessages`）：如果无法区分角色，使用通用选择器匹配所有消息，再通过 `adapter.isUserMessage(el, config)` 判断角色。
+3. **智能兜底**：通过 `adapter.findSmartMessageContainer(config)` 查找页面中候选容器（先用 `messages.smartContainerHints` 命中,失败则回退到"最大可滚动区域"启发式），再从直接子元素中提取。
 
-### 3.2 角色判断（`isUserMessageHeuristic`）
+整个流程不出现任何平台字面量，所有差异都通过 `adapter` 和 `config` 注入。
 
-针对 DeepSeek 的特殊处理：
-- 包含 `.ds-assistant-message-main-content` 或 `.ds-think-content` 的元素判定为助手消息
-- 不含以上特征的元素默认判定为用户消息（包含 class 名含 `user` 的元素和靠右对齐的元素）
+### 3.2 角色判断（`adapter.isUserMessage`）
 
-### 3.3 DeepSeek 助手消息文本提取
+`BaseAdapter.isUserMessage(el, config)` 按通用规则工作：
+- 优先读取 `config.messages.assistant.roleSignals` 数组中的选择器；命中任何一个 → 判定为 assistant
+- 兜底启发式：class 名含 `user` 或样式靠右对齐 → user，其余默认 assistant
 
-助手消息的最终答案只在 `.ds-assistant-message-main-content` 中：
-- 若该元素不存在（思考阶段），直接跳过该消息
-- 提取前通过 `getCleanText` 移除 `button`、`svg`、`img`、`.ds-think-content` 等噪音节点
+DeepSeek 在 `platforms.json` 里通过 `assistant.roleSignals: [".ds-assistant-message-main-content", ".ds-think-content"]` 表达自己的特征,无需写代码分支。
+新平台只需在 JSON 里列出自己的特征选择器即可。
+
+### 3.3 助手消息文本提取（`adapter.extractAssistantText`）
+
+`BaseAdapter.extractAssistantText(el, config)` 按通用规则工作：
+- 如果 `config.messages.assistant.textSelector` 不为空，仅从该子元素中提取（DeepSeek 的最终答案在 `.ds-assistant-message-main-content`)
+- 如果 `assistant.skipIfMissing = true` 且子选择器未命中 → 返回空（被外层判为"思考中",整条消息跳过）
+- 提取前通过 `cleanText` 移除噪音节点：内建 `DEFAULT_NOISE_SELECTORS = ['button','svg','img','script','style']`,再合并 `config.messages.noiseSelectors`(DeepSeek 追加 `.ds-think-content`)
 
 ### 3.4 去重输出（`finalizeMessages`）
 
@@ -65,6 +79,8 @@ elements = elements.filter((el, i, arr) =>
 ```javascript
 const recorderState = {
   platformId: null,           // 当前平台 ID
+  config: null,               // PLATFORM_CONFIGS[platformId]
+  adapter: null,              // getAdapter(platformId)（默认 BaseAdapter）
   rawSessionId: null,         // URL 中提取的原始 session ID
   openVikingSessionId: null,  // OpenViking 返回的 session ID
   lastMessages: [],           // 上一次成功同步的消息基线
@@ -73,12 +89,12 @@ const recorderState = {
   debounceTimer: null,        // DOM 变化防抖定时器
   isRecording: false,         // 是否正在录制
   ovClient: null,             // OpenVikingClient 缓存实例
-  assistantStableTimer: null, // 流式检测 interval
-  streamingTimeoutTimer: null,// 流式超时 fallback timer
+  streamingDetector: null,    // 当前活动的流式检测器（adapter 创建）
   streamingSnapshot: null,    // 流式开始前的 lastMessages 快照
-  streamingWasActive: false,  // 是否已检测到正方形按钮（流式中）
 };
 ```
+
+录制器不再持有任何平台特化字段（无 `assistantStableTimer`、`streamingTimeoutTimer`、`streamingWasActive`）—— 所有计时器和状态都被封装进 detector 实例内部。
 
 ### 4.2 启动与挂载（`startRecording` + `attachObserver`）
 
@@ -112,27 +128,43 @@ const recorderState = {
 3. **签名去重兜底**（任何分支返回前都执行）：
    计算 `oldMessages` 中所有 `role:text` 签名，从 `added` 中剔除已存在的消息。即使 diff 对齐逻辑误判，同一内容也不会被重复发送。
 
-### 4.4 流式完成检测（`startStreamingCheck`）
+### 4.4 流式完成检测（`startStreamingDetection` + 可插拔策略）
 
-DeepSeek 在流式生成时，发送按钮的 SVG path 从箭头（`M8.3125`）变为正方形（`M2 4.88`），流式结束后变回箭头。
-
-实现三层防护：
-
-1. **清理已有轮询**：调用时先 `stopStreamingCheck()`，防止重复创建 interval
-2. **立即发送**：如果调用时按钮已经是箭头（流式已结束），直接发送结果，不启动轮询
-3. **60 秒超时回退**：即使按钮检测一直失败，60 秒后也会强制发送
+录制器自身**不再**包含任何平台特化的流式检测逻辑。当 `onMessagesChanged` 发现新出现一条 assistant 消息时,调用 `startStreamingDetection()`：
 
 ```javascript
-startStreamingCheck() {
-  stopStreamingCheck();                 // 1. 清理已有轮询
-  if (!isDeepSeekStreaming()) {         // 2. 流式已结束，立即发送
-    sendStreamingResult(...);
+function startStreamingDetection() {
+  disposeStreamingDetector();
+  const detector = recorderState.adapter?.createStreamingDetector?.(recorderState.config);
+  if (!detector) {
+    // 无流式检测策略：立即把当前消息当作完成态处理
+    const currentMessages = extractSessionMessages(recorderState.platformId);
+    sendStreamingResult(currentMessages).catch(...);
     return;
   }
-  streamingTimeoutTimer = setTimeout(..., 60000);  // 3. 超时回退
-  assistantStableTimer = setInterval(...);         // 正常轮询
+  recorderState.streamingDetector = detector;
+  detector.start(() => {
+    recorderState.streamingDetector = null;
+    const currentMessages = extractSessionMessages(recorderState.platformId);
+    sendStreamingResult(currentMessages).catch(...);
+  });
 }
 ```
+
+`adapter.createStreamingDetector(config)` 默认实现读取 `config.streaming.strategy` 并到 `src/streaming/registry.js` 中查表得到工厂函数。当前内建策略：
+
+| strategy 名称 | 文件 | 适用场景 | 关键参数 |
+|--------------|------|----------|----------|
+| `button-svg-poll` | `src/streaming/button-svg-poll.js` | 平台有"停止/发送"按钮且图标会切换（如 DeepSeek） | `anchorSelector`、`buttonSelector`、`iconSelector`、`iconAttr`、`streamingMatch`、`idleMatch`、`pollIntervalMs`、`timeoutMs` |
+| `text-stability` | `src/streaming/text-stability.js` | 平台无流式状态指示器，只能靠"文本 N 毫秒不变" | `targetSelector`、`stableMs`、`pollIntervalMs`、`timeoutMs` |
+| `selector-state` | `src/streaming/selector-state.js` | 平台在某元素上挂 `data-streaming` / `aria-busy` 等 attribute / class | `selector`、`attr`/`classToken`、`streamingValue`、`idleValue`、`timeoutMs` |
+| `none` | — | 不做流式检测，每次 DOM 变化即刻发送 | — |
+
+每个 detector 内部都遵循统一契约：
+- `start(onComplete)`：开始观察；当判定为"流式结束"时调用一次 `onComplete()`
+- `stop()`：清理所有定时器 / observer，使后续 `onComplete` 不再触发
+
+`button-svg-poll` 的三层防护（清理已有轮询、立即发送已结束的状态、N 秒超时回退）现已作为通用模式内建在策略实现中,而非散布在录制器中。所有策略都自带 `timeoutMs` 超时兜底,防止因平台 DOM 变化导致检测永远挂起。
 
 ### 4.5 消息发送防重（`filterRecentlySent`）
 
@@ -191,12 +223,15 @@ startStreamingCheck() {
 
 ## 6. 关键常量
 
+录制器侧（`session-recorder.js`）：
+
 | 常量 | 值 | 说明 |
 |------|-----|------|
 | `DEBOUNCE_MS` | 500 | DOM 变化防抖延迟 |
-| `STABLE_CHECK_INTERVAL_MS` | 500 | 流式按钮轮询间隔 |
 | `PENDING_QUEUE_MAX` | 100 | 失败重试队列上限 |
 | `SENT_SIGNATURE_TTL_MS` | 600000 (10分钟) | 已发送签名缓存有效期 |
+
+策略侧（`src/streaming/*`）：轮询间隔、稳定时长、超时时长等都通过 `platforms.json` 的 `streaming.params` 注入,不再写死在代码中。当前 DeepSeek 的 `button-svg-poll` 配置 `pollIntervalMs=500`、`timeoutMs=60000`。
 
 ## 7. 诊断日志
 
@@ -210,10 +245,13 @@ startStreamingCheck() {
 | `EchoMem diag: suffix diff dropped duplicates` | diff 后缀匹配分支拦截重复 | 确认虚拟列表卸载场景 |
 | `EchoMem diag: diff dropped duplicates` | diff 兜底分支拦截重复 | 确认完全无法对齐场景 |
 | `EchoMem: skip recently sent message` | `filterRecentlySent` 拦截 | 确认发送层防重命中 |
-| `EchoMem: assistant streaming detected` | 轮询检测到正方形按钮 | 确认流式检测正常工作 |
-| `EchoMem: assistant streaming finished` | 流式完成 | 确认流式结束触发发送 |
-| `EchoMem: streaming already finished` | 竞态条件防护触发 | 确认立即发送命中 |
-| `EchoMem: streaming check timeout` | 60 秒超时回退 | 确认超时兜底命中 |
+| `EchoMem: message container found via adapter` | adapter 找到容器 | 确认容器查找成功 |
+| `EchoMem: start recording for ...` | `startRecording` 进入活动状态 | 确认录制启动 |
+| `EchoMem: session id changed ... resetting recorder` | URL 变化触发重置 | 确认 session 切换 |
+| `EchoMem: streaming detector stop threw` | detector 清理异常 | 排查策略实现缺陷 |
+| `EchoMem: streaming send failed` | 流式回调发送失败 | 排查网络 / 服务端问题 |
+
+具体策略内部的日志（按钮命中、超时回退等）由各策略实现自行打印,前缀通常为 `EchoMem streaming: ...`。
 
 ## 8. 已知问题与后续计划
 
@@ -230,6 +268,36 @@ startStreamingCheck() {
 
 ### 8.2 扩展计划
 
-- **新平台接入**：在 `src/config/platforms.json` 中添加新平台的 `messages` 选择器配置即可
-- **非 DeepSeek 流式检测**：当前流式检测逻辑（`isDeepSeekStreaming`）依赖 DeepSeek 特有的 SVG path，其他平台需要各自实现检测函数
-- **commit 自动触发**：当前 `commitCurrentSession` 为预留接口，未自动调用。后续可在会话结束（页面关闭、session 切换）时自动 commit
+#### 添加新平台的步骤
+
+整套架构按"声明优先,代码兜底"的方式工作。新增平台时按以下顺序操作:
+
+1. **改 `src/config/platforms.json`**（90% 的场景到此结束）：
+   - 在 `platforms` 数组里追加一项,填入 `id`、`name`、`detection`（URL / 标题 / DOM 特征）
+   - 配置 `messages.messageContainers` / `userMessages` / `assistantMessages` / `allMessages`(选择器列表)
+   - 如果存在助手消息特定的"答案子节点"（如 DeepSeek 的 `.ds-assistant-message-main-content`),填入 `messages.assistant.textSelector` + `skipIfMissing: true`
+   - 如果需要过滤噪音节点(思考块、按钮、引用框等),追加到 `messages.noiseSelectors`
+   - 若助手 / 用户区分需要特征选择器,填入 `messages.assistant.roleSignals`
+   - 配置 `streaming.strategy`:
+     - 有"停止生成"按钮 → `button-svg-poll`,填入按钮锚点和图标识别规则
+     - 有 `data-streaming` / `aria-busy` 等状态属性 → `selector-state`
+     - 都没有,只能等文本停 N 毫秒 → `text-stability`
+     - 完全不需要 → `none`(每次 DOM 变化即刻发送)
+   - 配置 `sessionId.type` 决定如何从 URL 提取 session ID(`path` / `regex`)
+
+2. **跑一次 `npm run build`,在该平台真实页面验证**:
+   - 控制台无 `EchoMem: no message selectors`、`failed to extract` 等错误
+   - 提取到的 `newMessages` 序列正确(看 `EchoMem diag: newMessages=` 日志)
+   - 流式完成后 200~500ms 内能看到 `EchoMem: appended N messages`
+
+3. **(可选)在 `src/adapters/` 下写覆盖**:
+   仅当 JSON + 通用规则**无法**表达平台特化逻辑时,才在对应 adapter 文件中覆盖 `BaseAdapter` 的某个方法(如 `isAssistantPending`、`extractAssistantText`)。然后在 `src/adapters/registry.js` 注册。
+
+4. **(可选)写新的流式策略**:
+   仅当上述四种策略都不适用(例如平台通过 SSE response header / WebSocket 帧判定),才在 `src/streaming/` 下新增策略文件,并在 `src/streaming/registry.js` 注册。新策略需遵循 `{ start(onComplete), stop() }` 接口约定。
+
+#### 后续优化方向
+
+- **commit 自动触发**：当前 `commitCurrentSession` 为预留接口,未自动调用。后续可在会话结束（页面关闭、session 切换）时自动 commit
+- **配置热加载**：当前 `platforms.json` 在打包时静态导入。后续可考虑通过 `chrome.storage` 支持运行时覆盖,方便用户调试新平台
+- **adapter 单元测试**：抽象 DOM 上下文后,可对 `BaseAdapter` 各方法编写单测,提高扩展安全性

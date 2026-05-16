@@ -55,7 +55,17 @@
           "[class*='bot-message']",
           "[class*='ai-message']"
         ],
-        "allMessages": ["div[class*='Mui']", "div"]
+        "allMessages": ["div[class*='Mui']", "div"],
+        "noiseSelectors": [],
+        "smartContainerHints": [],
+        "assistant": {
+          "textSelector": null,
+          "skipIfMissing": false,
+          "roleSignals": []
+        }
+      },
+      "streaming": {
+        "strategy": "none"
       },
       "panelHost": {
         "type": "sidebar",
@@ -102,7 +112,11 @@
           "justifyContent": "flex-start"
         },
         "insertPosition": "before",
-        "dynamicBackground": true
+        "backgroundColorFrom": {
+          "selector": "._77cefa5",
+          "property": "backgroundColor",
+          "fallback": "#fff"
+        }
       },
       "messages": {
         "messageContainers": [
@@ -111,7 +125,37 @@
         ],
         "userMessages": [],
         "assistantMessages": [],
-        "allMessages": [".ds-message"]
+        "allMessages": [".ds-message"],
+        "noiseSelectors": [".ds-think-content"],
+        "smartContainerHints": [".ds-virtual-list"],
+        "assistant": {
+          "textSelector": ".ds-assistant-message-main-content",
+          "skipIfMissing": true,
+          "roleSignals": [
+            ".ds-assistant-message-main-content",
+            ".ds-think-content"
+          ]
+        }
+      },
+      "streaming": {
+        "strategy": "button-svg-poll",
+        "params": {
+          "anchorSelector": "textarea",
+          "anchorParents": [
+            "closest:form",
+            "closest:[class*=chat]",
+            "closest:[class*=input]",
+            "parent:2",
+            "parent:3"
+          ],
+          "buttonSelector": ".ds-icon-button--l[role='button']",
+          "iconSelector": "svg path",
+          "iconAttr": "d",
+          "streamingMatch": "startsWith:M2 4.88",
+          "idleMatch": "startsWith:M8.3125",
+          "pollIntervalMs": 500,
+          "timeoutMs": 60000
+        }
       },
       "panelHost": {
         "type": "overlay",

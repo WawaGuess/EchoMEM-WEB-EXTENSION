@@ -1,13 +1,25 @@
-// 会话自动记录器 — 监听聊天消息变化并同步到 OpenViking
+// 会话自动记录器 —— 监听聊天消息变化并同步到 OpenViking
+//
+// 本模块只负责"编排"：
+//   - MutationObserver 挂载与防抖
+//   - 消息 diff（前缀/后缀/签名）
+//   - 流式开始 / 完成的状态切换
+//   - 失败重试队列与已发签名缓存
+//
+// 所有平台差异（如何找按钮、SVG 路径、容器智能查找、文本噪音等）都委托给 adapter，
+// 或通过 platforms.json 配置驱动。本文件**不应**出现任何平台字面量。
 
 import { extractSessionMessages } from './session-extractor.js';
 import { createClient } from '../services/openviking-client.js';
 import { getOpenVikingConfig } from '../services/config.js';
-import { extractSessionId, mapToOpenVikingSessionId } from '../services/session-mapper.js';
+import { extractSessionId } from '../services/session-mapper.js';
 import { PLATFORM_CONFIGS, shouldRecord } from '../config/loader.js';
+import { getAdapter } from '../adapters/registry.js';
 
 const recorderState = {
   platformId: null,
+  config: null,
+  adapter: null,
   rawSessionId: null,
   openVikingSessionId: null,
   lastMessages: [],
@@ -16,16 +28,12 @@ const recorderState = {
   debounceTimer: null,
   isRecording: false,
   ovClient: null,
-  assistantStableTimer: null,
-  streamingTimeoutTimer: null,
+  streamingDetector: null,
   streamingSnapshot: null,
-  streamingWasActive: false,
 };
 
 const PENDING_QUEUE_MAX = 100;
 const DEBOUNCE_MS = 500;
-const STABLE_CHECK_INTERVAL_MS = 500;
-const STABLE_COUNT_THRESHOLD = 4; // 2 seconds of stability before sending
 const SENT_SIGNATURE_TTL_MS = 600000; // 10 分钟
 
 const sentSignatures = new Map();
@@ -39,7 +47,7 @@ function filterRecentlySent(messages) {
   for (const [sig, ts] of sentSignatures) {
     if (now - ts > SENT_SIGNATURE_TTL_MS) sentSignatures.delete(sig);
   }
-  return messages.filter(m => {
+  return messages.filter((m) => {
     const sig = getMessageSignature(m);
     if (sentSignatures.has(sig)) {
       console.log('EchoMem: skip recently sent message', sig.slice(0, 50));
@@ -87,7 +95,7 @@ function diffMessages(newMessages, oldMessages) {
     return newMessages;
   }
 
-  // 1. 前缀匹配 — 正常追加消息
+  // 1. 前缀匹配 —— 正常追加消息
   const minLen = Math.min(newMessages.length, oldMessages.length);
   let prefixMatch = true;
   for (let i = 0; i < minLen; i++) {
@@ -98,15 +106,15 @@ function diffMessages(newMessages, oldMessages) {
   }
   if (prefixMatch) {
     const added = newMessages.slice(oldMessages.length);
-    const oldSignatures = new Set(oldMessages.map(m => `${m.role}:${m.text}`));
-    const uniqueAdded = added.filter(m => !oldSignatures.has(`${m.role}:${m.text}`));
+    const oldSignatures = new Set(oldMessages.map((m) => `${m.role}:${m.text}`));
+    const uniqueAdded = added.filter((m) => !oldSignatures.has(`${m.role}:${m.text}`));
     if (uniqueAdded.length !== added.length) {
       console.log('EchoMem diag: prefix diff dropped duplicates', added.length - uniqueAdded.length);
     }
     return uniqueAdded;
   }
 
-  // 2. 后缀匹配 — DeepSeek 虚拟列表卸载了前面的消息，
+  // 2. 后缀匹配 —— 虚拟列表卸载了前面的消息时，
   //    oldMessages 的后半段仍能在 newMessages 开头找到
   for (let oldStart = 0; oldStart < oldMessages.length; oldStart++) {
     const suffix = oldMessages.slice(oldStart);
@@ -121,8 +129,8 @@ function diffMessages(newMessages, oldMessages) {
     }
     if (match) {
       const added = newMessages.slice(suffix.length);
-      const oldSignatures = new Set(oldMessages.map(m => `${m.role}:${m.text}`));
-      const uniqueAdded = added.filter(m => !oldSignatures.has(`${m.role}:${m.text}`));
+      const oldSignatures = new Set(oldMessages.map((m) => `${m.role}:${m.text}`));
+      const uniqueAdded = added.filter((m) => !oldSignatures.has(`${m.role}:${m.text}`));
       if (uniqueAdded.length !== added.length) {
         console.log('EchoMem diag: suffix diff dropped duplicates', added.length - uniqueAdded.length);
       }
@@ -130,12 +138,12 @@ function diffMessages(newMessages, oldMessages) {
     }
   }
 
-  // 3. 完全无法对齐，保险起见返回全部（仅在极端场景下命中）
+  // 3. 完全无法对齐，保险起见返回全部
   const added = newMessages;
 
   // 4. 最终防护：丢弃 added 中已经在 oldMessages 里出现过的消息
-  const oldSignatures = new Set(oldMessages.map(m => `${m.role}:${m.text}`));
-  const uniqueAdded = added.filter(m => !oldSignatures.has(`${m.role}:${m.text}`));
+  const oldSignatures = new Set(oldMessages.map((m) => `${m.role}:${m.text}`));
+  const uniqueAdded = added.filter((m) => !oldSignatures.has(`${m.role}:${m.text}`));
 
   if (uniqueAdded.length !== added.length) {
     console.log('EchoMem diag: diff dropped duplicates', added.length - uniqueAdded.length);
@@ -144,82 +152,14 @@ function diffMessages(newMessages, oldMessages) {
   return uniqueAdded;
 }
 
-function findMessageContainer(platformId) {
-  const config = PLATFORM_CONFIGS[platformId];
-
-  // 1. 先尝试配置中的选择器
-  if (config?.messages?.messageContainers) {
-    for (const selector of config.messages.messageContainers) {
-      try {
-        const el = document.querySelector(selector);
-        if (el) {
-          console.log('EchoMem: message container found via selector', selector);
-          return el;
-        }
-      } catch (e) {
-        continue;
-      }
-    }
+function findMessageContainer() {
+  const { adapter, config } = recorderState;
+  if (!adapter || !config) return null;
+  const el = adapter.findMessageContainer(config);
+  if (el) {
+    console.log('EchoMem: message container found via adapter');
+    return el;
   }
-
-  // 2. 兜底：智能查找可滚动的大容器（排除输入框区域）
-  const smart = findSmartMessageContainer();
-  if (smart) {
-    console.log('EchoMem: message container found via smart detection', smart.className);
-    return smart;
-  }
-
-  return null;
-}
-
-/**
- * 启发式查找消息容器 — 与 session-extractor.js 中的逻辑保持一致
- */
-function findSmartMessageContainer() {
-  // DeepSeek 特殊处理：直接找 .ds-virtual-list
-  const dsVirtualList = document.querySelector('.ds-virtual-list');
-  if (dsVirtualList) {
-    return dsVirtualList;
-  }
-
-  // 找所有可滚动的 div
-  const scrollables = Array.from(document.querySelectorAll('div')).filter(div => {
-    const style = window.getComputedStyle(div);
-    return style.overflow === 'auto' || style.overflow === 'scroll' ||
-           style.overflowY === 'auto' || style.overflowY === 'scroll';
-  });
-
-  // 排除太小的；包含输入框的也保留（DeepSeek 的消息容器包含 textarea）
-  const candidates = scrollables.filter(div => {
-    const rect = div.getBoundingClientRect();
-    if (rect.height < 200) return false;
-    if (rect.width < 300 && rect.width > 0) return false;
-    return true;
-  });
-
-  if (candidates.length > 0) {
-    candidates.sort((a, b) => {
-      const rectA = a.getBoundingClientRect();
-      const rectB = b.getBoundingClientRect();
-      return rectB.height - rectA.height;
-    });
-    return candidates[0];
-  }
-
-  // 最后的兜底：找页面中最大的 div（排除 body/html/root）
-  const allDivs = Array.from(document.querySelectorAll('div')).filter(div => {
-    const rect = div.getBoundingClientRect();
-    return rect.height > 300 && rect.width > 300;
-  });
-  if (allDivs.length > 0) {
-    allDivs.sort((a, b) => {
-      const rectA = a.getBoundingClientRect();
-      const rectB = b.getBoundingClientRect();
-      return (rectB.height * rectB.width) - (rectA.height * rectA.width);
-    });
-    return allDivs[0];
-  }
-
   return null;
 }
 
@@ -255,7 +195,7 @@ async function doSendMessages(messages) {
   messages = filterRecentlySent(messages);
   if (messages.length === 0) return;
 
-  console.log('EchoMem diag: posting=', messages.map(m => m.role + ':' + m.text.slice(0, 30)));
+  console.log('EchoMem diag: posting=', messages.map((m) => m.role + ':' + m.text.slice(0, 30)));
   console.log('EchoMem: detected', messages.length, 'new messages');
 
   await flushPendingMessages();
@@ -285,108 +225,15 @@ async function doSendMessages(messages) {
   }
 }
 
-/**
- * 在 textarea 附近的容器中查找 DeepSeek 发送按钮
- * 不使用变量 CSS 类名，而是通过稳定的 ds-icon-button--l + role="button" + SVG path 特征定位
- */
-function findDeepSeekSendButton() {
-  // 先通过 SVG path 特征过滤所有候选按钮
-  const isSendBtn = (btn) => {
-    const path = btn.querySelector('svg path')?.getAttribute('d') || '';
-    return path.startsWith('M8.3125') || path.startsWith('M2 4.88');
-  };
-
-  // 1. 优先在 textarea 附近搜索（最可靠）
-  const textarea = document.querySelector('textarea');
-  if (textarea) {
-    const containers = [
-      textarea.closest('form'),
-      textarea.closest('[class*="chat"]'),
-      textarea.closest('[class*="input"]'),
-      textarea.parentElement?.parentElement,
-      textarea.parentElement?.parentElement?.parentElement,
-    ].filter(Boolean);
-
-    for (const container of containers) {
-      const btns = container.querySelectorAll('.ds-icon-button--l[role="button"]');
-      for (const btn of btns) {
-        if (isSendBtn(btn)) return btn;
-      }
+function disposeStreamingDetector() {
+  if (recorderState.streamingDetector) {
+    try {
+      recorderState.streamingDetector.stop();
+    } catch (err) {
+      console.warn('EchoMem: streaming detector stop threw', err);
     }
+    recorderState.streamingDetector = null;
   }
-
-  // 2. 附近找不到，在整个文档中搜索，取最下方的一个
-  const allBtns = document.querySelectorAll('.ds-icon-button--l[role="button"]');
-  const candidates = [];
-  for (const btn of allBtns) {
-    if (isSendBtn(btn)) {
-      candidates.push({ btn, top: btn.getBoundingClientRect().top });
-    }
-  }
-  if (candidates.length === 0) return null;
-  candidates.sort((a, b) => b.top - a.top);
-  return candidates[0].btn;
-}
-
-/**
- * 判断 DeepSeek 是否处于流式生成中
- * SVG path 为 M2 4.88（正方形）= 流式中；M8.3125（箭头）= 已完成
- */
-function isDeepSeekStreaming() {
-  const btn = findDeepSeekSendButton();
-  if (!btn) return false;
-  const path = btn.querySelector('svg path')?.getAttribute('d') || '';
-  return path.startsWith('M2 4.88');
-}
-
-function startStreamingCheck() {
-  // 清理已有的轮询，防止重复创建
-  stopStreamingCheck();
-
-  // 竞态条件防护：如果调用时按钮已经是箭头（流式已结束），直接发送，不要启动轮询
-  if (!isDeepSeekStreaming()) {
-    console.log('EchoMem: streaming already finished, sending immediately');
-    const currentMessages = extractSessionMessages(recorderState.platformId);
-    sendStreamingResult(currentMessages);
-    return;
-  }
-
-  recorderState.streamingWasActive = true;
-
-  // 超时回退：60 秒后无论按钮状态如何都强制发送
-  recorderState.streamingTimeoutTimer = setTimeout(() => {
-    console.log('EchoMem: streaming check timeout, forcing send');
-    stopStreamingCheck();
-    const currentMessages = extractSessionMessages(recorderState.platformId);
-    sendStreamingResult(currentMessages);
-  }, 60000);
-
-  recorderState.assistantStableTimer = setInterval(async () => {
-    const streaming = isDeepSeekStreaming();
-
-    if (streaming) {
-      recorderState.streamingWasActive = true;
-      console.log('EchoMem: assistant streaming detected');
-    } else if (recorderState.streamingWasActive) {
-      // 之前是流式，现在按钮变回箭头 → 流式完成
-      console.log('EchoMem: assistant streaming finished (button back to arrow)');
-      stopStreamingCheck();
-      const currentMessages = extractSessionMessages(recorderState.platformId);
-      await sendStreamingResult(currentMessages);
-    }
-  }, STABLE_CHECK_INTERVAL_MS);
-}
-
-function stopStreamingCheck() {
-  if (recorderState.assistantStableTimer) {
-    clearInterval(recorderState.assistantStableTimer);
-    recorderState.assistantStableTimer = null;
-  }
-  if (recorderState.streamingTimeoutTimer) {
-    clearTimeout(recorderState.streamingTimeoutTimer);
-    recorderState.streamingTimeoutTimer = null;
-  }
-  recorderState.streamingWasActive = false;
 }
 
 async function sendStreamingResult(currentMessages) {
@@ -405,21 +252,41 @@ async function sendStreamingResult(currentMessages) {
   }
 }
 
+function startStreamingDetection() {
+  disposeStreamingDetector();
+  const detector = recorderState.adapter?.createStreamingDetector?.(recorderState.config);
+  if (!detector) {
+    // 无流式检测策略：立即把当前消息当作完成态处理
+    const currentMessages = extractSessionMessages(recorderState.platformId);
+    sendStreamingResult(currentMessages).catch((err) => {
+      console.warn('EchoMem: immediate streaming send failed', err);
+    });
+    return;
+  }
+  recorderState.streamingDetector = detector;
+  detector.start(() => {
+    recorderState.streamingDetector = null;
+    const currentMessages = extractSessionMessages(recorderState.platformId);
+    sendStreamingResult(currentMessages).catch((err) => {
+      console.warn('EchoMem: streaming send failed', err);
+    });
+  });
+}
+
 async function onMessagesChanged() {
   const newMessages = extractSessionMessages(recorderState.platformId);
-  console.log('EchoMem diag: newMessages=', newMessages.map(m => m.role + ':' + m.text.slice(0, 30)));
+  console.log('EchoMem diag: newMessages=', newMessages.map((m) => m.role + ':' + m.text.slice(0, 30)));
 
-  // === 流式状态中：assistant 正在输出，等待按钮 SVG 变回箭头 ===
+  // === 流式中：等待检测器回调 ===
   if (recorderState.streamingSnapshot) {
     const lastNew = newMessages[newMessages.length - 1];
-
-    // 用户发送新消息 → 立即认为上一条 assistant 已完成
+    // 用户发送了新消息 → 立刻视为上一条 assistant 已完成
     if (lastNew?.role === 'user') {
-      stopStreamingCheck();
+      disposeStreamingDetector();
       recorderState.streamingSnapshot = null;
-      // 不 return，继续执行到下方正常 diff 分支
+      // 不 return，继续走下方的 diff 分支
     } else {
-      // 流式完成检测由 startStreamingCheck 中的按钮 SVG 状态轮询负责
+      // 仍在流式，由 detector 内部决定何时回调
       return;
     }
   }
@@ -428,17 +295,17 @@ async function onMessagesChanged() {
   const lastNew = newMessages[newMessages.length - 1];
   const lastOld = recorderState.lastMessages[recorderState.lastMessages.length - 1];
 
-  // 新的 assistant 出现 → 进入流式状态，启动按钮 SVG 状态检测
-  const isNewAssistant = lastNew?.role === 'assistant' &&
-    (!lastOld || lastOld.role !== 'assistant');
+  // 新出现一条 assistant 消息 → 启动流式检测
+  const isNewAssistant =
+    lastNew?.role === 'assistant' && (!lastOld || lastOld.role !== 'assistant');
 
   if (isNewAssistant) {
     recorderState.streamingSnapshot = [...recorderState.lastMessages];
-    startStreamingCheck();
+    startStreamingDetection();
     return;
   }
 
-  // 正常 diff（user 消息或其他非 assistant 变化）
+  // 正常 diff
   const added = diffMessages(newMessages, recorderState.lastMessages);
   recorderState.lastMessages = newMessages;
 
@@ -450,7 +317,7 @@ async function onMessagesChanged() {
 function debouncedOnChange() {
   clearTimeout(recorderState.debounceTimer);
   recorderState.debounceTimer = setTimeout(() => {
-    onMessagesChanged().catch(err => {
+    onMessagesChanged().catch((err) => {
       console.warn('EchoMem: onMessagesChanged error', err);
     });
   }, DEBOUNCE_MS);
@@ -496,14 +363,17 @@ function attachObserver(container) {
   if (recorderState.openVikingSessionId) {
     // 恢复的会话：设基线，避免重复发送
     recorderState.lastMessages = currentMessages;
-    console.log('EchoMem: restored session baseline, skipping', currentMessages.length, 'existing messages');
+    console.log(
+      'EchoMem: restored session baseline, skipping',
+      currentMessages.length,
+      'existing messages'
+    );
   } else {
     // 全新会话：设空基线，然后主动发送现有消息
     recorderState.lastMessages = [];
     console.log('EchoMem: new session, will send', currentMessages.length, 'existing messages');
     if (currentMessages.length > 0) {
-      // 直接触发一次消息处理，把已有消息全部发过去
-      onMessagesChanged().catch(err => {
+      onMessagesChanged().catch((err) => {
         console.warn('EchoMem: initial message send failed', err);
       });
     }
@@ -527,14 +397,20 @@ export async function startRecording(platformId) {
 
   // 1. 如果 session ID 变了，需要重置
   if (recorderState.isRecording && recorderState.rawSessionId !== newRawSessionId) {
-    console.log('EchoMem: session id changed', recorderState.rawSessionId, '->', newRawSessionId, ', resetting recorder');
+    console.log(
+      'EchoMem: session id changed',
+      recorderState.rawSessionId,
+      '->',
+      newRawSessionId,
+      ', resetting recorder'
+    );
     if (recorderState.observer) {
       recorderState.observer.disconnect();
       recorderState.observer = null;
     }
     clearTimeout(recorderState.debounceTimer);
     recorderState.debounceTimer = null;
-    stopStreamingCheck();
+    disposeStreamingDetector();
     recorderState.rawSessionId = newRawSessionId;
     recorderState.openVikingSessionId = null;
     recorderState.lastMessages = [];
@@ -545,6 +421,8 @@ export async function startRecording(platformId) {
   // 2. 首次启动
   if (!recorderState.isRecording) {
     recorderState.platformId = platformId;
+    recorderState.config = PLATFORM_CONFIGS[platformId] || null;
+    recorderState.adapter = getAdapter(platformId);
     recorderState.rawSessionId = newRawSessionId;
     recorderState.isRecording = true;
     console.log('EchoMem: start recording for', platformId, 'session', newRawSessionId);
@@ -559,7 +437,7 @@ export async function startRecording(platformId) {
 
   // 3. 如果 observer 未 attach（首次或 session 切换后），尝试 attach
   if (!recorderState.observer) {
-    const container = findMessageContainer(platformId);
+    const container = findMessageContainer();
     if (container) {
       attachObserver(container);
     }
@@ -574,7 +452,7 @@ export function stopRecording() {
   }
   clearTimeout(recorderState.debounceTimer);
   recorderState.debounceTimer = null;
-  stopStreamingCheck();
+  disposeStreamingDetector();
   recorderState.isRecording = false;
   recorderState.rawSessionId = null;
   recorderState.openVikingSessionId = null;
@@ -597,7 +475,7 @@ export function getRecordingState() {
 
 /**
  * 提交当前会话（触发记忆提取）
- * ⚠️ 当前不自动调用，仅预留口子
+ * 当前不自动调用，仅预留口子
  */
 export async function commitCurrentSession() {
   if (!recorderState.openVikingSessionId) {
@@ -616,11 +494,12 @@ export async function commitCurrentSession() {
 export function resetRecorder() {
   stopRecording();
   recorderState.platformId = null;
+  recorderState.config = null;
+  recorderState.adapter = null;
   recorderState.rawSessionId = null;
   recorderState.openVikingSessionId = null;
   recorderState.lastMessages = [];
   recorderState.pendingQueue = [];
   recorderState.ovClient = null;
   recorderState.streamingSnapshot = null;
-  recorderState.streamingWasActive = false;
 }
