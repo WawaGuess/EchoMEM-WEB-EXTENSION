@@ -41196,7 +41196,8 @@ ${block}` : block;
   }
   function formatDate(ts) {
     if (!ts) return "-";
-    const d = new Date(ts * 1e3);
+    const d = typeof ts === "string" ? new Date(ts) : new Date(ts * 1e3);
+    if (isNaN(d.getTime())) return "-";
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
   async function initManagePanel(bodyElement) {
@@ -41217,7 +41218,9 @@ ${block}` : block;
         }
       }
       const lsResult = await client2.fsLs(dirUri, { output: "agent", absLimit: 128 });
-      const entries = (lsResult == null ? void 0 : lsResult.entries) || lsResult || [];
+      console.log("[EchoMem:manage] lsResult type:", typeof lsResult, "isArray:", Array.isArray(lsResult), "raw:", lsResult);
+      const entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
+      console.log("[EchoMem:manage] entries count:", entries.length, "type:", typeof entries);
       if (entries.length === 0) {
         loadingEl.style.display = "none";
         contentEl.style.display = "block";
@@ -41240,11 +41243,17 @@ ${block}` : block;
           }
         })
       );
+      enrichedEntries.sort((a, b) => {
+        var _a3, _b2;
+        const ta = ((_a3 = a.stat) == null ? void 0 : _a3.modTime) ? new Date(a.stat.modTime).getTime() : 0;
+        const tb = ((_b2 = b.stat) == null ? void 0 : _b2.modTime) ? new Date(b.stat.modTime).getTime() : 0;
+        return tb - ta;
+      });
       const itemsHtml = enrichedEntries.map((entry) => {
         var _a3, _b2, _c2;
         const name = entry.name || ((_a3 = entry.uri) == null ? void 0 : _a3.split("/").pop()) || "\u672A\u547D\u540D";
         const size = formatSize((_b2 = entry.stat) == null ? void 0 : _b2.size);
-        const date = formatDate((_c2 = entry.stat) == null ? void 0 : _c2.mtime);
+        const date = formatDate((_c2 = entry.stat) == null ? void 0 : _c2.modTime);
         const abstractText = entry.abstract || "";
         const isReady = abstractText && !abstractText.includes("not ready");
         const statusText = isReady ? "\u2705 \u5DF2\u5904\u7406" : "\u23F3 \u5904\u7406\u4E2D";

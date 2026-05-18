@@ -43,7 +43,9 @@ function formatSize(bytes) {
 
 function formatDate(ts) {
   if (!ts) return '-';
-  const d = new Date(ts * 1000);
+  // ISO 8601 string (e.g. "2026-05-18T11:08:51Z") or unix timestamp
+  const d = typeof ts === 'string' ? new Date(ts) : new Date(ts * 1000);
+  if (isNaN(d.getTime())) return '-';
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -72,7 +74,10 @@ export async function initManagePanel(bodyElement) {
 
     // Step 2: list directory
     const lsResult = await client.fsLs(dirUri, { output: 'agent', absLimit: 128 });
-    const entries = lsResult?.entries || lsResult || [];
+    console.log('[EchoMem:manage] lsResult type:', typeof lsResult, 'isArray:', Array.isArray(lsResult), 'raw:', lsResult);
+    // BUG FIX: lsResult?.entries on array returns Array.prototype.entries method (truthy)
+    const entries = Array.isArray(lsResult) ? lsResult : (lsResult?.entries || []);
+    console.log('[EchoMem:manage] entries count:', entries.length, 'type:', typeof entries);
 
     if (entries.length === 0) {
       loadingEl.style.display = 'none';
@@ -99,11 +104,18 @@ export async function initManagePanel(bodyElement) {
       })
     );
 
+    // Sort by modTime descending (newest first)
+    enrichedEntries.sort((a, b) => {
+      const ta = a.stat?.modTime ? new Date(a.stat.modTime).getTime() : 0;
+      const tb = b.stat?.modTime ? new Date(b.stat.modTime).getTime() : 0;
+      return tb - ta;
+    });
+
     // Render list
     const itemsHtml = enrichedEntries.map((entry) => {
       const name = entry.name || entry.uri?.split('/').pop() || '未命名';
       const size = formatSize(entry.stat?.size);
-      const date = formatDate(entry.stat?.mtime);
+      const date = formatDate(entry.stat?.modTime);
       const abstractText = entry.abstract || '';
       const isReady = abstractText && !abstractText.includes('not ready');
       const statusText = isReady ? '✅ 已处理' : '⏳ 处理中';
