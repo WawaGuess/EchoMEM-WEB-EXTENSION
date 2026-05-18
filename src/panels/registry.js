@@ -1,4 +1,4 @@
-import { getResourceContent } from './resource/index.js';
+import { getResourceHomeContent } from './resource/index.js';
 import { getInputAssociationContent } from './association/index.js';
 import { getFeedbackContent } from './feedback/index.js';
 import { getPerformanceContent } from './performance/index.js';
@@ -9,7 +9,7 @@ export const panelRegistry = {
     id: 'resources',
     title: '资源管理',
     description: '管理文件资源与上传内容',
-    render: getResourceContent
+    render: getResourceHomeContent
   },
   association: {
     id: 'association',

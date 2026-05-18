@@ -747,30 +747,57 @@
   }
 
   // src/panels/resource/index.js
-  function getResourceContent() {
-    return `
-    <div style="color: #666;">
-      <p style="margin-bottom: 12px;">\u{1F4C1} \u8D44\u6E90\u7BA1\u7406\u9762\u677F</p>
+  function getResourceHomeContent() {
+    const sections = [
+      {
+        id: "import",
+        title: "\u2B06\uFE0F \u8D44\u6E90\u5BFC\u5165",
+        desc: "\u4E0A\u4F20\u672C\u5730\u6587\u4EF6\u6216\u901A\u8FC7 URL \u6DFB\u52A0\u8D44\u6E90",
+        color: "#2563eb"
+      },
+      {
+        id: "manage",
+        title: "\u{1F4CB} \u67E5\u770B\u8D44\u6E90",
+        desc: "\u6D4F\u89C8\u3001\u9884\u89C8\u548C\u5220\u9664\u5DF2\u5BFC\u5165\u7684\u8D44\u6E90",
+        color: "#059669"
+      }
+    ];
+    const cards = sections.map((s) => `
+    <div class="claw-resource-section" data-resource-section="${s.id}" style="
+      padding: 16px;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    " onmouseenter="this.style.borderColor='${s.color}';this.style.background='#fafafa';this.style.transform='translateX(4px)'"
+       onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='none';this.style.transform='none'"
+    >
       <div style="
-        border: 1px dashed #ccc;
-        border-radius: 8px;
-        padding: 24px;
-        text-align: center;
-        color: #999;
-      ">
-        <p>\u62D6\u62FD\u6587\u4EF6\u5230\u6B64\u5904\u4E0A\u4F20</p>
-        <p style="font-size: 12px; margin-top: 8px;">\u652F\u6301 PDF, DOC, TXT, MD \u7B49\u683C\u5F0F</p>
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: ${s.color}15;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
+      ">${s.title.split(" ")[0]}</div>
+      <div style="flex: 1;">
+        <p style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 2px;">${s.title.split(" ").slice(1).join(" ")}</p>
+        <p style="font-size: 12px; color: #888;">${s.desc}</p>
       </div>
-      <div style="margin-top: 16px;">
-        <p style="font-weight: 500; margin-bottom: 8px; color: #333;">\u5DF2\u4E0A\u4F20\u8D44\u6E90</p>
-        <div style="
-          padding: 12px;
-          background: #f5f5f5;
-          border-radius: 6px;
-          font-size: 13px;
-          color: #999;
-        ">\u6682\u65E0\u8D44\u6E90</div>
-      </div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    </div>
+  `).join("");
+    return `
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      ${cards}
     </div>
   `;
   }
@@ -808,973 +835,6 @@
   }
   async function setCompletionConfig(config) {
     await chrome.storage.local.set({ completionConfig: config });
-  }
-
-  // src/services/openviking-client.js
-  var DEFAULT_CONFIG = {
-    baseUrl: "http://127.0.0.1:1933",
-    apiKey: "",
-    agentId: "echomem-extension",
-    authEnabled: false,
-    accountId: "default",
-    userId: "default",
-    timeoutMs: 5e3
-  };
-  var OpenVikingClient = class {
-    constructor(config = {}) {
-      this.cfg = { ...DEFAULT_CONFIG, ...config };
-    }
-    async find(query, options = {}) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = { "Content-Type": "application/json" };
-        if (this.cfg.agentId) {
-          headers["X-OpenViking-Agent"] = this.cfg.agentId;
-        }
-        if (this.cfg.authEnabled) {
-          if (this.cfg.apiKey) {
-            headers["X-API-Key"] = this.cfg.apiKey;
-          }
-          if (this.cfg.accountId) {
-            headers["X-OpenViking-Account"] = this.cfg.accountId;
-          }
-          if (this.cfg.userId) {
-            headers["X-OpenViking-User"] = this.cfg.userId;
-          }
-        }
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/search/find`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            query,
-            target_uri: options.targetUri || "viking://user/memories",
-            limit: options.limit || 5,
-            score_threshold: options.scoreThreshold || 0
-          }),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async healthCheck() {
-      const response = await fetch(`${this.cfg.baseUrl}/health`, {
-        method: "GET"
-      });
-      return response.ok;
-    }
-    async createSession(sessionId = null) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = { "Content-Type": "application/json" };
-        if (this.cfg.agentId) {
-          headers["X-OpenViking-Agent"] = this.cfg.agentId;
-        }
-        if (this.cfg.authEnabled) {
-          if (this.cfg.apiKey) {
-            headers["X-API-Key"] = this.cfg.apiKey;
-          }
-          if (this.cfg.accountId) {
-            headers["X-OpenViking-Account"] = this.cfg.accountId;
-          }
-          if (this.cfg.userId) {
-            headers["X-OpenViking-User"] = this.cfg.userId;
-          }
-        }
-        const body = {};
-        if (sessionId) {
-          body.session_id = sessionId;
-        }
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async addMessage(sessionId, message) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = { "Content-Type": "application/json" };
-        if (this.cfg.agentId) {
-          headers["X-OpenViking-Agent"] = this.cfg.agentId;
-        }
-        if (this.cfg.authEnabled) {
-          if (this.cfg.apiKey) {
-            headers["X-API-Key"] = this.cfg.apiKey;
-          }
-          if (this.cfg.accountId) {
-            headers["X-OpenViking-Account"] = this.cfg.accountId;
-          }
-          if (this.cfg.userId) {
-            headers["X-OpenViking-User"] = this.cfg.userId;
-          }
-        }
-        const response = await fetch(
-          `${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              role: message.role,
-              content: message.text
-            }),
-            signal: controller.signal
-          }
-        );
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async appendMessages(sessionId, messages) {
-      const results = [];
-      for (const msg of messages) {
-        const result = await this.addMessage(sessionId, msg);
-        results.push(result);
-      }
-      return results;
-    }
-    async commitSession(sessionId) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = { "Content-Type": "application/json" };
-        if (this.cfg.agentId) {
-          headers["X-OpenViking-Agent"] = this.cfg.agentId;
-        }
-        if (this.cfg.authEnabled) {
-          if (this.cfg.apiKey) {
-            headers["X-API-Key"] = this.cfg.apiKey;
-          }
-          if (this.cfg.accountId) {
-            headers["X-OpenViking-Account"] = this.cfg.accountId;
-          }
-          if (this.cfg.userId) {
-            headers["X-OpenViking-User"] = this.cfg.userId;
-          }
-        }
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/commit`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ wait: true }),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-  };
-  function createClient(config) {
-    return new OpenVikingClient(config);
-  }
-
-  // src/utils/text-processor.js
-  var STOP_WORDS = /* @__PURE__ */ new Set([
-    // 中文停用词
-    "\u7684",
-    "\u4E86",
-    "\u662F",
-    "\u5728",
-    "\u6211",
-    "\u6709",
-    "\u548C",
-    "\u5C31",
-    "\u4E0D",
-    "\u4EBA",
-    "\u90FD",
-    "\u4E00",
-    "\u4E00\u4E2A",
-    "\u4E0A",
-    "\u4E5F",
-    "\u5F88",
-    "\u5230",
-    "\u8BF4",
-    "\u8981",
-    "\u53BB",
-    "\u4F60",
-    "\u4F1A",
-    "\u7740",
-    "\u6CA1\u6709",
-    "\u770B",
-    "\u597D",
-    "\u81EA\u5DF1",
-    "\u8FD9",
-    "\u90A3",
-    "\u4E2D",
-    "\u4E3A",
-    "\u6765",
-    "\u4E2A",
-    "\u4EE5",
-    "\u5927",
-    "\u5730",
-    "\u5230",
-    "\u53CA",
-    "\u4E0E",
-    "\u6216",
-    "\u7B49",
-    "\u4E4B",
-    "\u800C",
-    "\u53EF\u4EE5",
-    "\u8FD9\u4E2A",
-    "\u90A3\u4E2A",
-    "\u4EC0\u4E48",
-    "\u600E\u4E48",
-    "\u5982\u4F55",
-    "\u8FD8\u662F",
-    "\u4F46\u662F",
-    "\u56E0\u4E3A",
-    "\u6240\u4EE5",
-    // 英文停用词
-    "the",
-    "a",
-    "an",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "been",
-    "being",
-    "have",
-    "has",
-    "had",
-    "do",
-    "does",
-    "did",
-    "will",
-    "would",
-    "could",
-    "should",
-    "i",
-    "you",
-    "he",
-    "she",
-    "it",
-    "we",
-    "they",
-    "me",
-    "him",
-    "her",
-    "us",
-    "them",
-    "my",
-    "your",
-    "his",
-    "its",
-    "our",
-    "their",
-    "this",
-    "that",
-    "these",
-    "those",
-    "and",
-    "or",
-    "but",
-    "if",
-    "then",
-    "else",
-    "when",
-    "where",
-    "why",
-    "how",
-    "all",
-    "any",
-    "both",
-    "each",
-    "few",
-    "more",
-    "most",
-    "other",
-    "some",
-    "such",
-    "no",
-    "nor",
-    "not",
-    "only",
-    "own",
-    "same",
-    "so",
-    "than",
-    "too",
-    "very",
-    "can",
-    "just",
-    "should",
-    "now",
-    "to",
-    "of",
-    "in",
-    "for",
-    "on",
-    "with",
-    "at",
-    "from",
-    "by",
-    "about",
-    "into",
-    "through",
-    "during",
-    "before",
-    "after",
-    "above",
-    "below",
-    "between",
-    "under",
-    "again",
-    "further",
-    "then",
-    "once"
-  ]);
-  function tokenize(text) {
-    if (!text || typeof text !== "string") return [];
-    const tokens2 = [];
-    const regex = /[\u4e00-\u9fa5]{2,}|[a-zA-Z0-9]{2,}/g;
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      tokens2.push(match[0].toLowerCase());
-    }
-    return tokens2;
-  }
-  function filterStopWords(tokens2) {
-    return tokens2.filter((w) => !STOP_WORDS.has(w));
-  }
-  function tokenizeAndFilter(text) {
-    return filterStopWords(tokenize(text));
-  }
-  function truncate(text, maxLength = 60) {
-    if (!text) return "";
-    if (text.length <= maxLength) return text;
-    return text.slice(0, maxLength) + "...";
-  }
-  function calculateOverlap(inputWords, textWords) {
-    if (!inputWords.size || !textWords.size) return 0;
-    let exactMatch = 0;
-    let partialMatch = 0;
-    for (const iw of inputWords) {
-      if (textWords.has(iw)) {
-        exactMatch += 2;
-        continue;
-      }
-      for (const tw of textWords) {
-        if (tw.includes(iw) || iw.includes(tw)) {
-          partialMatch += 1;
-          break;
-        }
-      }
-    }
-    return exactMatch + partialMatch;
-  }
-  function escapeHtml(str) {
-    if (!str) return "";
-    const div2 = document.createElement("div");
-    div2.textContent = String(str);
-    return div2.innerHTML;
-  }
-
-  // src/panels/association/suggestions.js
-  var MEM_TAG_OPEN = "<relevant-memories>";
-  var MEM_TAG_CLOSE = "</relevant-memories>";
-  var selectedIndex = -1;
-  var currentSuggestions = [];
-  var checkedKeys = /* @__PURE__ */ new Set();
-  var currentInputElement = null;
-  var keyboardBound = false;
-  var collapsed = false;
-  var suppressBlurClose = false;
-  var committedItems = /* @__PURE__ */ new Map();
-  function getItemKey(c, i) {
-    return c.sourceUri || c.insertText || `idx-${i}`;
-  }
-  function renderCompletions(inputElement, completions) {
-    currentSuggestions = completions;
-    currentInputElement = inputElement;
-    selectedIndex = completions.length > 0 ? 0 : -1;
-    checkedKeys = /* @__PURE__ */ new Set();
-    const container = getOrCreateContainer();
-    if (!completions.length) {
-      hideSuggestions();
-      return;
-    }
-    container.innerHTML = buildContainerHtml(completions);
-    container.style.display = "block";
-    positionContainer(container, inputElement);
-    bindContainerEvents(container, inputElement);
-    bindOutsideClick(container);
-  }
-  function bindOutsideClick(container) {
-    if (container._outsideClickHandler) {
-      document.removeEventListener("mousedown", container._outsideClickHandler);
-      container._outsideClickHandler = null;
-    }
-    const handler = (e2) => {
-      if (!container.contains(e2.target)) {
-        hideSuggestions();
-        document.removeEventListener("mousedown", handler);
-        container._outsideClickHandler = null;
-      }
-    };
-    setTimeout(() => {
-      document.addEventListener("mousedown", handler);
-      container._outsideClickHandler = handler;
-    }, 0);
-  }
-  function buildContainerHtml(completions) {
-    const headerHtml = `
-    <div class="echomem-suggestion-header">
-      <label class="echomem-suggestion-select-all">
-        <input type="checkbox" class="echomem-suggestion-check-all" />
-        <span>\u5168\u9009</span>
-      </label>
-      <span class="echomem-suggestion-title">\u76F8\u5173\u8BB0\u5FC6 (${completions.length})</span>
-      <button type="button" class="echomem-suggestion-toggle" title="${collapsed ? "\u5C55\u5F00" : "\u6298\u53E0"}">
-        ${collapsed ? "\u25B8" : "\u25BE"}
-      </button>
-    </div>
-  `;
-    const itemsHtml = completions.map((c, i) => {
-      const isActive = i === selectedIndex;
-      const key = getItemKey(c, i);
-      const sourceBadge = c.source === "memory" ? '<span class="echomem-source-badge memory">\u8BB0\u5FC6</span>' : '<span class="echomem-source-badge session">\u4F1A\u8BDD</span>';
-      return `
-      <div class="echomem-suggestion-item ${isActive ? "echomem-suggestion-active" : ""}"
-           data-index="${i}"
-           data-key="${escapeHtml(key)}">
-        <input type="checkbox" class="echomem-suggestion-check" tabindex="-1" />
-        <span class="suggestion-text">${escapeHtml(c.displayText || "")}</span>
-        <div class="suggestion-meta">
-          ${sourceBadge}
-          <span class="suggestion-score">${(c.score || 0).toFixed(2)}</span>
-        </div>
-      </div>
-    `;
-    }).join("");
-    const bodyHtml = `
-    <div class="echomem-suggestion-list" style="${collapsed ? "display:none;" : ""}">
-      ${itemsHtml}
-    </div>
-  `;
-    const actionsHtml = `
-    <div class="echomem-suggestion-actions" style="${collapsed ? "display:none;" : ""}">
-      <button type="button" class="echomem-btn-cancel">\u53D6\u6D88</button>
-      <button type="button" class="echomem-btn-confirm" disabled>\u786E\u5B9A (0)</button>
-    </div>
-  `;
-    return headerHtml + bodyHtml + actionsHtml;
-  }
-  function bindContainerEvents(container, inputElement) {
-    container.addEventListener("mousedown", (e2) => {
-      suppressBlurClose = true;
-      setTimeout(() => {
-        suppressBlurClose = false;
-      }, 50);
-      const target = e2.target;
-      const isInteractive = target.tagName === "INPUT" || target.tagName === "BUTTON" || target.closest("label");
-      if (!isInteractive) {
-        e2.preventDefault();
-      }
-    });
-    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
-      item.addEventListener("click", (e2) => {
-        const key = item.dataset.key;
-        const checkbox = item.querySelector(".echomem-suggestion-check");
-        if (e2.target === checkbox) {
-          if (checkbox.checked) {
-            checkedKeys.add(key);
-          } else {
-            checkedKeys.delete(key);
-          }
-        } else {
-          toggleKey(key);
-        }
-        syncUi(container);
-      });
-      item.addEventListener("mouseenter", () => {
-        selectedIndex = Number(item.dataset.index);
-        updateHighlight(container);
-      });
-    });
-    const checkAll = container.querySelector(".echomem-suggestion-check-all");
-    checkAll.addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      const allKeys = currentSuggestions.map((c, i) => getItemKey(c, i));
-      if (e2.target.checked) {
-        checkedKeys = new Set(allKeys);
-      } else {
-        checkedKeys = /* @__PURE__ */ new Set();
-      }
-      syncUi(container);
-    });
-    const toggleBtn = container.querySelector(".echomem-suggestion-toggle");
-    toggleBtn.addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      collapsed = !collapsed;
-      const list = container.querySelector(".echomem-suggestion-list");
-      const actions2 = container.querySelector(".echomem-suggestion-actions");
-      if (list) list.style.display = collapsed ? "none" : "";
-      if (actions2) actions2.style.display = collapsed ? "none" : "";
-      toggleBtn.textContent = collapsed ? "\u25B8" : "\u25BE";
-      toggleBtn.title = collapsed ? "\u5C55\u5F00" : "\u6298\u53E0";
-      positionContainer(container, inputElement);
-    });
-    container.querySelector(".echomem-btn-cancel").addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      hideSuggestions();
-    });
-    container.querySelector(".echomem-btn-confirm").addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      if (!checkedKeys.size) return;
-      const selected = [];
-      currentSuggestions.forEach((c, i) => {
-        const key = getItemKey(c, i);
-        if (checkedKeys.has(key)) {
-          selected.push({ key, item: c });
-        }
-      });
-      if (!selected.length) return;
-      composeAndInsert(currentInputElement, currentInputElement.value || "", selected);
-      hideSuggestions();
-    });
-  }
-  function toggleKey(key) {
-    if (checkedKeys.has(key)) {
-      checkedKeys.delete(key);
-    } else {
-      checkedKeys.add(key);
-    }
-  }
-  function syncUi(container) {
-    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
-      const key = item.dataset.key;
-      const checkbox = item.querySelector(".echomem-suggestion-check");
-      const checked = checkedKeys.has(key);
-      if (checkbox) checkbox.checked = checked;
-      item.classList.toggle("echomem-suggestion-checked", checked);
-    });
-    const allKeys = currentSuggestions.map((c, i) => getItemKey(c, i));
-    const allChecked = allKeys.length > 0 && allKeys.every((k) => checkedKeys.has(k));
-    const someChecked = allKeys.some((k) => checkedKeys.has(k));
-    const checkAll = container.querySelector(".echomem-suggestion-check-all");
-    if (checkAll) {
-      checkAll.checked = allChecked;
-      checkAll.indeterminate = !allChecked && someChecked;
-    }
-    const confirmBtn = container.querySelector(".echomem-btn-confirm");
-    if (confirmBtn) {
-      const n = checkedKeys.size;
-      confirmBtn.textContent = `\u786E\u5B9A (${n})`;
-      confirmBtn.disabled = n === 0;
-    }
-    updateHighlight(container);
-  }
-  function updateHighlight(container) {
-    const items = container.querySelectorAll(".echomem-suggestion-item");
-    items.forEach((item, i) => {
-      if (i === selectedIndex) {
-        item.classList.add("echomem-suggestion-active");
-      } else {
-        item.classList.remove("echomem-suggestion-active");
-      }
-    });
-  }
-  function formatItem(it) {
-    return (it.insertText || "").trim().replace(/\s+/g, " ");
-  }
-  function stripMemoryBlock(userText) {
-    const text = userText || "";
-    const regex = new RegExp(`\\s*${MEM_TAG_OPEN}[\\s\\S]*?${MEM_TAG_CLOSE}\\s*`, "g");
-    const hasMatch = regex.test(text);
-    if (!hasMatch) {
-      committedItems.clear();
-      return text.replace(/\s+$/, "");
-    }
-    committedItems.clear();
-    return text.replace(regex, "").replace(/\s+$/, "");
-  }
-  function composeAndInsert(textarea, userText, selected) {
-    if (!textarea) return;
-    const basePart = stripMemoryBlock(userText);
-    for (const { key, item } of selected) {
-      if (committedItems.has(key)) continue;
-      const body = formatItem(item);
-      if (!body) continue;
-      committedItems.set(key, body);
-    }
-    const bodies = Array.from(committedItems.values());
-    if (!bodies.length) return;
-    const lines = bodies.map((b, i) => `${i + 1}. ${b}`);
-    const prefix = basePart ? `${basePart}
-
-` : "";
-    const next = `${prefix}${MEM_TAG_OPEN}
-${lines.join("\n")}
-${MEM_TAG_CLOSE}`;
-    textarea.value = next;
-    try {
-      textarea.selectionStart = textarea.selectionEnd = next.length;
-    } catch (_) {
-    }
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    textarea.focus();
-  }
-  function hideSuggestions() {
-    const container = document.getElementById("echomem-suggestions");
-    if (container) {
-      container.style.display = "none";
-    }
-    selectedIndex = -1;
-    currentSuggestions = [];
-    checkedKeys = /* @__PURE__ */ new Set();
-  }
-  function isSuggestionsVisible() {
-    const container = document.getElementById("echomem-suggestions");
-    return !!(container && container.style.display !== "none");
-  }
-  function shouldSuppressBlurClose() {
-    return suppressBlurClose;
-  }
-  function bindKeyboardNavigation(textarea) {
-    if (keyboardBound) return;
-    keyboardBound = true;
-    textarea.addEventListener("keydown", (e2) => {
-      if (!isSuggestionsVisible()) return;
-      const container = document.getElementById("echomem-suggestions");
-      if (!container) return;
-      switch (e2.key) {
-        case "ArrowDown":
-          e2.preventDefault();
-          selectedIndex = Math.min(selectedIndex + 1, currentSuggestions.length - 1);
-          updateHighlight(container);
-          break;
-        case "ArrowUp":
-          e2.preventDefault();
-          selectedIndex = Math.max(selectedIndex - 1, 0);
-          updateHighlight(container);
-          break;
-        case "Enter":
-          if (checkedKeys.size > 0) {
-            e2.preventDefault();
-            const selected = [];
-            currentSuggestions.forEach((c, i) => {
-              const key = getItemKey(c, i);
-              if (checkedKeys.has(key)) {
-                selected.push({ key, item: c });
-              }
-            });
-            composeAndInsert(textarea, textarea.value || "", selected);
-            hideSuggestions();
-          }
-          break;
-        case "Escape":
-          e2.preventDefault();
-          hideSuggestions();
-          break;
-      }
-    });
-  }
-  function getOrCreateContainer() {
-    let container = document.getElementById("echomem-suggestions");
-    if (!container) {
-      container = document.createElement("div");
-      container.id = "echomem-suggestions";
-      container.className = "echomem-suggestions-container";
-      document.body.appendChild(container);
-    }
-    return container;
-  }
-  function positionContainer(container, inputElement) {
-    if (!inputElement) return;
-    const rect = inputElement.getBoundingClientRect();
-    const prevVisibility = container.style.visibility;
-    container.style.visibility = "hidden";
-    container.style.display = "block";
-    const containerHeight = Math.min(container.offsetHeight || 160, 320);
-    container.style.visibility = prevVisibility || "";
-    container.style.position = "fixed";
-    container.style.left = `${rect.left}px`;
-    container.style.top = `${rect.top - containerHeight - 8}px`;
-    container.style.width = `${rect.width}px`;
-    container.style.zIndex = "999999";
-  }
-
-  // src/core/completion-engine.js
-  var phraseScoreThreshold = 0.2;
-  async function refreshThreshold() {
-    const config = await getCompletionConfig();
-    phraseScoreThreshold = config.phraseScoreThreshold;
-  }
-  function extractKeywords(text, userInput, maxKeywords = 3) {
-    if (!text) return [];
-    const words = tokenizeAndFilter(text);
-    const userWords = new Set(tokenize(userInput));
-    const freq = {};
-    for (const w of words) {
-      freq[w] = (freq[w] || 0) + 1;
-    }
-    const scored = Object.entries(freq).map(([word, count]) => ({
-      word,
-      score: count * (userWords.has(word) ? 3 : 1)
-    }));
-    return scored.sort((a, b) => b.score - a.score).slice(0, maxKeywords).map((x) => x.word);
-  }
-  function extractPhrases(overview, userInput) {
-    if (!overview) {
-      console.log("EchoMem: extractPhrases overview is empty");
-      return [];
-    }
-    const lines = overview.split("\n");
-    const phrases = [];
-    const inputWords = new Set(tokenize(userInput));
-    console.log("EchoMem: extractPhrases inputWords", [...inputWords], "threshold", phraseScoreThreshold);
-    console.log("EchoMem: overview lines count", lines.length);
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.length < 5) continue;
-      const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
-      if (listMatch) {
-        const phrase = listMatch[1].trim();
-        const phraseWords = new Set(tokenize(phrase));
-        const score = calculatePhraseScore(inputWords, phraseWords, phrase);
-        console.log("EchoMem: list item", phrase.slice(0, 40), "score", score, "threshold", phraseScoreThreshold);
-        if (score > phraseScoreThreshold) {
-          phrases.push({ phrase, score, type: "bullet" });
-        }
-        continue;
-      }
-      const quoteMatch = trimmed.match(/^[""'](.+)[""']\s*\(/);
-      if (quoteMatch) {
-        const phrase = quoteMatch[1].trim();
-        const phraseWords = new Set(tokenize(phrase));
-        const score = calculatePhraseScore(inputWords, phraseWords, phrase);
-        console.log("EchoMem: quote", phrase.slice(0, 40), "score", score);
-        if (score > phraseScoreThreshold) {
-          phrases.push({ phrase, score, type: "quote" });
-        }
-        continue;
-      }
-      if (!trimmed.startsWith("#") && !trimmed.startsWith("-") && !trimmed.startsWith("*")) {
-        const phraseWords = new Set(tokenize(trimmed));
-        const score = calculatePhraseScore(inputWords, phraseWords, trimmed);
-        console.log("EchoMem: text line", trimmed.slice(0, 40), "score", score, "threshold", phraseScoreThreshold + 0.25);
-        if (score > phraseScoreThreshold + 0.25) {
-          phrases.push({ phrase: trimmed, score, type: "text" });
-        }
-      }
-    }
-    console.log("EchoMem: extractPhrases result", phrases.length, "phrases");
-    return phrases.sort((a, b) => b.score - a.score).slice(0, 3);
-  }
-  function calculatePhraseScore(inputWords, phraseWords, phrase) {
-    if (!inputWords.size || !phraseWords.size) return 0;
-    const overlap = calculateOverlap(inputWords, phraseWords);
-    const intersection = new Set([...inputWords].filter((x) => phraseWords.has(x))).size;
-    const union = (/* @__PURE__ */ new Set([...inputWords, ...phraseWords])).size;
-    const jaccard = union > 0 ? intersection / union : 0;
-    const lengthPenalty = Math.min(phrase.length / 150, 1);
-    return (jaccard * 0.4 + overlap / (inputWords.size * 2) * 0.6) * (1 - lengthPenalty * 0.15);
-  }
-  function buildSuggestion(userInput, memory) {
-    var _a2, _b2;
-    const inputTrimmed = userInput.trim();
-    if (((_a2 = memory == null ? void 0 : memory.phrases) == null ? void 0 : _a2.length) > 0) {
-      const bestPhrase = memory.phrases[0];
-      return {
-        type: "phrase",
-        displayText: `...${truncate(bestPhrase.phrase, 40)}`,
-        insertText: bestPhrase.phrase,
-        source: "memory",
-        sourceUri: memory.uri || "",
-        score: (memory.score || 0.5) * 0.7 + bestPhrase.score * 0.3,
-        fullText: memory.abstract || bestPhrase.phrase
-      };
-    }
-    if (((_b2 = memory == null ? void 0 : memory.keywords) == null ? void 0 : _b2.length) > 0) {
-      const continuation = memory.keywords.join("\u3001");
-      return {
-        type: "keyword",
-        displayText: `...${truncate(continuation, 40)}`,
-        insertText: continuation,
-        source: "memory",
-        sourceUri: memory.uri || "",
-        score: memory.score || 0.5,
-        fullText: memory.abstract || ""
-      };
-    }
-    return null;
-  }
-  function processMemories(userInput, memories) {
-    const suggestions = [];
-    for (const memory of memories.slice(0, 5)) {
-      const semanticScore = memory.score || 0;
-      if (semanticScore < phraseScoreThreshold) {
-        console.log("EchoMem: memory filtered out by semantic score", semanticScore, "<", phraseScoreThreshold, memory.uri);
-        continue;
-      }
-      const sourceText = memory.overview || memory.abstract || "";
-      const phrases = extractPhrases(sourceText, userInput);
-      console.log("EchoMem: memory", memory.uri, "semanticScore", semanticScore, "phrases", phrases.length);
-      const keywords = extractKeywords(memory.abstract || "", userInput, 3);
-      const enrichedMemory = { ...memory, phrases, keywords };
-      const suggestion = buildSuggestion(userInput, enrichedMemory);
-      if (suggestion) {
-        suggestions.push(suggestion);
-      } else {
-        console.log("EchoMem: no suggestion generated for", memory.uri);
-      }
-    }
-    return suggestions;
-  }
-  function rankAndDeduplicate(suggestions, maxResults = 3) {
-    suggestions.sort((a, b) => b.score - a.score);
-    const seen = /* @__PURE__ */ new Set();
-    const unique = [];
-    for (const s of suggestions) {
-      const key = s.insertText.slice(0, 50);
-      if (!seen.has(key)) {
-        seen.add(key);
-        unique.push(s);
-      }
-    }
-    return unique.slice(0, maxResults);
-  }
-  async function generateCompletions(userInput, memories, maxResults = 3) {
-    if (!userInput || !(memories == null ? void 0 : memories.length)) {
-      return [];
-    }
-    await refreshThreshold();
-    console.log("EchoMem: phraseScoreThreshold =", phraseScoreThreshold);
-    const suggestions = processMemories(userInput, memories);
-    console.log("EchoMem: raw suggestions =", suggestions.map((s) => ({ type: s.type, score: s.score, display: s.displayText })));
-    return rankAndDeduplicate(suggestions, maxResults);
-  }
-
-  // src/core/input-tracker.js
-  var client = null;
-  var debounceTimer = null;
-  var trackingPlatformConfig = null;
-  var keyboardNavBound = false;
-  async function getClient() {
-    if (!client) {
-      const config = await getOpenVikingConfig();
-      client = createClient(config);
-    }
-    return client;
-  }
-  function resetClient() {
-    client = null;
-  }
-  function startInputTracking(platformConfig) {
-    trackingPlatformConfig = platformConfig;
-    tryBindInputElement();
-  }
-  function tryBindInputElement() {
-    if (!trackingPlatformConfig) return;
-    const textarea = findInputElement(trackingPlatformConfig);
-    if (!textarea) {
-      console.log("EchoMem: input element not found, will retry on next DOM change");
-      return;
-    }
-    if (textarea.dataset.echomemTracking) return;
-    textarea.dataset.echomemTracking = "true";
-    console.log("EchoMem: input tracking started on", textarea);
-    if (!keyboardNavBound) {
-      bindKeyboardNavigation(textarea);
-      keyboardNavBound = true;
-    }
-    textarea.addEventListener("input", (e2) => {
-      if (!getAssociationEnabled()) {
-        hideSuggestions();
-        return;
-      }
-      if (!e2.isTrusted) return;
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(async () => {
-        const text = e2.target.value.trim();
-        if (text.length >= 3) {
-          try {
-            await handleInput(textarea, text);
-          } catch (err) {
-            console.warn("EchoMem: recall failed", err);
-            hideSuggestions();
-          }
-        } else {
-          hideSuggestions();
-        }
-      }, 300);
-    });
-    textarea.addEventListener("blur", () => {
-      setTimeout(() => {
-        if (shouldSuppressBlurClose()) return;
-        const active = document.activeElement;
-        const container = document.getElementById("echomem-suggestions");
-        if (container && active && container.contains(active)) return;
-        hideSuggestions();
-      }, 200);
-    });
-  }
-  async function handleInput(textarea, userInput) {
-    let memories = [];
-    try {
-      const ovClient = await getClient();
-      console.log("EchoMem: recall triggered, query=", userInput);
-      const result = await ovClient.find(userInput, { limit: 5 });
-      memories = result.memories || [];
-      console.log("EchoMem: found", memories.length, "memories");
-      if (memories.length > 0) {
-        console.log("EchoMem: first memory keys", Object.keys(memories[0]));
-        console.log("EchoMem: first memory overview", memories[0].overview ? "present" : "missing");
-      }
-    } catch (err) {
-      console.warn("EchoMem: OpenViking recall failed", err);
-      hideSuggestions();
-      return;
-    }
-    if (!memories.length) {
-      hideSuggestions();
-      return;
-    }
-    const completions = await generateCompletions(userInput, memories, 3);
-    console.log("EchoMem: generated", completions.length, "completions");
-    if (completions.length > 0) {
-      renderCompletions(textarea, completions);
-    } else {
-      hideSuggestions();
-    }
-  }
-  function findInputElement(platformConfig) {
-    var _a2, _b2;
-    const selector = (_b2 = (_a2 = platformConfig.launcher) == null ? void 0 : _a2.validateSelectors) == null ? void 0 : _b2.textarea;
-    if (!selector) return null;
-    return document.querySelector(selector);
   }
 
   // src/panels/association/index.js
@@ -1825,48 +885,7 @@ ${MEM_TAG_CLOSE}`;
         </ul>
       </div>
       <div id="echomem-ov-config" style="display: none;">
-        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u2699\uFE0F OpenViking \u914D\u7F6E</p>
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u670D\u52A1\u5730\u5740</label>
-          <input id="ov-base-url" type="text" value="http://127.0.0.1:1933"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
-        </div>
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID</label>
-          <input id="ov-agent-id" type="text" value="echomem-extension"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
-        </div>
-        <div style="margin-bottom: 10px;">
-          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #333; cursor: pointer;">
-            <input id="ov-auth-enabled" type="checkbox" style="cursor: pointer;"
-            />
-            <span>\u542F\u7528\u8BA4\u8BC1\u6A21\u5F0F\uFF08API Key / Account / User\uFF09</span>
-          </label>
-        </div>
-        <div id="ov-auth-fields" style="display: none;">
-          <div style="margin-bottom: 10px;">
-            <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">API Key</label>
-            <input id="ov-api-key" type="password" value=""
-              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-            />
-          </div>
-          <div style="margin-bottom: 10px;">
-            <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Account</label>
-            <input id="ov-account-id" type="text" value="default"
-              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-            />
-          </div>
-          <div style="margin-bottom: 10px;">
-            <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">User</label>
-            <input id="ov-user-id" type="text" value="default"
-              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-            />
-          </div>
-        </div>
-
-        <p style="font-weight: 600; color: #333; margin: 16px 0 10px; font-size: 14px;">\u{1F9E0} \u8865\u5168\u7B97\u6CD5\u914D\u7F6E</p>
+        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u{1F9E0} \u8865\u5168\u7B97\u6CD5\u914D\u7F6E</p>
         <div style="margin-bottom: 10px;">
           <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">
             \u77ED\u8BED\u8FC7\u6EE4\u9608\u503C
@@ -1936,14 +955,6 @@ ${MEM_TAG_CLOSE}`;
         toggleLink.textContent = isHidden ? "\u9690\u85CF\u9AD8\u7EA7\u914D\u7F6E" : "\u663E\u793A\u9AD8\u7EA7\u914D\u7F6E";
       });
     }
-    const authCheckbox = document.getElementById("ov-auth-enabled");
-    const authFields = document.getElementById("ov-auth-fields");
-    if (authCheckbox && authFields && !authCheckbox.dataset.bound) {
-      authCheckbox.dataset.bound = "true";
-      authCheckbox.addEventListener("change", () => {
-        authFields.style.display = authCheckbox.checked ? "block" : "none";
-      });
-    }
     const thresholdInput = document.getElementById("completion-threshold");
     const thresholdNumber = document.getElementById("completion-threshold-number");
     if (thresholdInput && thresholdNumber && !thresholdInput.dataset.bound) {
@@ -1963,42 +974,19 @@ ${MEM_TAG_CLOSE}`;
     if (saveBtn && !saveBtn.dataset.bound) {
       saveBtn.dataset.bound = "true";
       saveBtn.addEventListener("click", async (e2) => {
-        var _a2, _b2, _c2, _d2, _e, _f, _g, _h, _i, _j, _k, _l;
+        var _a2;
         e2.preventDefault();
         e2.stopPropagation();
-        const baseUrl = (_b2 = (_a2 = document.getElementById("ov-base-url")) == null ? void 0 : _a2.value) == null ? void 0 : _b2.trim();
-        const agentId = (_d2 = (_c2 = document.getElementById("ov-agent-id")) == null ? void 0 : _c2.value) == null ? void 0 : _d2.trim();
-        const authEnabled = ((_e = document.getElementById("ov-auth-enabled")) == null ? void 0 : _e.checked) || false;
-        const apiKey = (_g = (_f = document.getElementById("ov-api-key")) == null ? void 0 : _f.value) == null ? void 0 : _g.trim();
-        const accountId = (_i = (_h = document.getElementById("ov-account-id")) == null ? void 0 : _h.value) == null ? void 0 : _i.trim();
-        const userId = (_k = (_j = document.getElementById("ov-user-id")) == null ? void 0 : _j.value) == null ? void 0 : _k.trim();
-        const phraseScoreThreshold2 = parseFloat(((_l = document.getElementById("completion-threshold")) == null ? void 0 : _l.value) || "0.2");
-        await setOpenVikingConfig({ baseUrl, agentId, authEnabled, apiKey, accountId, userId });
+        const phraseScoreThreshold2 = parseFloat(((_a2 = document.getElementById("completion-threshold")) == null ? void 0 : _a2.value) || "0.2");
         await setCompletionConfig({ phraseScoreThreshold: phraseScoreThreshold2 });
-        resetClient();
         alert("\u914D\u7F6E\u5DF2\u4FDD\u5B58");
       });
     }
   }
   async function loadConfigValues() {
-    const ovConfig = await getOpenVikingConfig();
     const completionConfig = await getCompletionConfig();
-    const baseUrlInput = document.getElementById("ov-base-url");
-    const apiKeyInput = document.getElementById("ov-api-key");
-    const agentIdInput = document.getElementById("ov-agent-id");
-    const accountIdInput = document.getElementById("ov-account-id");
-    const userIdInput = document.getElementById("ov-user-id");
-    const authCheckbox = document.getElementById("ov-auth-enabled");
-    const authFields = document.getElementById("ov-auth-fields");
     const thresholdInput = document.getElementById("completion-threshold");
     const thresholdNumber = document.getElementById("completion-threshold-number");
-    if (baseUrlInput) baseUrlInput.value = ovConfig.baseUrl;
-    if (apiKeyInput) apiKeyInput.value = ovConfig.apiKey;
-    if (agentIdInput) agentIdInput.value = ovConfig.agentId;
-    if (accountIdInput) accountIdInput.value = ovConfig.accountId;
-    if (userIdInput) userIdInput.value = ovConfig.userId;
-    if (authCheckbox) authCheckbox.checked = ovConfig.authEnabled;
-    if (authFields) authFields.style.display = ovConfig.authEnabled ? "block" : "none";
     if (thresholdInput) thresholdInput.value = completionConfig.phraseScoreThreshold;
     if (thresholdNumber) thresholdNumber.value = completionConfig.phraseScoreThreshold;
   }
@@ -41313,7 +40301,7 @@ ${MEM_TAG_CLOSE}`;
       id: "resources",
       title: "\u8D44\u6E90\u7BA1\u7406",
       description: "\u7BA1\u7406\u6587\u4EF6\u8D44\u6E90\u4E0E\u4E0A\u4F20\u5185\u5BB9",
-      render: getResourceContent
+      render: getResourceHomeContent
     },
     association: {
       id: "association",
@@ -41418,11 +40406,1921 @@ ${MEM_TAG_CLOSE}`;
       </button>
     `;
     }).join("");
+    const configCard = `
+    <div class="claw-config-section" data-config="openviking" style="
+      width: 100%;
+      padding: 14px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.2s;
+      margin-top: 6px;
+    " onmouseenter="this.style.borderColor='#667eea';this.style.background='#f9fafb';this.style.transform='translateX(3px)'" onmouseleave="this.style.borderColor='#e5e7eb';this.style.background='#fff';this.style.transform='none'">
+      <span style="
+        width: 10px;
+        height: 32px;
+        border-radius: 999px;
+        background: #667eea;
+        flex-shrink: 0;
+      "></span>
+      <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1;">
+        <span style="font-size: 14px; font-weight: 600; color: #111827;">\u2699\uFE0F OpenViking \u8FDE\u63A5\u914D\u7F6E</span>
+        <span style="font-size: 12px; color: #6b7280; line-height: 1.45;">\u914D\u7F6E\u540E\u7AEF\u5730\u5740\u3001API Key \u548C\u8BA4\u8BC1\u4FE1\u606F</span>
+      </span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    </div>
+  `;
     return `
     <div style="display: flex; flex-direction: column; gap: 10px;">
       ${cards}
+      ${configCard}
     </div>
   `;
+  }
+
+  // src/services/openviking-client.js
+  var DEFAULT_CONFIG = {
+    baseUrl: "http://127.0.0.1:1933",
+    apiKey: "",
+    agentId: "echomem-extension",
+    authEnabled: false,
+    accountId: "default",
+    userId: "default",
+    timeoutMs: 5e3
+  };
+  var OpenVikingClient = class {
+    constructor(config = {}) {
+      this.cfg = { ...DEFAULT_CONFIG, ...config };
+    }
+    _buildHeaders() {
+      const headers = this._buildAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      return headers;
+    }
+    _buildAuthHeaders() {
+      const headers = {};
+      if (this.cfg.agentId) {
+        headers["X-OpenViking-Agent"] = this.cfg.agentId;
+      }
+      if (this.cfg.authEnabled) {
+        if (this.cfg.apiKey) {
+          headers["X-API-Key"] = this.cfg.apiKey;
+        }
+        if (this.cfg.accountId) {
+          headers["X-OpenViking-Account"] = this.cfg.accountId;
+        }
+        if (this.cfg.userId) {
+          headers["X-OpenViking-User"] = this.cfg.userId;
+        }
+      }
+      return headers;
+    }
+    async find(query, options = {}) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/search/find`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            query,
+            target_uri: options.targetUri || "viking://user/memories",
+            limit: options.limit || 5,
+            score_threshold: options.scoreThreshold || 0
+          }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async healthCheck() {
+      const headers = this._buildAuthHeaders();
+      const response = await fetch(`${this.cfg.baseUrl}/health`, {
+        method: "GET",
+        headers
+      });
+      return response.ok;
+    }
+    async createSession(sessionId = null) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const body = {};
+        if (sessionId) {
+          body.session_id = sessionId;
+        }
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async addMessage(sessionId, message) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const response = await fetch(
+          `${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              role: message.role,
+              content: message.text
+            }),
+            signal: controller.signal
+          }
+        );
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async appendMessages(sessionId, messages) {
+      const results = [];
+      for (const msg of messages) {
+        const result = await this.addMessage(sessionId, msg);
+        results.push(result);
+      }
+      return results;
+    }
+    async commitSession(sessionId) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/commit`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ wait: true }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    // ── Resource Management ──
+    async tempUpload(file) {
+      var _a2;
+      const controller = new AbortController();
+      const uploadTimeoutMs = this.cfg.uploadTimeoutMs || 12e4;
+      const timer = setTimeout(() => controller.abort(), uploadTimeoutMs);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("telemetry", "false");
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/resources/temp_upload`, {
+          method: "POST",
+          headers,
+          body: formData,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async addResource(options = {}) {
+      var _a2;
+      const controller = new AbortController();
+      const resourceTimeoutMs = this.cfg.resourceTimeoutMs || 3e5;
+      const timer = setTimeout(() => controller.abort(), resourceTimeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/resources`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            path: options.path || void 0,
+            temp_file_id: options.tempFileId || void 0,
+            to: options.to || void 0,
+            parent: options.parent || void 0,
+            reason: options.reason || "EchoMem extension upload",
+            instruction: options.instruction || "",
+            wait: options.wait ?? true,
+            timeout: options.timeout || void 0,
+            strict: options.strict ?? false,
+            source_name: options.sourceName || void 0
+          }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    // ── Filesystem ──
+    async fsLs(uri, options = {}) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        if (options.simple) params.set("simple", "true");
+        if (options.recursive) params.set("recursive", "true");
+        if (options.output) params.set("output", options.output);
+        if (options.absLimit) params.set("abs_limit", String(options.absLimit));
+        if (options.showAllHidden) params.set("show_all_hidden", "true");
+        if (options.nodeLimit) params.set("node_limit", String(options.nodeLimit));
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/ls?${params.toString()}`, {
+          method: "GET",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async fsStat(uri) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/stat?${params.toString()}`, {
+          method: "GET",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async fsMkdir(uri, description = "") {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/mkdir`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ uri, description }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async fsRm(uri, recursive = false) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        if (recursive) params.set("recursive", "true");
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs?${params.toString()}`, {
+          method: "DELETE",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    // ── Content ──
+    async contentRead(uri, options = {}) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        if (options.offset !== void 0) params.set("offset", String(options.offset));
+        if (options.limit !== void 0) params.set("limit", String(options.limit));
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/read?${params.toString()}`, {
+          method: "GET",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async contentOverview(uri) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/overview?${params.toString()}`, {
+          method: "GET",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async contentAbstract(uri) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/abstract?${params.toString()}`, {
+          method: "GET",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  };
+  function createClient(config) {
+    return new OpenVikingClient(config);
+  }
+
+  // src/core/content-injector.js
+  function findInputElement() {
+    var _a2, _b2, _c2;
+    const platform2 = getCurrentPlatform();
+    if (!platform2) return null;
+    const selector = (_c2 = (_b2 = (_a2 = platform2.config) == null ? void 0 : _a2.launcher) == null ? void 0 : _b2.validateSelectors) == null ? void 0 : _c2.textarea;
+    if (!selector) return null;
+    return document.querySelector(selector);
+  }
+  var MEM_TAG_OPEN = "<relevant-memories>";
+  var MEM_TAG_CLOSE = "</relevant-memories>";
+  function stripMemoryBlock(text) {
+    const start3 = text.indexOf(MEM_TAG_OPEN);
+    if (start3 === -1) return text.trim();
+    const end2 = text.indexOf(MEM_TAG_CLOSE, start3);
+    if (end2 === -1) return text.trim();
+    return (text.slice(0, start3) + text.slice(end2 + MEM_TAG_CLOSE.length)).trim();
+  }
+  function injectContent(content, options = {}) {
+    const textarea = findInputElement();
+    if (!textarea) {
+      console.warn("EchoMem: \u672A\u627E\u5230\u8F93\u5165\u6846\uFF0C\u65E0\u6CD5\u6CE8\u5165\u5185\u5BB9");
+      return false;
+    }
+    const existing = textarea.value || "";
+    let base2 = options.replace ? stripMemoryBlock(existing) : existing;
+    const cleanContent = content.replace(new RegExp(MEM_TAG_OPEN, "g"), "").replace(new RegExp(MEM_TAG_CLOSE, "g"), "").trim();
+    if (!cleanContent) return false;
+    const block = `${MEM_TAG_OPEN}
+${cleanContent}
+${MEM_TAG_CLOSE}`;
+    const next = base2 ? `${base2}
+
+${block}` : block;
+    textarea.value = next;
+    try {
+      textarea.selectionStart = textarea.selectionEnd = next.length;
+    } catch (_) {
+    }
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    if (options.focus !== false) {
+      textarea.focus();
+    }
+    return true;
+  }
+
+  // src/panels/resource/import.js
+  function getPlatformKey() {
+    const platform2 = getCurrentPlatform();
+    return (platform2 == null ? void 0 : platform2.key) || "unknown";
+  }
+  function getCurrentMonthDir() {
+    const now = /* @__PURE__ */ new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  }
+  function getResourceDirUri() {
+    const platform2 = getPlatformKey();
+    const month = getCurrentMonthDir();
+    return `viking://resources/${platform2}/${month}`;
+  }
+  function getResourceImportContent() {
+    return `
+    <div style="display: flex; flex-direction: column; gap: 16px; color: #333;">
+      <!-- \u672C\u5730\u6587\u4EF6\u4E0A\u4F20 -->
+      <div>
+        <p style="font-weight: 600; font-size: 14px; margin-bottom: 10px;">\u{1F4C1} \u672C\u5730\u6587\u4EF6\u4E0A\u4F20</p>
+        <div id="claw-resource-dropzone" style="
+          border: 2px dashed #ccc;
+          border-radius: 10px;
+          padding: 32px 20px;
+          text-align: center;
+          cursor: pointer;
+          transition: all 0.2s;
+          background: #fafafa;
+        " onmouseenter="this.style.borderColor='#2563eb';this.style.background='#f0f7ff'"
+           onmouseleave="this.style.borderColor='#ccc';this.style.background='#fafafa'">
+          <p style="font-size: 28px; margin-bottom: 8px;">\u{1F4E4}</p>
+          <p style="font-size: 14px; font-weight: 500; margin-bottom: 4px;">\u70B9\u51FB\u6216\u62D6\u62FD\u6587\u4EF6\u5230\u6B64\u5904</p>
+          <p style="font-size: 12px; color: #888;">\u652F\u6301 PDF, DOC, TXT, MD \u7B49\u683C\u5F0F</p>
+          <input type="file" id="claw-resource-file-input" style="display: none;" />
+        </div>
+      </div>
+
+      <!-- URL \u4E0A\u4F20 -->
+      <div>
+        <p style="font-weight: 600; font-size: 14px; margin-bottom: 10px;">\u{1F310} \u901A\u8FC7 URL \u6DFB\u52A0</p>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="claw-resource-url-input" placeholder="\u8F93\u5165\u8D44\u6E90 URL\uFF08HTTP/HTTPS\uFF09" style="
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+          " />
+          <button id="claw-resource-url-btn" style="
+            padding: 10px 16px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+          ">\u6DFB\u52A0</button>
+        </div>
+      </div>
+
+      <!-- \u72B6\u6001\u63D0\u793A -->
+      <div id="claw-resource-import-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
+
+      <!-- \u5904\u7406\u7ED3\u679C\u533A -->
+      <div id="claw-resource-import-result" style="display: none;"></div>
+    </div>
+  `;
+  }
+  var activePollTimer = null;
+  async function initImportPanel(bodyElement) {
+    if (!bodyElement) return;
+    const dropzone = bodyElement.querySelector("#claw-resource-dropzone");
+    const fileInput = bodyElement.querySelector("#claw-resource-file-input");
+    const urlInput = bodyElement.querySelector("#claw-resource-url-input");
+    const urlBtn = bodyElement.querySelector("#claw-resource-url-btn");
+    const statusEl = bodyElement.querySelector("#claw-resource-import-status");
+    const resultEl = bodyElement.querySelector("#claw-resource-import-result");
+    if (!dropzone || !fileInput) return;
+    function clearActivePoll() {
+      if (activePollTimer) {
+        clearTimeout(activePollTimer);
+        activePollTimer = null;
+      }
+    }
+    function showStatus(msg, type = "info") {
+      if (!statusEl) return;
+      statusEl.style.display = "block";
+      const colors = {
+        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+      };
+      const c = colors[type] || colors.info;
+      statusEl.style.background = c.bg;
+      statusEl.style.border = `1px solid ${c.border}`;
+      statusEl.style.color = c.text;
+      statusEl.textContent = msg;
+    }
+    function showResult(html) {
+      if (!resultEl) return;
+      resultEl.style.display = "block";
+      resultEl.innerHTML = html;
+    }
+    function hideResult() {
+      if (!resultEl) return;
+      resultEl.style.display = "none";
+      resultEl.innerHTML = "";
+    }
+    function formatError(err) {
+      var _a2, _b2, _c2, _d2;
+      if (err.name === "AbortError" || ((_a2 = err.message) == null ? void 0 : _a2.includes("aborted"))) {
+        return "\u8BF7\u6C42\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u540E\u7AEF\u662F\u5426\u6B63\u5E38\u8FD0\u884C\u6216\u7F51\u7EDC\u8FDE\u63A5";
+      }
+      if ((_b2 = err.message) == null ? void 0 : _b2.includes("Failed to fetch")) {
+        return "\u65E0\u6CD5\u8FDE\u63A5\u5230 OpenViking \u540E\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E";
+      }
+      if (((_c2 = err.message) == null ? void 0 : _c2.includes("401")) || ((_d2 = err.message) == null ? void 0 : _d2.includes("403"))) {
+        return "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728 EchoMem \u4E3B\u9875\u7684\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key";
+      }
+      return err.message;
+    }
+    async function pollResourceStatus(resourceUri, fileName, sharedClient = null, attempt = 0, maxAttempts = 120) {
+      if (attempt >= maxAttempts) {
+        showStatus(`\u23F3 \u300C${fileName}\u300D\u5DF2\u63D0\u4EA4\u540E\u53F0\u5904\u7406\uFF0C\u8BF7\u5230\u300C\u67E5\u770B\u8D44\u6E90\u300D\u9875\u9762\u67E5\u770B\u8FDB\u5EA6`, "info");
+        showResult(`
+        <div style="padding: 12px; background: #f0f7ff; border: 1px solid #c7d8f5; border-radius: 8px; font-size: 13px; color: #333;">
+          <p style="margin-bottom: 6px;">\u{1F4C4} <strong>${fileName}</strong></p>
+          <p style="color: #667eea; margin: 0;">\u6B63\u5728\u540E\u53F0\u5904\u7406\u4E2D\uFF0C\u8BF7\u7A0D\u540E\u5230\u300C\u67E5\u770B\u8D44\u6E90\u300D\u9875\u9762\u67E5\u770B\u7ED3\u679C</p>
+        </div>
+      `);
+        return;
+      }
+      try {
+        const client2 = sharedClient || createClient(await getOpenVikingConfig());
+        const abstract = await client2.contentAbstract(resourceUri);
+        const isNotReady = typeof abstract === "string" && abstract.includes("not ready");
+        console.log("[EchoMem] poll abstract", attempt, isNotReady, abstract == null ? void 0 : abstract.slice(0, 60));
+        if (!isNotReady) {
+          showStatus(`\u2705 \u300C${fileName}\u300D\u5904\u7406\u5B8C\u6210`, "success");
+          showResult(`
+          <div style="padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+            <p style="font-size: 13px; color: #15803d; margin-bottom: 10px;">\u2705 \u300C${fileName}\u300D\u5DF2\u5904\u7406\u5B8C\u6210</p>
+            <div style="display: flex; gap: 8px;">
+              <button id="claw-result-save-only" style="flex: 1; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; cursor: pointer;">\u4EC5\u4FDD\u5B58</button>
+              <button id="claw-result-insert" style="flex: 1; padding: 8px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">\u63D2\u5165\u5BF9\u8BDD</button>
+            </div>
+          </div>
+        `);
+          const saveBtn = resultEl.querySelector("#claw-result-save-only");
+          const insertBtn = resultEl.querySelector("#claw-result-insert");
+          saveBtn == null ? void 0 : saveBtn.addEventListener("click", hideResult);
+          insertBtn == null ? void 0 : insertBtn.addEventListener("click", async () => {
+            insertBtn.textContent = "\u63D2\u5165\u4E2D...";
+            try {
+              const contentResult = await client2.contentOverview(resourceUri);
+              const text = typeof contentResult === "string" ? contentResult : JSON.stringify(contentResult, null, 2);
+              injectContent(text, { replace: false });
+              hideResult();
+            } catch (err) {
+              alert(`\u63D2\u5165\u5931\u8D25: ${err.message}`);
+              insertBtn.textContent = "\u63D2\u5165\u5BF9\u8BDD";
+            }
+          });
+          return;
+        }
+        showStatus(`\u23F3 \u300C${fileName}\u300D\u6B63\u5728\u5904\u7406\u4E2D\uFF08\u7B2C ${attempt + 1} \u6B21\u68C0\u67E5\uFF09...`, "info");
+        activePollTimer = setTimeout(() => {
+          pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
+        }, 5e3);
+      } catch (err) {
+        console.warn("[EchoMem] poll failed", err);
+        const msg = err.message || "";
+        if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("API Key")) {
+          showStatus("\u274C \u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key", "error");
+          showResult(`
+          <div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; color: #b91c1c;">
+            <p style="margin-bottom: 6px;">\u274C \u8BA4\u8BC1\u5931\u8D25</p>
+            <p style="margin: 0;">\u8F6E\u8BE2\u8FC7\u7A0B\u4E2D API Key \u9A8C\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5230 EchoMem \u4E3B\u9875\u7684\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5\u5E76\u91CD\u65B0\u4FDD\u5B58\u914D\u7F6E\u3002</p>
+          </div>
+        `);
+          return;
+        }
+        if (msg.includes("404") || msg.includes("not found") || msg.includes("Not Found")) {
+          showStatus(`\u23F3 \u300C${fileName}\u300D\u6B63\u5728\u5904\u7406\u4E2D\uFF08\u7B2C ${attempt + 1} \u6B21\u68C0\u67E5\uFF09...`, "info");
+          activePollTimer = setTimeout(() => {
+            pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
+          }, 5e3);
+          return;
+        }
+        activePollTimer = setTimeout(() => {
+          pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
+        }, 5e3);
+      }
+    }
+    async function doUpload(file) {
+      var _a2;
+      clearActivePoll();
+      hideResult();
+      showStatus("\u6B63\u5728\u4E0A\u4F20...", "info");
+      try {
+        const config = await getOpenVikingConfig();
+        const client2 = createClient(config);
+        const uploadResult = await client2.tempUpload(file);
+        const tempFileId = uploadResult == null ? void 0 : uploadResult.temp_file_id;
+        if (!tempFileId) throw new Error("\u4E0A\u4F20\u5931\u8D25\uFF1A\u672A\u8FD4\u56DE\u4E34\u65F6\u6587\u4EF6 ID");
+        const parentUri = getResourceDirUri();
+        try {
+          await client2.fsMkdir(parentUri, `Resources for ${getPlatformKey()}`);
+        } catch (mkdirErr) {
+          if (!((_a2 = mkdirErr.message) == null ? void 0 : _a2.toLowerCase().includes("exist"))) {
+            console.warn("EchoMem: mkdir warning", mkdirErr.message);
+          }
+        }
+        showStatus("\u6587\u4EF6\u5DF2\u4E0A\u4F20\uFF0C\u6B63\u5728\u63D0\u4EA4\u5904\u7406...", "info");
+        const addResult = await client2.addResource({
+          tempFileId,
+          parent: parentUri,
+          wait: false,
+          sourceName: file.name
+        });
+        const resourceUri = (addResult == null ? void 0 : addResult.root_uri) || `${parentUri}/${file.name}`;
+        showStatus(`\u2705 \u300C${file.name}\u300D\u5DF2\u63D0\u4EA4\uFF0C\u5F00\u59CB\u8F6E\u8BE2\u5904\u7406\u72B6\u6001...`, "success");
+        pollResourceStatus(resourceUri, file.name);
+      } catch (err) {
+        showStatus(`\u274C \u4E0A\u4F20\u5931\u8D25: ${formatError(err)}`, "error");
+      }
+    }
+    async function doUrlAdd(url) {
+      var _a2;
+      if (!url.trim()) return;
+      clearActivePoll();
+      hideResult();
+      showStatus("\u6B63\u5728\u6DFB\u52A0 URL \u8D44\u6E90...", "info");
+      try {
+        const config = await getOpenVikingConfig();
+        const client2 = createClient(config);
+        const parentUri = getResourceDirUri();
+        try {
+          await client2.fsMkdir(parentUri, `Resources for ${getPlatformKey()}`);
+        } catch (mkdirErr) {
+          if (!((_a2 = mkdirErr.message) == null ? void 0 : _a2.toLowerCase().includes("exist"))) {
+            console.warn("EchoMem: mkdir warning", mkdirErr.message);
+          }
+        }
+        const addResult = await client2.addResource({
+          path: url.trim(),
+          parent: parentUri,
+          wait: false
+        });
+        const resourceUri = (addResult == null ? void 0 : addResult.root_uri) || `${parentUri}/${url.split("/").pop() || "resource"}`;
+        showStatus(`\u2705 URL \u8D44\u6E90\u5DF2\u63D0\u4EA4\uFF0C\u5F00\u59CB\u8F6E\u8BE2\u5904\u7406\u72B6\u6001...`, "success");
+        pollResourceStatus(resourceUri, url.split("/").pop() || "resource");
+      } catch (err) {
+        showStatus(`\u274C \u6DFB\u52A0\u5931\u8D25: ${formatError(err)}`, "error");
+      }
+    }
+    dropzone.addEventListener("click", (e2) => {
+      if (e2.target !== fileInput) {
+        fileInput.click();
+      }
+    });
+    fileInput.addEventListener("change", () => {
+      var _a2;
+      const file = (_a2 = fileInput.files) == null ? void 0 : _a2[0];
+      if (file) doUpload(file);
+      fileInput.value = "";
+    });
+    dropzone.addEventListener("dragover", (e2) => {
+      e2.preventDefault();
+      dropzone.style.borderColor = "#2563eb";
+      dropzone.style.background = "#f0f7ff";
+    });
+    dropzone.addEventListener("dragleave", (e2) => {
+      e2.preventDefault();
+      dropzone.style.borderColor = "#ccc";
+      dropzone.style.background = "#fafafa";
+    });
+    dropzone.addEventListener("drop", (e2) => {
+      var _a2, _b2;
+      e2.preventDefault();
+      dropzone.style.borderColor = "#ccc";
+      dropzone.style.background = "#fafafa";
+      const file = (_b2 = (_a2 = e2.dataTransfer) == null ? void 0 : _a2.files) == null ? void 0 : _b2[0];
+      if (file) doUpload(file);
+    });
+    urlBtn == null ? void 0 : urlBtn.addEventListener("click", () => {
+      doUrlAdd((urlInput == null ? void 0 : urlInput.value) || "");
+    });
+    urlInput == null ? void 0 : urlInput.addEventListener("keydown", (e2) => {
+      if (e2.key === "Enter") doUrlAdd((urlInput == null ? void 0 : urlInput.value) || "");
+    });
+  }
+
+  // src/panels/resource/manage.js
+  function getPlatformKey2() {
+    const platform2 = getCurrentPlatform();
+    return (platform2 == null ? void 0 : platform2.key) || "unknown";
+  }
+  function getCurrentMonthDir2() {
+    const now = /* @__PURE__ */ new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  }
+  function getResourceDirUri2() {
+    const platform2 = getPlatformKey2();
+    const month = getCurrentMonthDir2();
+    return `viking://resources/${platform2}/${month}`;
+  }
+  function getResourceManageContent() {
+    return `
+    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+      <div id="claw-resource-list-loading" style="text-align: center; padding: 40px 20px; color: #888;">
+        <p style="font-size: 14px;">\u23F3 \u6B63\u5728\u52A0\u8F7D\u8D44\u6E90\u5217\u8868...</p>
+      </div>
+      <div id="claw-resource-list-content" style="display: none;"></div>
+    </div>
+  `;
+  }
+  function formatSize(bytes) {
+    if (!bytes || bytes < 0) return "-";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  function formatDate(ts) {
+    if (!ts) return "-";
+    const d = new Date(ts * 1e3);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  async function initManagePanel(bodyElement) {
+    var _a2;
+    if (!bodyElement) return;
+    const loadingEl = bodyElement.querySelector("#claw-resource-list-loading");
+    const contentEl = bodyElement.querySelector("#claw-resource-list-content");
+    if (!loadingEl || !contentEl) return;
+    try {
+      const config = await getOpenVikingConfig();
+      const client2 = createClient(config);
+      const dirUri = getResourceDirUri2();
+      try {
+        await client2.fsMkdir(dirUri, `Resources for ${getPlatformKey2()}`);
+      } catch (mkdirErr) {
+        if (!((_a2 = mkdirErr.message) == null ? void 0 : _a2.toLowerCase().includes("exist"))) {
+          console.warn("EchoMem: mkdir warning", mkdirErr.message);
+        }
+      }
+      const lsResult = await client2.fsLs(dirUri, { output: "agent", absLimit: 128 });
+      const entries = (lsResult == null ? void 0 : lsResult.entries) || lsResult || [];
+      if (entries.length === 0) {
+        loadingEl.style.display = "none";
+        contentEl.style.display = "block";
+        contentEl.innerHTML = `
+        <div style="text-align: center; padding: 40px 20px; color: #999;">
+          <p style="font-size: 36px; margin-bottom: 12px;">\u{1F4C2}</p>
+          <p style="font-size: 14px;">\u6682\u65E0\u5DF2\u5BFC\u5165\u8D44\u6E90</p>
+          <p style="font-size: 12px; margin-top: 6px;">\u5F53\u524D\u76EE\u5F55: ${dirUri}</p>
+        </div>
+      `;
+        return;
+      }
+      const enrichedEntries = await Promise.all(
+        entries.map(async (entry) => {
+          try {
+            const stat = await client2.fsStat(entry.uri);
+            return { ...entry, stat };
+          } catch {
+            return { ...entry, stat: null };
+          }
+        })
+      );
+      const itemsHtml = enrichedEntries.map((entry) => {
+        var _a3, _b2, _c2;
+        const name = entry.name || ((_a3 = entry.uri) == null ? void 0 : _a3.split("/").pop()) || "\u672A\u547D\u540D";
+        const size = formatSize((_b2 = entry.stat) == null ? void 0 : _b2.size);
+        const date = formatDate((_c2 = entry.stat) == null ? void 0 : _c2.mtime);
+        const abstractText = entry.abstract || "";
+        const isReady = abstractText && !abstractText.includes("not ready");
+        const statusText = isReady ? "\u2705 \u5DF2\u5904\u7406" : "\u23F3 \u5904\u7406\u4E2D";
+        const statusColor = isReady ? "#15803d" : "#d97706";
+        return `
+        <div class="claw-resource-item" data-uri="${entry.uri}" style="
+          padding: 12px;
+          background: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        ">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="min-width: 0; flex: 1;">
+              <p style="font-weight: 600; font-size: 13px; color: #111827; margin-bottom: 2px; word-break: break-all;">${name}</p>
+              <p style="font-size: 11px; color: #6b7280;">
+                <span>${size}</span>
+                <span style="margin: 0 6px;">\xB7</span>
+                <span>${date}</span>
+              </p>
+            </div>
+            <span style="
+              padding: 2px 8px;
+              border-radius: 999px;
+              font-size: 11px;
+              font-weight: 500;
+              background: ${statusColor}15;
+              color: ${statusColor};
+              white-space: nowrap;
+              margin-left: 8px;
+            ">${statusText}</span>
+          </div>
+          ${isReady ? `<p style="font-size: 12px; color: #4b5563; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${abstractText}</p>` : ""}
+          <div style="display: flex; gap: 6px; margin-top: 4px;">
+            <button class="claw-resource-btn-view" data-uri="${entry.uri}" style="
+              padding: 5px 10px;
+              background: #eff6ff;
+              color: #2563eb;
+              border: 1px solid #bfdbfe;
+              border-radius: 5px;
+              font-size: 12px;
+              cursor: pointer;
+            ">\u67E5\u770B\u5185\u5BB9</button>
+            <button class="claw-resource-btn-insert" data-uri="${entry.uri}" style="
+              padding: 5px 10px;
+              background: #f0fdf4;
+              color: #15803d;
+              border: 1px solid #bbf7d0;
+              border-radius: 5px;
+              font-size: 12px;
+              cursor: pointer;
+            ">\u63D2\u5165\u5BF9\u8BDD</button>
+            <button class="claw-resource-btn-delete" data-uri="${entry.uri}" style="
+              padding: 5px 10px;
+              background: #fef2f2;
+              color: #dc2626;
+              border: 1px solid #fecaca;
+              border-radius: 5px;
+              font-size: 12px;
+              cursor: pointer;
+              margin-left: auto;
+            ">\u5220\u9664</button>
+          </div>
+        </div>
+      `;
+      }).join("");
+      loadingEl.style.display = "none";
+      contentEl.style.display = "block";
+      contentEl.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <p style="font-size: 12px; color: #6b7280;">\u5F53\u524D\u76EE\u5F55: <span style="font-family: monospace;">${dirUri}</span></p>
+        <p style="font-size: 12px; color: #6b7280;">\u5171 ${enrichedEntries.length} \u4E2A\u8D44\u6E90</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        ${itemsHtml}
+      </div>
+    `;
+      contentEl.querySelectorAll(".claw-resource-btn-view").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const uri = btn.dataset.uri;
+          if (!uri) return;
+          btn.textContent = "\u52A0\u8F7D\u4E2D...";
+          try {
+            const client3 = createClient(await getOpenVikingConfig());
+            const result = await client3.contentOverview(uri);
+            const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+            alert(`\u{1F4C4} ${uri}
+
+${text.slice(0, 2e3)}${text.length > 2e3 ? "\n\n...(\u5185\u5BB9\u5DF2\u622A\u65AD)" : ""}`);
+          } catch (err) {
+            alert(`\u274C \u8BFB\u53D6\u5931\u8D25: ${err.message}`);
+          }
+          btn.textContent = "\u67E5\u770B\u5185\u5BB9";
+        });
+      });
+      contentEl.querySelectorAll(".claw-resource-btn-insert").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const uri = btn.dataset.uri;
+          if (!uri) return;
+          btn.textContent = "\u63D2\u5165\u4E2D...";
+          try {
+            const client3 = createClient(await getOpenVikingConfig());
+            const result = await client3.contentOverview(uri);
+            const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+            injectContent(text, { replace: false });
+          } catch (err) {
+            alert(`\u274C \u63D2\u5165\u5931\u8D25: ${err.message}`);
+          }
+          btn.textContent = "\u63D2\u5165\u5BF9\u8BDD";
+        });
+      });
+      contentEl.querySelectorAll(".claw-resource-btn-delete").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const uri = btn.dataset.uri;
+          if (!uri) return;
+          if (!confirm("\u786E\u5B9A\u8981\u5220\u9664\u8BE5\u8D44\u6E90\u5417\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002")) return;
+          btn.textContent = "\u5220\u9664\u4E2D...";
+          try {
+            const client3 = createClient(await getOpenVikingConfig());
+            await client3.fsRm(uri, false);
+            await initManagePanel(bodyElement);
+          } catch (err) {
+            alert(`\u274C \u5220\u9664\u5931\u8D25: ${err.message}`);
+            btn.textContent = "\u5220\u9664";
+          }
+        });
+      });
+    } catch (err) {
+      loadingEl.style.display = "none";
+      contentEl.style.display = "block";
+      contentEl.innerHTML = `
+      <div style="text-align: center; padding: 40px 20px; color: #b91c1c; background: #fef2f2; border-radius: 8px;">
+        <p style="font-size: 14px; margin-bottom: 6px;">\u274C \u52A0\u8F7D\u5931\u8D25</p>
+        <p style="font-size: 12px;">${err.message}</p>
+        <p style="font-size: 11px; color: #888; margin-top: 8px;">\u76EE\u5F55: ${getResourceDirUri2()}</p>
+      </div>
+    `;
+    }
+  }
+
+  // src/utils/text-processor.js
+  var STOP_WORDS = /* @__PURE__ */ new Set([
+    // 中文停用词
+    "\u7684",
+    "\u4E86",
+    "\u662F",
+    "\u5728",
+    "\u6211",
+    "\u6709",
+    "\u548C",
+    "\u5C31",
+    "\u4E0D",
+    "\u4EBA",
+    "\u90FD",
+    "\u4E00",
+    "\u4E00\u4E2A",
+    "\u4E0A",
+    "\u4E5F",
+    "\u5F88",
+    "\u5230",
+    "\u8BF4",
+    "\u8981",
+    "\u53BB",
+    "\u4F60",
+    "\u4F1A",
+    "\u7740",
+    "\u6CA1\u6709",
+    "\u770B",
+    "\u597D",
+    "\u81EA\u5DF1",
+    "\u8FD9",
+    "\u90A3",
+    "\u4E2D",
+    "\u4E3A",
+    "\u6765",
+    "\u4E2A",
+    "\u4EE5",
+    "\u5927",
+    "\u5730",
+    "\u5230",
+    "\u53CA",
+    "\u4E0E",
+    "\u6216",
+    "\u7B49",
+    "\u4E4B",
+    "\u800C",
+    "\u53EF\u4EE5",
+    "\u8FD9\u4E2A",
+    "\u90A3\u4E2A",
+    "\u4EC0\u4E48",
+    "\u600E\u4E48",
+    "\u5982\u4F55",
+    "\u8FD8\u662F",
+    "\u4F46\u662F",
+    "\u56E0\u4E3A",
+    "\u6240\u4EE5",
+    // 英文停用词
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "i",
+    "you",
+    "he",
+    "she",
+    "it",
+    "we",
+    "they",
+    "me",
+    "him",
+    "her",
+    "us",
+    "them",
+    "my",
+    "your",
+    "his",
+    "its",
+    "our",
+    "their",
+    "this",
+    "that",
+    "these",
+    "those",
+    "and",
+    "or",
+    "but",
+    "if",
+    "then",
+    "else",
+    "when",
+    "where",
+    "why",
+    "how",
+    "all",
+    "any",
+    "both",
+    "each",
+    "few",
+    "more",
+    "most",
+    "other",
+    "some",
+    "such",
+    "no",
+    "nor",
+    "not",
+    "only",
+    "own",
+    "same",
+    "so",
+    "than",
+    "too",
+    "very",
+    "can",
+    "just",
+    "should",
+    "now",
+    "to",
+    "of",
+    "in",
+    "for",
+    "on",
+    "with",
+    "at",
+    "from",
+    "by",
+    "about",
+    "into",
+    "through",
+    "during",
+    "before",
+    "after",
+    "above",
+    "below",
+    "between",
+    "under",
+    "again",
+    "further",
+    "then",
+    "once"
+  ]);
+  function tokenize(text) {
+    if (!text || typeof text !== "string") return [];
+    const tokens2 = [];
+    const regex = /[\u4e00-\u9fa5]{2,}|[a-zA-Z0-9]{2,}/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      tokens2.push(match[0].toLowerCase());
+    }
+    return tokens2;
+  }
+  function filterStopWords(tokens2) {
+    return tokens2.filter((w) => !STOP_WORDS.has(w));
+  }
+  function tokenizeAndFilter(text) {
+    return filterStopWords(tokenize(text));
+  }
+  function truncate(text, maxLength = 60) {
+    if (!text) return "";
+    if (text.length <= maxLength) return text;
+    return text.slice(0, maxLength) + "...";
+  }
+  function calculateOverlap(inputWords, textWords) {
+    if (!inputWords.size || !textWords.size) return 0;
+    let exactMatch = 0;
+    let partialMatch = 0;
+    for (const iw of inputWords) {
+      if (textWords.has(iw)) {
+        exactMatch += 2;
+        continue;
+      }
+      for (const tw of textWords) {
+        if (tw.includes(iw) || iw.includes(tw)) {
+          partialMatch += 1;
+          break;
+        }
+      }
+    }
+    return exactMatch + partialMatch;
+  }
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div2 = document.createElement("div");
+    div2.textContent = String(str);
+    return div2.innerHTML;
+  }
+
+  // src/panels/association/suggestions.js
+  var MEM_TAG_OPEN2 = "<relevant-memories>";
+  var MEM_TAG_CLOSE2 = "</relevant-memories>";
+  var selectedIndex = -1;
+  var currentSuggestions = [];
+  var checkedKeys = /* @__PURE__ */ new Set();
+  var currentInputElement = null;
+  var keyboardBound = false;
+  var collapsed = false;
+  var suppressBlurClose = false;
+  var committedItems = /* @__PURE__ */ new Map();
+  function getItemKey(c, i) {
+    return c.sourceUri || c.insertText || `idx-${i}`;
+  }
+  function renderCompletions(inputElement, completions) {
+    currentSuggestions = completions;
+    currentInputElement = inputElement;
+    selectedIndex = completions.length > 0 ? 0 : -1;
+    checkedKeys = /* @__PURE__ */ new Set();
+    const container = getOrCreateContainer();
+    if (!completions.length) {
+      hideSuggestions();
+      return;
+    }
+    container.innerHTML = buildContainerHtml(completions);
+    container.style.display = "block";
+    positionContainer(container, inputElement);
+    bindContainerEvents(container, inputElement);
+    bindOutsideClick(container);
+  }
+  function bindOutsideClick(container) {
+    if (container._outsideClickHandler) {
+      document.removeEventListener("mousedown", container._outsideClickHandler);
+      container._outsideClickHandler = null;
+    }
+    const handler = (e2) => {
+      if (!container.contains(e2.target)) {
+        hideSuggestions();
+        document.removeEventListener("mousedown", handler);
+        container._outsideClickHandler = null;
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener("mousedown", handler);
+      container._outsideClickHandler = handler;
+    }, 0);
+  }
+  function buildContainerHtml(completions) {
+    const headerHtml = `
+    <div class="echomem-suggestion-header">
+      <label class="echomem-suggestion-select-all">
+        <input type="checkbox" class="echomem-suggestion-check-all" />
+        <span>\u5168\u9009</span>
+      </label>
+      <span class="echomem-suggestion-title">\u76F8\u5173\u8BB0\u5FC6 (${completions.length})</span>
+      <button type="button" class="echomem-suggestion-toggle" title="${collapsed ? "\u5C55\u5F00" : "\u6298\u53E0"}">
+        ${collapsed ? "\u25B8" : "\u25BE"}
+      </button>
+    </div>
+  `;
+    const itemsHtml = completions.map((c, i) => {
+      const isActive = i === selectedIndex;
+      const key = getItemKey(c, i);
+      const sourceBadge = c.source === "memory" ? '<span class="echomem-source-badge memory">\u8BB0\u5FC6</span>' : '<span class="echomem-source-badge session">\u4F1A\u8BDD</span>';
+      return `
+      <div class="echomem-suggestion-item ${isActive ? "echomem-suggestion-active" : ""}"
+           data-index="${i}"
+           data-key="${escapeHtml(key)}">
+        <input type="checkbox" class="echomem-suggestion-check" tabindex="-1" />
+        <span class="suggestion-text">${escapeHtml(c.displayText || "")}</span>
+        <div class="suggestion-meta">
+          ${sourceBadge}
+          <span class="suggestion-score">${(c.score || 0).toFixed(2)}</span>
+        </div>
+      </div>
+    `;
+    }).join("");
+    const bodyHtml = `
+    <div class="echomem-suggestion-list" style="${collapsed ? "display:none;" : ""}">
+      ${itemsHtml}
+    </div>
+  `;
+    const actionsHtml = `
+    <div class="echomem-suggestion-actions" style="${collapsed ? "display:none;" : ""}">
+      <button type="button" class="echomem-btn-cancel">\u53D6\u6D88</button>
+      <button type="button" class="echomem-btn-confirm" disabled>\u786E\u5B9A (0)</button>
+    </div>
+  `;
+    return headerHtml + bodyHtml + actionsHtml;
+  }
+  function bindContainerEvents(container, inputElement) {
+    container.addEventListener("mousedown", (e2) => {
+      suppressBlurClose = true;
+      setTimeout(() => {
+        suppressBlurClose = false;
+      }, 50);
+      const target = e2.target;
+      const isInteractive = target.tagName === "INPUT" || target.tagName === "BUTTON" || target.closest("label");
+      if (!isInteractive) {
+        e2.preventDefault();
+      }
+    });
+    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
+      item.addEventListener("click", (e2) => {
+        const key = item.dataset.key;
+        const checkbox = item.querySelector(".echomem-suggestion-check");
+        if (e2.target === checkbox) {
+          if (checkbox.checked) {
+            checkedKeys.add(key);
+          } else {
+            checkedKeys.delete(key);
+          }
+        } else {
+          toggleKey(key);
+        }
+        syncUi(container);
+      });
+      item.addEventListener("mouseenter", () => {
+        selectedIndex = Number(item.dataset.index);
+        updateHighlight(container);
+      });
+    });
+    const checkAll = container.querySelector(".echomem-suggestion-check-all");
+    checkAll.addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      const allKeys = currentSuggestions.map((c, i) => getItemKey(c, i));
+      if (e2.target.checked) {
+        checkedKeys = new Set(allKeys);
+      } else {
+        checkedKeys = /* @__PURE__ */ new Set();
+      }
+      syncUi(container);
+    });
+    const toggleBtn = container.querySelector(".echomem-suggestion-toggle");
+    toggleBtn.addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      collapsed = !collapsed;
+      const list = container.querySelector(".echomem-suggestion-list");
+      const actions2 = container.querySelector(".echomem-suggestion-actions");
+      if (list) list.style.display = collapsed ? "none" : "";
+      if (actions2) actions2.style.display = collapsed ? "none" : "";
+      toggleBtn.textContent = collapsed ? "\u25B8" : "\u25BE";
+      toggleBtn.title = collapsed ? "\u5C55\u5F00" : "\u6298\u53E0";
+      positionContainer(container, inputElement);
+    });
+    container.querySelector(".echomem-btn-cancel").addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      hideSuggestions();
+    });
+    container.querySelector(".echomem-btn-confirm").addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      if (!checkedKeys.size) return;
+      const selected = [];
+      currentSuggestions.forEach((c, i) => {
+        const key = getItemKey(c, i);
+        if (checkedKeys.has(key)) {
+          selected.push({ key, item: c });
+        }
+      });
+      if (!selected.length) return;
+      composeAndInsert(currentInputElement, currentInputElement.value || "", selected);
+      hideSuggestions();
+    });
+  }
+  function toggleKey(key) {
+    if (checkedKeys.has(key)) {
+      checkedKeys.delete(key);
+    } else {
+      checkedKeys.add(key);
+    }
+  }
+  function syncUi(container) {
+    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
+      const key = item.dataset.key;
+      const checkbox = item.querySelector(".echomem-suggestion-check");
+      const checked = checkedKeys.has(key);
+      if (checkbox) checkbox.checked = checked;
+      item.classList.toggle("echomem-suggestion-checked", checked);
+    });
+    const allKeys = currentSuggestions.map((c, i) => getItemKey(c, i));
+    const allChecked = allKeys.length > 0 && allKeys.every((k) => checkedKeys.has(k));
+    const someChecked = allKeys.some((k) => checkedKeys.has(k));
+    const checkAll = container.querySelector(".echomem-suggestion-check-all");
+    if (checkAll) {
+      checkAll.checked = allChecked;
+      checkAll.indeterminate = !allChecked && someChecked;
+    }
+    const confirmBtn = container.querySelector(".echomem-btn-confirm");
+    if (confirmBtn) {
+      const n = checkedKeys.size;
+      confirmBtn.textContent = `\u786E\u5B9A (${n})`;
+      confirmBtn.disabled = n === 0;
+    }
+    updateHighlight(container);
+  }
+  function updateHighlight(container) {
+    const items = container.querySelectorAll(".echomem-suggestion-item");
+    items.forEach((item, i) => {
+      if (i === selectedIndex) {
+        item.classList.add("echomem-suggestion-active");
+      } else {
+        item.classList.remove("echomem-suggestion-active");
+      }
+    });
+  }
+  function formatItem(it) {
+    return (it.insertText || "").trim().replace(/\s+/g, " ");
+  }
+  function stripMemoryBlock2(userText) {
+    const text = userText || "";
+    const regex = new RegExp(`\\s*${MEM_TAG_OPEN2}[\\s\\S]*?${MEM_TAG_CLOSE2}\\s*`, "g");
+    const hasMatch = regex.test(text);
+    if (!hasMatch) {
+      committedItems.clear();
+      return text.replace(/\s+$/, "");
+    }
+    committedItems.clear();
+    return text.replace(regex, "").replace(/\s+$/, "");
+  }
+  function composeAndInsert(textarea, userText, selected) {
+    if (!textarea) return;
+    const basePart = stripMemoryBlock2(userText);
+    for (const { key, item } of selected) {
+      if (committedItems.has(key)) continue;
+      const body = formatItem(item);
+      if (!body) continue;
+      committedItems.set(key, body);
+    }
+    const bodies = Array.from(committedItems.values());
+    if (!bodies.length) return;
+    const lines = bodies.map((b, i) => `${i + 1}. ${b}`);
+    const prefix = basePart ? `${basePart}
+
+` : "";
+    const next = `${prefix}${MEM_TAG_OPEN2}
+${lines.join("\n")}
+${MEM_TAG_CLOSE2}`;
+    textarea.value = next;
+    try {
+      textarea.selectionStart = textarea.selectionEnd = next.length;
+    } catch (_) {
+    }
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    textarea.focus();
+  }
+  function hideSuggestions() {
+    const container = document.getElementById("echomem-suggestions");
+    if (container) {
+      container.style.display = "none";
+    }
+    selectedIndex = -1;
+    currentSuggestions = [];
+    checkedKeys = /* @__PURE__ */ new Set();
+  }
+  function isSuggestionsVisible() {
+    const container = document.getElementById("echomem-suggestions");
+    return !!(container && container.style.display !== "none");
+  }
+  function shouldSuppressBlurClose() {
+    return suppressBlurClose;
+  }
+  function bindKeyboardNavigation(textarea) {
+    if (keyboardBound) return;
+    keyboardBound = true;
+    textarea.addEventListener("keydown", (e2) => {
+      if (!isSuggestionsVisible()) return;
+      const container = document.getElementById("echomem-suggestions");
+      if (!container) return;
+      switch (e2.key) {
+        case "ArrowDown":
+          e2.preventDefault();
+          selectedIndex = Math.min(selectedIndex + 1, currentSuggestions.length - 1);
+          updateHighlight(container);
+          break;
+        case "ArrowUp":
+          e2.preventDefault();
+          selectedIndex = Math.max(selectedIndex - 1, 0);
+          updateHighlight(container);
+          break;
+        case "Enter":
+          if (checkedKeys.size > 0) {
+            e2.preventDefault();
+            const selected = [];
+            currentSuggestions.forEach((c, i) => {
+              const key = getItemKey(c, i);
+              if (checkedKeys.has(key)) {
+                selected.push({ key, item: c });
+              }
+            });
+            composeAndInsert(textarea, textarea.value || "", selected);
+            hideSuggestions();
+          }
+          break;
+        case "Escape":
+          e2.preventDefault();
+          hideSuggestions();
+          break;
+      }
+    });
+  }
+  function getOrCreateContainer() {
+    let container = document.getElementById("echomem-suggestions");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "echomem-suggestions";
+      container.className = "echomem-suggestions-container";
+      document.body.appendChild(container);
+    }
+    return container;
+  }
+  function positionContainer(container, inputElement) {
+    if (!inputElement) return;
+    const rect = inputElement.getBoundingClientRect();
+    const prevVisibility = container.style.visibility;
+    container.style.visibility = "hidden";
+    container.style.display = "block";
+    const containerHeight = Math.min(container.offsetHeight || 160, 320);
+    container.style.visibility = prevVisibility || "";
+    container.style.position = "fixed";
+    container.style.left = `${rect.left}px`;
+    container.style.top = `${rect.top - containerHeight - 8}px`;
+    container.style.width = `${rect.width}px`;
+    container.style.zIndex = "999999";
+  }
+
+  // src/core/completion-engine.js
+  var phraseScoreThreshold = 0.2;
+  async function refreshThreshold() {
+    const config = await getCompletionConfig();
+    phraseScoreThreshold = config.phraseScoreThreshold;
+  }
+  function extractKeywords(text, userInput, maxKeywords = 3) {
+    if (!text) return [];
+    const words = tokenizeAndFilter(text);
+    const userWords = new Set(tokenize(userInput));
+    const freq = {};
+    for (const w of words) {
+      freq[w] = (freq[w] || 0) + 1;
+    }
+    const scored = Object.entries(freq).map(([word, count]) => ({
+      word,
+      score: count * (userWords.has(word) ? 3 : 1)
+    }));
+    return scored.sort((a, b) => b.score - a.score).slice(0, maxKeywords).map((x) => x.word);
+  }
+  function extractPhrases(overview, userInput) {
+    if (!overview) {
+      console.log("EchoMem: extractPhrases overview is empty");
+      return [];
+    }
+    const lines = overview.split("\n");
+    const phrases = [];
+    const inputWords = new Set(tokenize(userInput));
+    console.log("EchoMem: extractPhrases inputWords", [...inputWords], "threshold", phraseScoreThreshold);
+    console.log("EchoMem: overview lines count", lines.length);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.length < 5) continue;
+      const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
+      if (listMatch) {
+        const phrase = listMatch[1].trim();
+        const phraseWords = new Set(tokenize(phrase));
+        const score = calculatePhraseScore(inputWords, phraseWords, phrase);
+        console.log("EchoMem: list item", phrase.slice(0, 40), "score", score, "threshold", phraseScoreThreshold);
+        if (score > phraseScoreThreshold) {
+          phrases.push({ phrase, score, type: "bullet" });
+        }
+        continue;
+      }
+      const quoteMatch = trimmed.match(/^[""'](.+)[""']\s*\(/);
+      if (quoteMatch) {
+        const phrase = quoteMatch[1].trim();
+        const phraseWords = new Set(tokenize(phrase));
+        const score = calculatePhraseScore(inputWords, phraseWords, phrase);
+        console.log("EchoMem: quote", phrase.slice(0, 40), "score", score);
+        if (score > phraseScoreThreshold) {
+          phrases.push({ phrase, score, type: "quote" });
+        }
+        continue;
+      }
+      if (!trimmed.startsWith("#") && !trimmed.startsWith("-") && !trimmed.startsWith("*")) {
+        const phraseWords = new Set(tokenize(trimmed));
+        const score = calculatePhraseScore(inputWords, phraseWords, trimmed);
+        console.log("EchoMem: text line", trimmed.slice(0, 40), "score", score, "threshold", phraseScoreThreshold + 0.25);
+        if (score > phraseScoreThreshold + 0.25) {
+          phrases.push({ phrase: trimmed, score, type: "text" });
+        }
+      }
+    }
+    console.log("EchoMem: extractPhrases result", phrases.length, "phrases");
+    return phrases.sort((a, b) => b.score - a.score).slice(0, 3);
+  }
+  function calculatePhraseScore(inputWords, phraseWords, phrase) {
+    if (!inputWords.size || !phraseWords.size) return 0;
+    const overlap = calculateOverlap(inputWords, phraseWords);
+    const intersection = new Set([...inputWords].filter((x) => phraseWords.has(x))).size;
+    const union = (/* @__PURE__ */ new Set([...inputWords, ...phraseWords])).size;
+    const jaccard = union > 0 ? intersection / union : 0;
+    const lengthPenalty = Math.min(phrase.length / 150, 1);
+    return (jaccard * 0.4 + overlap / (inputWords.size * 2) * 0.6) * (1 - lengthPenalty * 0.15);
+  }
+  function buildSuggestion(userInput, memory) {
+    var _a2, _b2;
+    const inputTrimmed = userInput.trim();
+    if (((_a2 = memory == null ? void 0 : memory.phrases) == null ? void 0 : _a2.length) > 0) {
+      const bestPhrase = memory.phrases[0];
+      return {
+        type: "phrase",
+        displayText: `...${truncate(bestPhrase.phrase, 40)}`,
+        insertText: bestPhrase.phrase,
+        source: "memory",
+        sourceUri: memory.uri || "",
+        score: (memory.score || 0.5) * 0.7 + bestPhrase.score * 0.3,
+        fullText: memory.abstract || bestPhrase.phrase
+      };
+    }
+    if (((_b2 = memory == null ? void 0 : memory.keywords) == null ? void 0 : _b2.length) > 0) {
+      const continuation = memory.keywords.join("\u3001");
+      return {
+        type: "keyword",
+        displayText: `...${truncate(continuation, 40)}`,
+        insertText: continuation,
+        source: "memory",
+        sourceUri: memory.uri || "",
+        score: memory.score || 0.5,
+        fullText: memory.abstract || ""
+      };
+    }
+    return null;
+  }
+  function processMemories(userInput, memories) {
+    const suggestions = [];
+    for (const memory of memories.slice(0, 5)) {
+      const semanticScore = memory.score || 0;
+      if (semanticScore < phraseScoreThreshold) {
+        console.log("EchoMem: memory filtered out by semantic score", semanticScore, "<", phraseScoreThreshold, memory.uri);
+        continue;
+      }
+      const sourceText = memory.overview || memory.abstract || "";
+      const phrases = extractPhrases(sourceText, userInput);
+      console.log("EchoMem: memory", memory.uri, "semanticScore", semanticScore, "phrases", phrases.length);
+      const keywords = extractKeywords(memory.abstract || "", userInput, 3);
+      const enrichedMemory = { ...memory, phrases, keywords };
+      const suggestion = buildSuggestion(userInput, enrichedMemory);
+      if (suggestion) {
+        suggestions.push(suggestion);
+      } else {
+        console.log("EchoMem: no suggestion generated for", memory.uri);
+      }
+    }
+    return suggestions;
+  }
+  function rankAndDeduplicate(suggestions, maxResults = 3) {
+    suggestions.sort((a, b) => b.score - a.score);
+    const seen = /* @__PURE__ */ new Set();
+    const unique = [];
+    for (const s of suggestions) {
+      const key = s.insertText.slice(0, 50);
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(s);
+      }
+    }
+    return unique.slice(0, maxResults);
+  }
+  async function generateCompletions(userInput, memories, maxResults = 3) {
+    if (!userInput || !(memories == null ? void 0 : memories.length)) {
+      return [];
+    }
+    await refreshThreshold();
+    console.log("EchoMem: phraseScoreThreshold =", phraseScoreThreshold);
+    const suggestions = processMemories(userInput, memories);
+    console.log("EchoMem: raw suggestions =", suggestions.map((s) => ({ type: s.type, score: s.score, display: s.displayText })));
+    return rankAndDeduplicate(suggestions, maxResults);
+  }
+
+  // src/core/input-tracker.js
+  var client = null;
+  var debounceTimer = null;
+  var trackingPlatformConfig = null;
+  var keyboardNavBound = false;
+  async function getClient() {
+    if (!client) {
+      const config = await getOpenVikingConfig();
+      client = createClient(config);
+    }
+    return client;
+  }
+  function resetClient() {
+    client = null;
+  }
+  function startInputTracking(platformConfig) {
+    trackingPlatformConfig = platformConfig;
+    tryBindInputElement();
+  }
+  function tryBindInputElement() {
+    if (!trackingPlatformConfig) return;
+    const textarea = findInputElement2(trackingPlatformConfig);
+    if (!textarea) {
+      console.log("EchoMem: input element not found, will retry on next DOM change");
+      return;
+    }
+    if (textarea.dataset.echomemTracking) return;
+    textarea.dataset.echomemTracking = "true";
+    console.log("EchoMem: input tracking started on", textarea);
+    if (!keyboardNavBound) {
+      bindKeyboardNavigation(textarea);
+      keyboardNavBound = true;
+    }
+    textarea.addEventListener("input", (e2) => {
+      if (!getAssociationEnabled()) {
+        hideSuggestions();
+        return;
+      }
+      if (!e2.isTrusted) return;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        const text = e2.target.value.trim();
+        if (text.length >= 3) {
+          try {
+            await handleInput(textarea, text);
+          } catch (err) {
+            console.warn("EchoMem: recall failed", err);
+            hideSuggestions();
+          }
+        } else {
+          hideSuggestions();
+        }
+      }, 300);
+    });
+    textarea.addEventListener("blur", () => {
+      setTimeout(() => {
+        if (shouldSuppressBlurClose()) return;
+        const active = document.activeElement;
+        const container = document.getElementById("echomem-suggestions");
+        if (container && active && container.contains(active)) return;
+        hideSuggestions();
+      }, 200);
+    });
+  }
+  async function handleInput(textarea, userInput) {
+    let memories = [];
+    try {
+      const ovClient = await getClient();
+      console.log("EchoMem: recall triggered, query=", userInput);
+      const result = await ovClient.find(userInput, { limit: 5 });
+      memories = result.memories || [];
+      console.log("EchoMem: found", memories.length, "memories");
+      if (memories.length > 0) {
+        console.log("EchoMem: first memory keys", Object.keys(memories[0]));
+        console.log("EchoMem: first memory overview", memories[0].overview ? "present" : "missing");
+      }
+    } catch (err) {
+      console.warn("EchoMem: OpenViking recall failed", err);
+      hideSuggestions();
+      return;
+    }
+    if (!memories.length) {
+      hideSuggestions();
+      return;
+    }
+    const completions = await generateCompletions(userInput, memories, 3);
+    console.log("EchoMem: generated", completions.length, "completions");
+    if (completions.length > 0) {
+      renderCompletions(textarea, completions);
+    } else {
+      hideSuggestions();
+    }
+  }
+  function findInputElement2(platformConfig) {
+    var _a2, _b2;
+    const selector = (_b2 = (_a2 = platformConfig.launcher) == null ? void 0 : _a2.validateSelectors) == null ? void 0 : _b2.textarea;
+    if (!selector) return null;
+    return document.querySelector(selector);
+  }
+
+  // src/panels/echomem/config.js
+  function getOpenVikingConfigContent() {
+    return `
+    <div style="display: flex; flex-direction: column; gap: 14px; color: #333;">
+      <div style="padding: 10px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #667eea; font-size: 12px; color: #666;">
+        \u{1F4A1} \u6B64\u914D\u7F6E\u540C\u65F6\u5F71\u54CD\u8D44\u6E90\u7BA1\u7406\u3001\u8F93\u5165\u8054\u60F3\u7B49\u529F\u80FD
+      </div>
+
+      <div>
+        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u670D\u52A1\u5730\u5740</label>
+        <input id="cfg-base-url" type="text"
+          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+        />
+      </div>
+
+      <div>
+        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID</label>
+        <input id="cfg-agent-id" type="text"
+          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+        />
+      </div>
+
+      <div>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #333; cursor: pointer;">
+          <input id="cfg-auth-enabled" type="checkbox" style="cursor: pointer;" />
+          <span>\u542F\u7528\u8BA4\u8BC1\u6A21\u5F0F\uFF08API Key / Account / User\uFF09</span>
+        </label>
+      </div>
+
+      <div id="cfg-auth-fields" style="display: none; display: flex; flex-direction: column; gap: 10px;">
+        <div>
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">API Key</label>
+          <input id="cfg-api-key" type="password"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+        <div>
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Account ID</label>
+          <input id="cfg-account-id" type="text"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+        <div>
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">User ID</label>
+          <input id="cfg-user-id" type="text"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 4px;">
+        <button id="cfg-test-btn" style="flex: 1; padding: 10px; background: #f0f7ff; color: #667eea; border: 1px solid #c7d8f5; border-radius: 6px; font-size: 13px; cursor: pointer;"
+        >\u{1F504} \u6D4B\u8BD5\u8FDE\u63A5</button>
+        <button id="cfg-save-btn" style="flex: 1; padding: 10px; background: #667eea; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;"
+        >\u{1F4BE} \u4FDD\u5B58\u914D\u7F6E</button>
+      </div>
+
+      <div id="cfg-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
+    </div>
+  `;
+  }
+  async function initConfigPanel(bodyElement) {
+    if (!bodyElement) return;
+    const baseUrlInput = bodyElement.querySelector("#cfg-base-url");
+    const agentIdInput = bodyElement.querySelector("#cfg-agent-id");
+    const authCheckbox = bodyElement.querySelector("#cfg-auth-enabled");
+    const authFields = bodyElement.querySelector("#cfg-auth-fields");
+    const apiKeyInput = bodyElement.querySelector("#cfg-api-key");
+    const accountIdInput = bodyElement.querySelector("#cfg-account-id");
+    const userIdInput = bodyElement.querySelector("#cfg-user-id");
+    const testBtn = bodyElement.querySelector("#cfg-test-btn");
+    const saveBtn = bodyElement.querySelector("#cfg-save-btn");
+    const statusEl = bodyElement.querySelector("#cfg-status");
+    function showStatus(msg, type = "info") {
+      if (!statusEl) return;
+      statusEl.style.display = "block";
+      const colors = {
+        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+      };
+      const c = colors[type] || colors.info;
+      statusEl.style.background = c.bg;
+      statusEl.style.border = `1px solid ${c.border}`;
+      statusEl.style.color = c.text;
+      statusEl.textContent = msg;
+    }
+    try {
+      const cfg = await getOpenVikingConfig();
+      if (baseUrlInput) baseUrlInput.value = cfg.baseUrl || "";
+      if (agentIdInput) agentIdInput.value = cfg.agentId || "";
+      if (authCheckbox) authCheckbox.checked = cfg.authEnabled || false;
+      if (apiKeyInput) apiKeyInput.value = cfg.apiKey || "";
+      if (accountIdInput) accountIdInput.value = cfg.accountId || "";
+      if (userIdInput) userIdInput.value = cfg.userId || "";
+      if (authFields) authFields.style.display = cfg.authEnabled ? "flex" : "none";
+    } catch (err) {
+      console.warn("EchoMem: failed to load config", err);
+    }
+    if (authCheckbox && authFields) {
+      authCheckbox.addEventListener("change", () => {
+        authFields.style.display = authCheckbox.checked ? "flex" : "none";
+      });
+    }
+    if (testBtn) {
+      testBtn.addEventListener("click", async () => {
+        var _a2, _b2, _c2, _d2, _e, _f, _g;
+        showStatus("\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5...", "info");
+        try {
+          const config = {
+            baseUrl: ((_a2 = baseUrlInput == null ? void 0 : baseUrlInput.value) == null ? void 0 : _a2.trim()) || "http://127.0.0.1:1933",
+            agentId: ((_b2 = agentIdInput == null ? void 0 : agentIdInput.value) == null ? void 0 : _b2.trim()) || "echomem-extension",
+            authEnabled: (authCheckbox == null ? void 0 : authCheckbox.checked) || false,
+            apiKey: ((_c2 = apiKeyInput == null ? void 0 : apiKeyInput.value) == null ? void 0 : _c2.trim()) || "",
+            accountId: ((_d2 = accountIdInput == null ? void 0 : accountIdInput.value) == null ? void 0 : _d2.trim()) || "default",
+            userId: ((_e = userIdInput == null ? void 0 : userIdInput.value) == null ? void 0 : _e.trim()) || "default"
+          };
+          const client2 = createClient(config);
+          const ok = await client2.healthCheck();
+          if (ok) {
+            showStatus("\u2705 \u8FDE\u63A5\u6210\u529F", "success");
+          } else {
+            showStatus("\u274C \u8FDE\u63A5\u5931\u8D25\uFF1A\u540E\u7AEF\u8FD4\u56DE\u975E 200 \u72B6\u6001\u7801", "error");
+          }
+        } catch (err) {
+          if (err.name === "AbortError" || ((_f = err.message) == null ? void 0 : _f.includes("aborted"))) {
+            showStatus("\u274C \u8FDE\u63A5\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u662F\u5426\u6B63\u786E", "error");
+          } else if ((_g = err.message) == null ? void 0 : _g.includes("Failed to fetch")) {
+            showStatus("\u274C \u65E0\u6CD5\u8FDE\u63A5\u5230\u540E\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u662F\u5426\u542F\u52A8", "error");
+          } else {
+            showStatus(`\u274C \u8FDE\u63A5\u5931\u8D25: ${err.message}`, "error");
+          }
+        }
+      });
+    }
+    if (saveBtn) {
+      saveBtn.addEventListener("click", async () => {
+        var _a2, _b2, _c2, _d2, _e;
+        const config = {
+          baseUrl: ((_a2 = baseUrlInput == null ? void 0 : baseUrlInput.value) == null ? void 0 : _a2.trim()) || "http://127.0.0.1:1933",
+          agentId: ((_b2 = agentIdInput == null ? void 0 : agentIdInput.value) == null ? void 0 : _b2.trim()) || "echomem-extension",
+          authEnabled: (authCheckbox == null ? void 0 : authCheckbox.checked) || false,
+          apiKey: ((_c2 = apiKeyInput == null ? void 0 : apiKeyInput.value) == null ? void 0 : _c2.trim()) || "",
+          accountId: ((_d2 = accountIdInput == null ? void 0 : accountIdInput.value) == null ? void 0 : _d2.trim()) || "default",
+          userId: ((_e = userIdInput == null ? void 0 : userIdInput.value) == null ? void 0 : _e.trim()) || "default"
+        };
+        try {
+          await setOpenVikingConfig(config);
+          resetClient();
+          showStatus("\u2705 \u914D\u7F6E\u5DF2\u4FDD\u5B58", "success");
+        } catch (err) {
+          showStatus(`\u274C \u4FDD\u5B58\u5931\u8D25: ${err.message}`, "error");
+        }
+      });
+    }
   }
 
   // src/core/router.js
@@ -41446,6 +42344,16 @@ ${MEM_TAG_CLOSE}`;
     manage: {
       title: "Skill \u5B89\u88C5\u7BA1\u7406",
       render: getSkillManageContent
+    }
+  };
+  var resourceSubRoutes = {
+    import: {
+      title: "\u8D44\u6E90\u5BFC\u5165",
+      render: getResourceImportContent
+    },
+    manage: {
+      title: "\u67E5\u770B\u8D44\u6E90",
+      render: getResourceManageContent
     }
   };
   function openEchoMemHomePanel() {
@@ -41501,6 +42409,43 @@ ${MEM_TAG_CLOSE}`;
     });
     bindPanelControls();
   }
+  function navigateToResourceSection(sectionId) {
+    const route = resourceSubRoutes[sectionId];
+    if (!route) return;
+    setCurrentRoute({
+      type: "panel",
+      panelId: "resources",
+      route: sectionId
+    });
+    openCustomPanel(route.title, route.render(), {
+      showBack: true,
+      onBack: () => {
+        openCustomPanel("\u8D44\u6E90\u7BA1\u7406", getResourceHomeContent(), {
+          showBack: true,
+          onBack: openEchoMemHomePanel
+        });
+        bindPanelNavigation();
+      }
+    });
+    const body = getPanelBodyElement();
+    if (sectionId === "import") {
+      initImportPanel(body);
+    } else if (sectionId === "manage") {
+      initManagePanel(body);
+    }
+  }
+  function navigateToConfigPanel() {
+    setCurrentRoute({
+      type: "panel",
+      panelId: "openvikingConfig"
+    });
+    openCustomPanel("OpenViking \u8FDE\u63A5\u914D\u7F6E", getOpenVikingConfigContent(), {
+      showBack: true,
+      onBack: openEchoMemHomePanel
+    });
+    const body = getPanelBodyElement();
+    initConfigPanel(body);
+  }
   async function refreshInputAssociationPanel() {
     const contentDiv = getPanelBodyElement();
     if (contentDiv) {
@@ -41540,6 +42485,19 @@ ${MEM_TAG_CLOSE}`;
         if (sectionId) {
           navigateToSkillSection(sectionId);
         }
+        return;
+      }
+      const resourceCard = e2.target.closest(".claw-resource-section");
+      if (resourceCard) {
+        const sectionId = resourceCard.dataset.resourceSection;
+        if (sectionId) {
+          navigateToResourceSection(sectionId);
+        }
+        return;
+      }
+      const configCard = e2.target.closest(".claw-config-section");
+      if (configCard) {
+        navigateToConfigPanel();
       }
     });
     bindPanelControls();

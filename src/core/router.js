@@ -16,8 +16,17 @@ import {
   getSkillUploadContent,
   getSkillPurchaseContent,
   getSkillMerchantContent,
-  getSkillManageContent
+  getSkillManageContent,
+  getResourceHomeContent,
+  getResourceImportContent,
+  getResourceManageContent
 } from '../panels/index.js';
+import { initImportPanel } from '../panels/resource/import.js';
+import { initManagePanel } from '../panels/resource/manage.js';
+import {
+  getOpenVikingConfigContent,
+  initConfigPanel
+} from '../panels/echomem/config.js';
 import {
   bindToggleButton,
   bindConfigUI,
@@ -46,6 +55,17 @@ const skillStoreRoutes = {
   manage: {
     title: 'Skill 安装管理',
     render: getSkillManageContent
+  }
+};
+
+const resourceSubRoutes = {
+  import: {
+    title: '资源导入',
+    render: getResourceImportContent
+  },
+  manage: {
+    title: '查看资源',
+    render: getResourceManageContent
   }
 };
 
@@ -114,6 +134,51 @@ export function navigateToSkillSection(sectionId) {
   bindPanelControls();
 }
 
+export function navigateToResourceSection(sectionId) {
+  const route = resourceSubRoutes[sectionId];
+  if (!route) return;
+
+  setCurrentRoute({
+    type: 'panel',
+    panelId: 'resources',
+    route: sectionId
+  });
+
+  openCustomPanel(route.title, route.render(), {
+    showBack: true,
+    onBack: () => {
+      openCustomPanel('资源管理', getResourceHomeContent(), {
+        showBack: true,
+        onBack: openEchoMemHomePanel
+      });
+      bindPanelNavigation();
+    }
+  });
+
+  // Initialize sub-page
+  const body = getPanelBodyElement();
+  if (sectionId === 'import') {
+    initImportPanel(body);
+  } else if (sectionId === 'manage') {
+    initManagePanel(body);
+  }
+}
+
+export function navigateToConfigPanel() {
+  setCurrentRoute({
+    type: 'panel',
+    panelId: 'openvikingConfig'
+  });
+
+  openCustomPanel('OpenViking 连接配置', getOpenVikingConfigContent(), {
+    showBack: true,
+    onBack: openEchoMemHomePanel
+  });
+
+  const body = getPanelBodyElement();
+  initConfigPanel(body);
+}
+
 export function closePanel() {
   setCurrentRoute(null);
   restoreOriginalPanel();
@@ -164,6 +229,21 @@ export function bindPanelNavigation(root = document) {
       if (sectionId) {
         navigateToSkillSection(sectionId);
       }
+      return;
+    }
+
+    const resourceCard = e.target.closest('.claw-resource-section');
+    if (resourceCard) {
+      const sectionId = resourceCard.dataset.resourceSection;
+      if (sectionId) {
+        navigateToResourceSection(sectionId);
+      }
+      return;
+    }
+
+    const configCard = e.target.closest('.claw-config-section');
+    if (configCard) {
+      navigateToConfigPanel();
     }
   });
 
