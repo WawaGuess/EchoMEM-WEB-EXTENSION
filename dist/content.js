@@ -41185,6 +41185,23 @@ ${block}` : block;
       <div id="claw-resource-list-loading" style="text-align: center; padding: 40px 20px; color: #888;">
         <p style="font-size: 14px;">\u23F3 \u6B63\u5728\u52A0\u8F7D\u8D44\u6E90\u5217\u8868...</p>
       </div>
+      <div id="claw-resource-toolbar" style="display: none; justify-content: flex-end; margin-bottom: 8px;">
+        <button id="claw-resource-btn-refresh" style="
+          padding: 5px 12px;
+          background: white;
+          color: #374151;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 12px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        ">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          \u5237\u65B0
+        </button>
+      </div>
       <div id="claw-resource-list-content" style="display: none;"></div>
     </div>
   `;
@@ -41207,7 +41224,26 @@ ${block}` : block;
     const loadingEl = bodyElement.querySelector("#claw-resource-list-loading");
     const contentEl = bodyElement.querySelector("#claw-resource-list-content");
     const toastEl = bodyElement.querySelector("#claw-resource-toast");
+    const toolbarEl = bodyElement.querySelector("#claw-resource-toolbar");
+    const refreshBtn = bodyElement.querySelector("#claw-resource-btn-refresh");
     if (!loadingEl || !contentEl) return;
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.style.opacity = "1";
+      refreshBtn.style.cursor = "pointer";
+    }
+    if (refreshBtn && !refreshBtn.dataset.bound) {
+      refreshBtn.dataset.bound = "true";
+      refreshBtn.addEventListener("click", async () => {
+        refreshBtn.disabled = true;
+        refreshBtn.style.opacity = "0.6";
+        refreshBtn.style.cursor = "not-allowed";
+        loadingEl.style.display = "block";
+        contentEl.style.display = "none";
+        if (toolbarEl) toolbarEl.style.display = "none";
+        await initManagePanel(bodyElement);
+      });
+    }
     function showToast(msg, type = "info") {
       if (!toastEl) return;
       const colors = {
@@ -41250,6 +41286,7 @@ ${block}` : block;
       if (entries.length === 0) {
         loadingEl.style.display = "none";
         contentEl.style.display = "block";
+        if (toolbarEl) toolbarEl.style.display = "flex";
         contentEl.innerHTML = `
         <div style="text-align: center; padding: 40px 20px; color: #999;">
           <p style="font-size: 36px; margin-bottom: 12px;">\u{1F4C2}</p>
@@ -41371,6 +41408,7 @@ ${block}` : block;
       }).join("");
       loadingEl.style.display = "none";
       contentEl.style.display = "block";
+      if (toolbarEl) toolbarEl.style.display = "flex";
       contentEl.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <p style="font-size: 12px; color: #6b7280;">\u5F53\u524D\u76EE\u5F55: <span style="font-family: monospace;">${dirUri}</span></p>
@@ -41463,6 +41501,7 @@ ${block}` : block;
     } catch (err) {
       loadingEl.style.display = "none";
       contentEl.style.display = "block";
+      if (toolbarEl) toolbarEl.style.display = "flex";
       contentEl.innerHTML = `
       <div style="text-align: center; padding: 40px 20px; color: #b91c1c; background: #fef2f2; border-radius: 8px;">
         <p style="font-size: 14px; margin-bottom: 6px;">\u274C \u52A0\u8F7D\u5931\u8D25</p>
