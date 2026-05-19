@@ -4,6 +4,7 @@ import { getOpenVikingConfig } from '../../services/config.js';
 import { createClient } from '../../services/openviking-client.js';
 import { getCurrentPlatform } from '../../core/detection.js';
 import { injectContent } from '../../core/content-injector.js';
+import { openCenterOverlay, closeOverlayPanel } from '../../core/panel-host.js';
 
 function getPlatformKey() {
   const platform = getCurrentPlatform();
@@ -256,9 +257,14 @@ export async function initManagePanel(bodyElement) {
           const client = createClient(await getOpenVikingConfig());
           const result = await client.contentOverview(uri);
           const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
-          alert(`📄 ${uri}\n\n${text.slice(0, 2000)}${text.length > 2000 ? '\n\n...(内容已截断)' : ''}`);
+          const name = uri.split('/').pop() || uri;
+          const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`;
+          openCenterOverlay(name, previewHtml, {
+            showBack: true,
+            onBack: () => closeOverlayPanel()
+          });
         } catch (err) {
-          alert(`❌ 读取失败: ${err.message}`);
+          showToast(`❌ 读取失败: ${err.message}`, 'error');
         }
         btn.textContent = '查看内容';
       });

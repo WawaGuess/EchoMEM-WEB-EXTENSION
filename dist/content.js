@@ -41389,11 +41389,14 @@ ${block}` : block;
             const client3 = createClient(await getOpenVikingConfig());
             const result = await client3.contentOverview(uri);
             const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
-            alert(`\u{1F4C4} ${uri}
-
-${text.slice(0, 2e3)}${text.length > 2e3 ? "\n\n...(\u5185\u5BB9\u5DF2\u622A\u65AD)" : ""}`);
+            const name = uri.split("/").pop() || uri;
+            const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+            openCenterOverlay(name, previewHtml, {
+              showBack: true,
+              onBack: () => closeOverlayPanel()
+            });
           } catch (err) {
-            alert(`\u274C \u8BFB\u53D6\u5931\u8D25: ${err.message}`);
+            showToast(`\u274C \u8BFB\u53D6\u5931\u8D25: ${err.message}`, "error");
           }
           btn.textContent = "\u67E5\u770B\u5185\u5BB9";
         });
