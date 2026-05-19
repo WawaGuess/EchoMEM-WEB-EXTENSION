@@ -26,6 +26,7 @@ function getResourceDirUri() {
 export function getResourceManageContent() {
   return `
     <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+      <div id="claw-resource-toast" style="display: none;"></div>
       <div id="claw-resource-list-loading" style="text-align: center; padding: 40px 20px; color: #888;">
         <p style="font-size: 14px;">⏳ 正在加载资源列表...</p>
       </div>
@@ -54,8 +55,34 @@ export async function initManagePanel(bodyElement) {
 
   const loadingEl = bodyElement.querySelector('#claw-resource-list-loading');
   const contentEl = bodyElement.querySelector('#claw-resource-list-content');
+  const toastEl = bodyElement.querySelector('#claw-resource-toast');
 
   if (!loadingEl || !contentEl) return;
+
+  function showToast(msg, type = 'info') {
+    if (!toastEl) return;
+    const colors = {
+      info: { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8' },
+      success: { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d' },
+      error: { bg: '#fef2f2', border: '#fecaca', text: '#b91c1c' }
+    };
+    const c = colors[type] || colors.info;
+    toastEl.style.display = 'block';
+    toastEl.style.padding = '10px 12px';
+    toastEl.style.borderRadius = '6px';
+    toastEl.style.fontSize = '13px';
+    toastEl.style.marginBottom = '8px';
+    toastEl.style.background = c.bg;
+    toastEl.style.border = `1px solid ${c.border}`;
+    toastEl.style.color = c.text;
+    toastEl.textContent = msg;
+    setTimeout(() => {
+      if (toastEl) {
+        toastEl.style.display = 'none';
+        toastEl.textContent = '';
+      }
+    }, 4000);
+  }
 
   try {
     const config = await getOpenVikingConfig();
@@ -152,7 +179,7 @@ export async function initManagePanel(bodyElement) {
             ">${statusText}</span>
           </div>
           ${isReady ? `<p style="font-size: 12px; color: #4b5563; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${abstractText}</p>` : ''}
-          <div style="display: flex; gap: 6px; margin-top: 4px;">
+          <div class="claw-resource-actions" style="display: flex; gap: 6px; margin-top: 4px;">
             <button class="claw-resource-btn-view" data-uri="${entry.uri}" style="
               padding: 5px 10px;
               background: #eff6ff;
@@ -181,6 +208,27 @@ export async function initManagePanel(bodyElement) {
               cursor: pointer;
               margin-left: auto;
             ">删除</button>
+          </div>
+          <div class="claw-resource-confirm" style="display: none; gap: 6px; margin-top: 4px;">
+            <span style="font-size: 12px; color: #dc2626; margin-right: auto; align-self: center;">确定删除此资源？</span>
+            <button class="claw-resource-btn-confirm-delete" data-uri="${entry.uri}" style="
+              padding: 5px 10px;
+              background: #dc2626;
+              color: #fff;
+              border: none;
+              border-radius: 5px;
+              font-size: 12px;
+              cursor: pointer;
+            ">确认删除</button>
+            <button class="claw-resource-btn-cancel" style="
+              padding: 5px 10px;
+              background: white;
+              color: #374151;
+              border: 1px solid #d1d5db;
+              border-radius: 5px;
+              font-size: 12px;
+              cursor: pointer;
+            ">取消</button>
           </div>
         </div>
       `;
@@ -233,21 +281,53 @@ export async function initManagePanel(bodyElement) {
       });
     });
 
+    // Delete button: switch to inline confirm mode
     contentEl.querySelectorAll('.claw-resource-btn-delete').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const item = btn.closest('.claw-resource-item');
+        if (!item) return;
+        const actions = item.querySelector('.claw-resource-actions');
+        const confirmBox = item.querySelector('.claw-resource-confirm');
+        if (actions) actions.style.display = 'none';
+        if (confirmBox) confirmBox.style.display = 'flex';
+      });
+    });
+
+    // Confirm delete
+    contentEl.querySelectorAll('.claw-resource-btn-confirm-delete').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const uri = btn.dataset.uri;
         if (!uri) return;
-        if (!confirm('确定要删除该资源吗？此操作不可恢复。')) return;
+        const item = btn.closest('.claw-resource-item');
         btn.textContent = '删除中...';
         try {
           const client = createClient(await getOpenVikingConfig());
-          await client.fsRm(uri, false);
+          await client.fsRm(uri, true);
+          showToast('✅ 资源已删除', 'success');
           // Refresh list
           await initManagePanel(bodyElement);
         } catch (err) {
-          alert(`❌ 删除失败: ${err.message}`);
-          btn.textContent = '删除';
+          showToast(`❌ 删除失败: ${err.message}`, 'error');
+          btn.textContent = '确认删除';
+          if (item) {
+            const actions = item.querySelector('.claw-resource-actions');
+            const confirmBox = item.querySelector('.claw-resource-confirm');
+            if (actions) actions.style.display = 'flex';
+            if (confirmBox) confirmBox.style.display = 'none';
+          }
         }
+      });
+    });
+
+    // Cancel delete
+    contentEl.querySelectorAll('.claw-resource-btn-cancel').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const item = btn.closest('.claw-resource-item');
+        if (!item) return;
+        const actions = item.querySelector('.claw-resource-actions');
+        const confirmBox = item.querySelector('.claw-resource-confirm');
+        if (actions) actions.style.display = 'flex';
+        if (confirmBox) confirmBox.style.display = 'none';
       });
     });
   } catch (err) {

@@ -41181,6 +41181,7 @@ ${block}` : block;
   function getResourceManageContent() {
     return `
     <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+      <div id="claw-resource-toast" style="display: none;"></div>
       <div id="claw-resource-list-loading" style="text-align: center; padding: 40px 20px; color: #888;">
         <p style="font-size: 14px;">\u23F3 \u6B63\u5728\u52A0\u8F7D\u8D44\u6E90\u5217\u8868...</p>
       </div>
@@ -41205,7 +41206,32 @@ ${block}` : block;
     if (!bodyElement) return;
     const loadingEl = bodyElement.querySelector("#claw-resource-list-loading");
     const contentEl = bodyElement.querySelector("#claw-resource-list-content");
+    const toastEl = bodyElement.querySelector("#claw-resource-toast");
     if (!loadingEl || !contentEl) return;
+    function showToast(msg, type = "info") {
+      if (!toastEl) return;
+      const colors = {
+        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+      };
+      const c = colors[type] || colors.info;
+      toastEl.style.display = "block";
+      toastEl.style.padding = "10px 12px";
+      toastEl.style.borderRadius = "6px";
+      toastEl.style.fontSize = "13px";
+      toastEl.style.marginBottom = "8px";
+      toastEl.style.background = c.bg;
+      toastEl.style.border = `1px solid ${c.border}`;
+      toastEl.style.color = c.text;
+      toastEl.textContent = msg;
+      setTimeout(() => {
+        if (toastEl) {
+          toastEl.style.display = "none";
+          toastEl.textContent = "";
+        }
+      }, 4e3);
+    }
     try {
       const config = await getOpenVikingConfig();
       const client2 = createClient(config);
@@ -41289,7 +41315,7 @@ ${block}` : block;
             ">${statusText}</span>
           </div>
           ${isReady ? `<p style="font-size: 12px; color: #4b5563; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${abstractText}</p>` : ""}
-          <div style="display: flex; gap: 6px; margin-top: 4px;">
+          <div class="claw-resource-actions" style="display: flex; gap: 6px; margin-top: 4px;">
             <button class="claw-resource-btn-view" data-uri="${entry.uri}" style="
               padding: 5px 10px;
               background: #eff6ff;
@@ -41318,6 +41344,27 @@ ${block}` : block;
               cursor: pointer;
               margin-left: auto;
             ">\u5220\u9664</button>
+          </div>
+          <div class="claw-resource-confirm" style="display: none; gap: 6px; margin-top: 4px;">
+            <span style="font-size: 12px; color: #dc2626; margin-right: auto; align-self: center;">\u786E\u5B9A\u5220\u9664\u6B64\u8D44\u6E90\uFF1F</span>
+            <button class="claw-resource-btn-confirm-delete" data-uri="${entry.uri}" style="
+              padding: 5px 10px;
+              background: #dc2626;
+              color: #fff;
+              border: none;
+              border-radius: 5px;
+              font-size: 12px;
+              cursor: pointer;
+            ">\u786E\u8BA4\u5220\u9664</button>
+            <button class="claw-resource-btn-cancel" style="
+              padding: 5px 10px;
+              background: white;
+              color: #374151;
+              border: 1px solid #d1d5db;
+              border-radius: 5px;
+              font-size: 12px;
+              cursor: pointer;
+            ">\u53D6\u6D88</button>
           </div>
         </div>
       `;
@@ -41368,19 +41415,46 @@ ${text.slice(0, 2e3)}${text.length > 2e3 ? "\n\n...(\u5185\u5BB9\u5DF2\u622A\u65
         });
       });
       contentEl.querySelectorAll(".claw-resource-btn-delete").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const item = btn.closest(".claw-resource-item");
+          if (!item) return;
+          const actions2 = item.querySelector(".claw-resource-actions");
+          const confirmBox = item.querySelector(".claw-resource-confirm");
+          if (actions2) actions2.style.display = "none";
+          if (confirmBox) confirmBox.style.display = "flex";
+        });
+      });
+      contentEl.querySelectorAll(".claw-resource-btn-confirm-delete").forEach((btn) => {
         btn.addEventListener("click", async () => {
           const uri = btn.dataset.uri;
           if (!uri) return;
-          if (!confirm("\u786E\u5B9A\u8981\u5220\u9664\u8BE5\u8D44\u6E90\u5417\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002")) return;
+          const item = btn.closest(".claw-resource-item");
           btn.textContent = "\u5220\u9664\u4E2D...";
           try {
             const client3 = createClient(await getOpenVikingConfig());
-            await client3.fsRm(uri, false);
+            await client3.fsRm(uri, true);
+            showToast("\u2705 \u8D44\u6E90\u5DF2\u5220\u9664", "success");
             await initManagePanel(bodyElement);
           } catch (err) {
-            alert(`\u274C \u5220\u9664\u5931\u8D25: ${err.message}`);
-            btn.textContent = "\u5220\u9664";
+            showToast(`\u274C \u5220\u9664\u5931\u8D25: ${err.message}`, "error");
+            btn.textContent = "\u786E\u8BA4\u5220\u9664";
+            if (item) {
+              const actions2 = item.querySelector(".claw-resource-actions");
+              const confirmBox = item.querySelector(".claw-resource-confirm");
+              if (actions2) actions2.style.display = "flex";
+              if (confirmBox) confirmBox.style.display = "none";
+            }
           }
+        });
+      });
+      contentEl.querySelectorAll(".claw-resource-btn-cancel").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const item = btn.closest(".claw-resource-item");
+          if (!item) return;
+          const actions2 = item.querySelector(".claw-resource-actions");
+          const confirmBox = item.querySelector(".claw-resource-confirm");
+          if (actions2) actions2.style.display = "flex";
+          if (confirmBox) confirmBox.style.display = "none";
         });
       });
     } catch (err) {
