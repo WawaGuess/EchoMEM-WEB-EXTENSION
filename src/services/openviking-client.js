@@ -230,6 +230,7 @@ class OpenVikingClient {
           timeout: options.timeout || undefined,
           strict: options.strict ?? false,
           source_name: options.sourceName || undefined,
+          keep_original: options.keepOriginal ?? false,
         }),
         signal: controller.signal,
       });

@@ -392,7 +392,7 @@ export function getPanelBodyElement() {
  * 不依赖 platform config，直接创建居中 overlay
  */
 export function openCenterOverlay(title, contentHtml, options = {}) {
-  const { showBack = false, onBack = null } = options;
+  const { showBack = false, onBack = null, width, height, maxWidth, maxHeight } = options;
 
   // 保存当前可能存在的 EchoMem overlay 面板（DeepSeek 场景）
   const existingOverlay = currentOverlayPanel;
@@ -426,15 +426,15 @@ export function openCenterOverlay(title, contentHtml, options = {}) {
 
   createOverlayPanel(panelHtml, {
     position: 'center',
-    width: '85vw',
+    width: width || '85vw',
     backdrop: true
   });
 
   // 调整居中浮层的尺寸
   if (currentOverlayPanel) {
-    currentOverlayPanel.style.maxWidth = '1000px';
-    currentOverlayPanel.style.height = '80vh';
-    currentOverlayPanel.style.maxHeight = '700px';
+    currentOverlayPanel.style.maxWidth = maxWidth || '1000px';
+    currentOverlayPanel.style.height = height || '80vh';
+    currentOverlayPanel.style.maxHeight = maxHeight || '700px';
     currentOverlayPanel.style.borderRadius = '16px';
     currentOverlayPanel.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.2)';
     // 标记这是认知图谱浮层，关闭时需要恢复之前的 overlay

@@ -703,7 +703,7 @@
     return (container == null ? void 0 : container.querySelector(".claw-custom-panel-body")) || null;
   }
   function openCenterOverlay(title, contentHtml, options = {}) {
-    const { showBack = false, onBack = null } = options;
+    const { showBack = false, onBack = null, width, height, maxWidth, maxHeight } = options;
     const existingOverlay = currentOverlayPanel;
     if (existingOverlay) {
       existingOverlay.style.display = "none";
@@ -730,13 +730,13 @@
   `;
     createOverlayPanel(panelHtml, {
       position: "center",
-      width: "85vw",
+      width: width || "85vw",
       backdrop: true
     });
     if (currentOverlayPanel) {
-      currentOverlayPanel.style.maxWidth = "1000px";
-      currentOverlayPanel.style.height = "80vh";
-      currentOverlayPanel.style.maxHeight = "700px";
+      currentOverlayPanel.style.maxWidth = maxWidth || "1000px";
+      currentOverlayPanel.style.height = height || "80vh";
+      currentOverlayPanel.style.maxHeight = maxHeight || "700px";
       currentOverlayPanel.style.borderRadius = "16px";
       currentOverlayPanel.style.boxShadow = "0 8px 32px rgba(0, 0, 0, 0.2)";
       currentOverlayPanel._previousOverlay = existingOverlay;
@@ -744,62 +744,6 @@
     bindPanelEvents(currentOverlayPanel, showBack, onBack, "overlay-only");
     isCustomPanelOpen = true;
     setPanelOpen(true);
-  }
-
-  // src/panels/resource/index.js
-  function getResourceHomeContent() {
-    const sections = [
-      {
-        id: "import",
-        title: "\u2B06\uFE0F \u8D44\u6E90\u5BFC\u5165",
-        desc: "\u4E0A\u4F20\u672C\u5730\u6587\u4EF6\u6216\u901A\u8FC7 URL \u6DFB\u52A0\u8D44\u6E90",
-        color: "#2563eb"
-      },
-      {
-        id: "manage",
-        title: "\u{1F4CB} \u67E5\u770B\u8D44\u6E90",
-        desc: "\u6D4F\u89C8\u3001\u9884\u89C8\u548C\u5220\u9664\u5DF2\u5BFC\u5165\u7684\u8D44\u6E90",
-        color: "#059669"
-      }
-    ];
-    const cards = sections.map((s) => `
-    <div class="claw-resource-section" data-resource-section="${s.id}" style="
-      padding: 16px;
-      border: 1px solid #e0e0e0;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    " onmouseenter="this.style.borderColor='${s.color}';this.style.background='#fafafa';this.style.transform='translateX(4px)'"
-       onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='none';this.style.transform='none'"
-    >
-      <div style="
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        background: ${s.color}15;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-        flex-shrink: 0;
-      ">${s.title.split(" ")[0]}</div>
-      <div style="flex: 1;">
-        <p style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 2px;">${s.title.split(" ").slice(1).join(" ")}</p>
-        <p style="font-size: 12px; color: #888;">${s.desc}</p>
-      </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="9 18 15 12 9 6"></polyline>
-      </svg>
-    </div>
-  `).join("");
-    return `
-    <div style="display: flex; flex-direction: column; gap: 10px;">
-      ${cards}
-    </div>
-  `;
   }
 
   // src/services/config.js
@@ -835,6 +779,946 @@
   }
   async function setCompletionConfig(config) {
     await chrome.storage.local.set({ completionConfig: config });
+  }
+
+  // src/services/openviking-client.js
+  var DEFAULT_CONFIG = {
+    baseUrl: "http://127.0.0.1:1933",
+    apiKey: "",
+    agentId: "echomem-extension",
+    authEnabled: false,
+    accountId: "default",
+    userId: "default",
+    timeoutMs: 5e3
+  };
+  var OpenVikingClient = class {
+    constructor(config = {}) {
+      this.cfg = { ...DEFAULT_CONFIG, ...config };
+    }
+    _buildHeaders() {
+      const headers = this._buildAuthHeaders();
+      headers["Content-Type"] = "application/json";
+      return headers;
+    }
+    _buildAuthHeaders() {
+      const headers = {};
+      if (this.cfg.agentId) {
+        headers["X-OpenViking-Agent"] = this.cfg.agentId;
+      }
+      if (this.cfg.authEnabled) {
+        if (this.cfg.apiKey) {
+          headers["X-API-Key"] = this.cfg.apiKey;
+        }
+        if (this.cfg.accountId) {
+          headers["X-OpenViking-Account"] = this.cfg.accountId;
+        }
+        if (this.cfg.userId) {
+          headers["X-OpenViking-User"] = this.cfg.userId;
+        }
+      }
+      return headers;
+    }
+    async find(query, options = {}) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/search/find`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            query,
+            target_uri: options.targetUri || "viking://user/memories",
+            limit: options.limit || 5,
+            score_threshold: options.scoreThreshold || 0
+          }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async healthCheck() {
+      const headers = this._buildAuthHeaders();
+      const response = await fetch(`${this.cfg.baseUrl}/health`, {
+        method: "GET",
+        headers
+      });
+      return response.ok;
+    }
+    async createSession(sessionId = null) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const body = {};
+        if (sessionId) {
+          body.session_id = sessionId;
+        }
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async addMessage(sessionId, message) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const response = await fetch(
+          `${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              role: message.role,
+              content: message.text
+            }),
+            signal: controller.signal
+          }
+        );
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async appendMessages(sessionId, messages) {
+      const results = [];
+      for (const msg of messages) {
+        const result = await this.addMessage(sessionId, msg);
+        results.push(result);
+      }
+      return results;
+    }
+    async commitSession(sessionId) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/commit`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ wait: true }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    // ── Resource Management ──
+    async tempUpload(file) {
+      var _a2;
+      const controller = new AbortController();
+      const uploadTimeoutMs = this.cfg.uploadTimeoutMs || 12e4;
+      const timer = setTimeout(() => controller.abort(), uploadTimeoutMs);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("telemetry", "false");
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/resources/temp_upload`, {
+          method: "POST",
+          headers,
+          body: formData,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async addResource(options = {}) {
+      var _a2;
+      const controller = new AbortController();
+      const resourceTimeoutMs = this.cfg.resourceTimeoutMs || 3e5;
+      const timer = setTimeout(() => controller.abort(), resourceTimeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/resources`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            path: options.path || void 0,
+            temp_file_id: options.tempFileId || void 0,
+            to: options.to || void 0,
+            parent: options.parent || void 0,
+            reason: options.reason || "EchoMem extension upload",
+            instruction: options.instruction || "",
+            wait: options.wait ?? true,
+            timeout: options.timeout || void 0,
+            strict: options.strict ?? false,
+            source_name: options.sourceName || void 0,
+            keep_original: options.keepOriginal ?? false
+          }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    // ── Filesystem ──
+    async fsLs(uri, options = {}) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        if (options.simple) params.set("simple", "true");
+        if (options.recursive) params.set("recursive", "true");
+        if (options.output) params.set("output", options.output);
+        if (options.absLimit) params.set("abs_limit", String(options.absLimit));
+        if (options.showAllHidden) params.set("show_all_hidden", "true");
+        if (options.nodeLimit) params.set("node_limit", String(options.nodeLimit));
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/ls?${params.toString()}`, {
+          method: "GET",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async fsStat(uri) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/stat?${params.toString()}`, {
+          method: "GET",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async fsMkdir(uri, description = "") {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/mkdir`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ uri, description }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async fsRm(uri, recursive = false) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        if (recursive) params.set("recursive", "true");
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs?${params.toString()}`, {
+          method: "DELETE",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    // ── Content ──
+    async contentRead(uri, options = {}) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        if (options.offset !== void 0) params.set("offset", String(options.offset));
+        if (options.limit !== void 0) params.set("limit", String(options.limit));
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/read?${params.toString()}`, {
+          method: "GET",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async contentOverview(uri) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/overview?${params.toString()}`, {
+          method: "GET",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async contentAbstract(uri) {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const params = new URLSearchParams({ uri });
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/abstract?${params.toString()}`, {
+          method: "GET",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  };
+  function createClient(config) {
+    return new OpenVikingClient(config);
+  }
+
+  // src/core/content-injector.js
+  function findInputElement() {
+    var _a2, _b2, _c2;
+    const platform2 = getCurrentPlatform();
+    if (!platform2) return null;
+    const selector = (_c2 = (_b2 = (_a2 = platform2.config) == null ? void 0 : _a2.launcher) == null ? void 0 : _b2.validateSelectors) == null ? void 0 : _c2.textarea;
+    if (!selector) return null;
+    return document.querySelector(selector);
+  }
+  var MEM_TAG_OPEN = "<relevant-memories>";
+  var MEM_TAG_CLOSE = "</relevant-memories>";
+  function stripMemoryBlock(text) {
+    const start3 = text.indexOf(MEM_TAG_OPEN);
+    if (start3 === -1) return text.trim();
+    const end2 = text.indexOf(MEM_TAG_CLOSE, start3);
+    if (end2 === -1) return text.trim();
+    return (text.slice(0, start3) + text.slice(end2 + MEM_TAG_CLOSE.length)).trim();
+  }
+  function injectContent(content, options = {}) {
+    const textarea = findInputElement();
+    if (!textarea) {
+      console.warn("EchoMem: \u672A\u627E\u5230\u8F93\u5165\u6846\uFF0C\u65E0\u6CD5\u6CE8\u5165\u5185\u5BB9");
+      return false;
+    }
+    const existing = textarea.value || "";
+    let base2 = options.replace ? stripMemoryBlock(existing) : existing;
+    const cleanContent = content.replace(new RegExp(MEM_TAG_OPEN, "g"), "").replace(new RegExp(MEM_TAG_CLOSE, "g"), "").trim();
+    if (!cleanContent) return false;
+    const block = `${MEM_TAG_OPEN}
+${cleanContent}
+${MEM_TAG_CLOSE}`;
+    const next = base2 ? `${base2}
+
+${block}` : block;
+    textarea.value = next;
+    try {
+      textarea.selectionStart = textarea.selectionEnd = next.length;
+    } catch (_) {
+    }
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    if (options.focus !== false) {
+      textarea.focus();
+    }
+    return true;
+  }
+
+  // src/panels/resource/import.js
+  function getRootDirUri() {
+    return "viking://resources/echomem/";
+  }
+  function getParentUri(uri) {
+    const clean = uri.replace(/\/$/, "");
+    const parts = clean.split("/");
+    if (parts.length <= 3) return null;
+    return parts.slice(0, -1).join("/") + "/";
+  }
+  function getResourceImportContent() {
+    return `
+    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+      <!-- \u672C\u5730\u6587\u4EF6\u4E0A\u4F20 -->
+      <div>
+        <p style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">\u{1F4C1} \u672C\u5730\u6587\u4EF6\u4E0A\u4F20</p>
+        <div id="claw-resource-dropzone" style="
+          border: 1.5px dashed #ccc;
+          border-radius: 8px;
+          padding: 0px 16px;
+          text-align: center;
+          cursor: pointer;
+          transition: all 0.2s;
+          background: #fafafa;
+        " onmouseenter="this.style.borderColor='#2563eb';this.style.background='#f0f7ff'"
+           onmouseleave="this.style.borderColor='#ccc';this.style.background='#fafafa'">
+          <p style="font-size: 14px; margin: 0;">\u{1F4E4}</p>
+          <p style="font-size: 11px; font-weight: 500; margin: 0;">\u70B9\u51FB\u6216\u62D6\u62FD\u6587\u4EF6\u5230\u6B64\u5904</p>
+          <p style="font-size: 9px; color: #888; margin: 0;">\u652F\u6301 PDF, DOC, TXT, MD</p>
+          <input type="file" id="claw-resource-file-input" style="display: none;" />
+        </div>
+      </div>
+
+      <!-- \u72B6\u6001\u63D0\u793A -->
+      <div id="claw-resource-import-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
+
+      <!-- \u5904\u7406\u7ED3\u679C\u533A -->
+      <div id="claw-resource-import-result" style="display: none;"></div>
+
+      <!-- \u8FDC\u7A0B\u6587\u4EF6\u5217\u8868 -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <p style="font-weight: 600; font-size: 14px; margin: 0;">\u{1F4C2} \u8FDC\u7A0B\u6587\u4EF6</p>
+          <p id="claw-remote-path" style="font-size: 10px; color: #888; margin: 0; font-family: monospace;">viking://resources/echomem/</p>
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <div id="claw-remote-back-btn" style="display: none;">
+            <button id="claw-remote-back" style="
+              padding: 4px 10px;
+              background: #f3f4f6;
+              border: 1px solid #d1d5db;
+              border-radius: 4px;
+              font-size: 12px;
+              cursor: pointer;
+              color: #374151;
+            ">\u2190 \u8FD4\u56DE\u4E0A\u7EA7</button>
+          </div>
+          <button id="claw-remote-mkdir" style="
+            padding: 4px 10px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #1d4ed8;
+          ">+ \u65B0\u5EFA\u6587\u4EF6\u5939</button>
+        </div>
+        <div id="claw-backup-list-loading" style="text-align: center; padding: 16px; color: #888; font-size: 12px;">\u23F3 \u6B63\u5728\u52A0\u8F7D...</div>
+        <div id="claw-backup-list-content" style="display: none;"></div>
+      </div>
+    </div>
+  `;
+  }
+  var activePollTimer = null;
+  async function initImportPanel(bodyElement) {
+    if (!bodyElement) return;
+    const dropzone = bodyElement.querySelector("#claw-resource-dropzone");
+    const fileInput = bodyElement.querySelector("#claw-resource-file-input");
+    const statusEl = bodyElement.querySelector("#claw-resource-import-status");
+    const resultEl = bodyElement.querySelector("#claw-resource-import-result");
+    const backupLoadingEl = bodyElement.querySelector("#claw-backup-list-loading");
+    const backupContentEl = bodyElement.querySelector("#claw-backup-list-content");
+    const pathEl = bodyElement.querySelector("#claw-remote-path");
+    const backBtnContainer = bodyElement.querySelector("#claw-remote-back-btn");
+    const backBtn = bodyElement.querySelector("#claw-remote-back");
+    const mkdirBtn = bodyElement.querySelector("#claw-remote-mkdir");
+    if (!dropzone || !fileInput) return;
+    let currentDirUri = getRootDirUri();
+    function formatSize2(bytes) {
+      if (!bytes || bytes < 0) return "-";
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    function formatDate2(ts) {
+      if (!ts) return "-";
+      const d = typeof ts === "string" ? new Date(ts) : new Date(ts * 1e3);
+      if (isNaN(d.getTime())) return "-";
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    async function loadRemoteFileList(dirUri = currentDirUri) {
+      var _a2;
+      if (!backupLoadingEl || !backupContentEl) return;
+      backupLoadingEl.style.display = "block";
+      backupContentEl.style.display = "none";
+      currentDirUri = dirUri;
+      if (pathEl) pathEl.textContent = dirUri;
+      if (backBtnContainer) {
+        backBtnContainer.style.display = dirUri === getRootDirUri() ? "none" : "flex";
+      }
+      try {
+        const client2 = createClient(await getOpenVikingConfig());
+        try {
+          await client2.fsMkdir(dirUri, "EchoMem directory");
+        } catch (mkdirErr) {
+          if (!((_a2 = mkdirErr.message) == null ? void 0 : _a2.toLowerCase().includes("exist"))) {
+            console.warn("EchoMem: mkdir warning", mkdirErr.message);
+          }
+        }
+        const lsResult = await client2.fsLs(dirUri, { output: "agent", absLimit: 128, showAllHidden: true });
+        let entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
+        entries = entries.filter((e2) => {
+          var _a3;
+          return (e2.name || ((_a3 = e2.uri) == null ? void 0 : _a3.split("/").pop()) || "") !== ".DS_Store";
+        });
+        if (entries.length === 0) {
+          backupLoadingEl.style.display = "none";
+          backupContentEl.style.display = "block";
+          backupContentEl.innerHTML = `
+          <div style="text-align: center; padding: 24px 16px; color: #999; font-size: 12px;">
+            <p style="font-size: 24px; margin-bottom: 8px;">\u{1F4C2}</p>
+            <p>\u6682\u65E0\u6587\u4EF6</p>
+          </div>
+        `;
+          return;
+        }
+        const enrichedEntries = await Promise.all(
+          entries.map(async (entry) => {
+            try {
+              const stat = await client2.fsStat(entry.uri);
+              return { ...entry, stat };
+            } catch {
+              return { ...entry, stat: null };
+            }
+          })
+        );
+        const dirs = enrichedEntries.filter((e2) => {
+          var _a3;
+          return e2.isDir || ((_a3 = e2.stat) == null ? void 0 : _a3.isDir);
+        });
+        const files = enrichedEntries.filter((e2) => {
+          var _a3;
+          return !(e2.isDir || ((_a3 = e2.stat) == null ? void 0 : _a3.isDir));
+        });
+        const sortByModTime = (a, b) => {
+          var _a3, _b2;
+          const ta = ((_a3 = a.stat) == null ? void 0 : _a3.modTime) ? new Date(a.stat.modTime).getTime() : 0;
+          const tb = ((_b2 = b.stat) == null ? void 0 : _b2.modTime) ? new Date(b.stat.modTime).getTime() : 0;
+          return tb - ta;
+        };
+        dirs.sort(sortByModTime);
+        files.sort(sortByModTime);
+        const allEntries = [...dirs, ...files];
+        const itemsHtml = allEntries.map((entry) => {
+          var _a3, _b2, _c2, _d2;
+          const name = entry.name || ((_a3 = entry.uri) == null ? void 0 : _a3.split("/").pop()) || "\u672A\u547D\u540D";
+          const isDir = entry.isDir || ((_b2 = entry.stat) == null ? void 0 : _b2.isDir);
+          const icon = isDir ? "\u{1F4C1}" : "\u{1F4C4}";
+          const size = isDir ? "" : formatSize2((_c2 = entry.stat) == null ? void 0 : _c2.size);
+          const date = formatDate2((_d2 = entry.stat) == null ? void 0 : _d2.modTime);
+          if (isDir) {
+            return `
+            <div class="claw-remote-folder" data-uri="${entry.uri}" style="
+              padding: 8px 10px;
+              background: #f0f9ff;
+              border: 1px solid #bae6fd;
+              border-radius: 6px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-size: 12px;
+              cursor: pointer;
+            " title="\u70B9\u51FB\u8FDB\u5165\u6587\u4EF6\u5939">
+              <span style="font-size: 14px;">${icon}</span>
+              <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0369a1; font-weight: 500;"
+                >${name}</span>
+              <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
+            </div>
+          `;
+          }
+          return `
+          <div class="claw-remote-file" data-uri="${entry.uri}" style="
+            padding: 8px 10px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+          ">
+            <span style="font-size: 14px;">${icon}</span>
+            <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #111827;"
+              title="${name}">${name}</span>
+            <span style="color: #6b7280; white-space: nowrap; width: 60px; text-align: right;">${size}</span>
+            <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
+            <button class="claw-remote-btn-delete" data-uri="${entry.uri}" style="
+              padding: 3px 8px;
+              background: #fef2f2;
+              color: #dc2626;
+              border: 1px solid #fecaca;
+              border-radius: 4px;
+              font-size: 11px;
+              cursor: pointer;
+              white-space: nowrap;
+            ">\u5220\u9664</button>
+          </div>
+        `;
+        }).join("");
+        backupLoadingEl.style.display = "none";
+        backupContentEl.style.display = "block";
+        backupContentEl.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          ${itemsHtml}
+        </div>
+      `;
+        backupContentEl.querySelectorAll(".claw-remote-folder").forEach((folder) => {
+          folder.addEventListener("click", () => {
+            const uri = folder.dataset.uri;
+            if (uri) loadRemoteFileList(uri + "/");
+          });
+        });
+        backupContentEl.querySelectorAll(".claw-remote-btn-delete").forEach((btn) => {
+          btn.addEventListener("click", async (e2) => {
+            e2.stopPropagation();
+            const uri = btn.dataset.uri;
+            if (!uri) return;
+            if (!confirm(`\u786E\u5B9A\u5220\u9664\u6587\u4EF6\u300C${uri.split("/").pop()}\u300D\uFF1F`)) return;
+            btn.textContent = "\u5220\u9664\u4E2D...";
+            btn.disabled = true;
+            try {
+              const client3 = createClient(await getOpenVikingConfig());
+              await client3.fsRm(uri, false);
+              await loadRemoteFileList();
+            } catch (err) {
+              alert(`\u5220\u9664\u5931\u8D25: ${err.message}`);
+              btn.textContent = "\u5220\u9664";
+              btn.disabled = false;
+            }
+          });
+        });
+      } catch (err) {
+        backupLoadingEl.style.display = "none";
+        backupContentEl.style.display = "block";
+        backupContentEl.innerHTML = `
+        <div style="text-align: center; padding: 16px; color: #b91c1c; font-size: 12px;">
+          <p>\u274C \u52A0\u8F7D\u6587\u4EF6\u5217\u8868\u5931\u8D25</p>
+          <p style="color: #888;">${err.message}</p>
+        </div>
+      `;
+      }
+    }
+    if (backBtn) {
+      backBtn.addEventListener("click", () => {
+        const parent = getParentUri(currentDirUri);
+        if (parent) loadRemoteFileList(parent);
+      });
+    }
+    if (mkdirBtn) {
+      mkdirBtn.addEventListener("click", () => {
+        const dialogId = "claw-mkdir-dialog-" + Date.now();
+        const dialogHtml = `
+        <div id="${dialogId}" style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-size: 13px; color: #374151; font-weight: 500;">\u6587\u4EF6\u5939\u540D\u79F0</label>
+            <input type="text" id="claw-mkdir-input" placeholder="\u8BF7\u8F93\u5165\u6587\u4EF6\u5939\u540D\u79F0" style="
+              padding: 10px 12px;
+              border: 1px solid #d1d5db;
+              border-radius: 6px;
+              font-size: 14px;
+              outline: none;
+              transition: border-color 0.2s;
+            " onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#d1d5db'">
+            <p id="claw-mkdir-error" style="font-size: 12px; color: #dc2626; margin: 0; display: none;"></p>
+          </div>
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button id="claw-mkdir-cancel" style="
+              padding: 8px 16px;
+              background: #f3f4f6;
+              color: #374151;
+              border: 1px solid #d1d5db;
+              border-radius: 6px;
+              font-size: 13px;
+              cursor: pointer;
+            ">\u53D6\u6D88</button>
+            <button id="claw-mkdir-confirm" style="
+              padding: 8px 16px;
+              background: #2563eb;
+              color: white;
+              border: none;
+              border-radius: 6px;
+              font-size: 13px;
+              cursor: pointer;
+              font-weight: 500;
+            ">\u786E\u5B9A</button>
+          </div>
+        </div>
+      `;
+        openCenterOverlay("\u65B0\u5EFA\u6587\u4EF6\u5939", dialogHtml, {
+          showBack: false,
+          width: "360px",
+          maxWidth: "360px",
+          height: "auto",
+          maxHeight: "240px"
+        });
+        setTimeout(() => {
+          const input = document.getElementById("claw-mkdir-input");
+          const confirmBtn = document.getElementById("claw-mkdir-confirm");
+          const cancelBtn = document.getElementById("claw-mkdir-cancel");
+          const errorEl = document.getElementById("claw-mkdir-error");
+          if (input) input.focus();
+          const doCreate = async () => {
+            var _a2;
+            const folderName = (_a2 = input == null ? void 0 : input.value) == null ? void 0 : _a2.trim();
+            if (!folderName) {
+              if (errorEl) {
+                errorEl.textContent = "\u8BF7\u8F93\u5165\u6587\u4EF6\u5939\u540D\u79F0";
+                errorEl.style.display = "block";
+              }
+              return;
+            }
+            if (folderName.includes("/") || folderName.includes("\\")) {
+              if (errorEl) {
+                errorEl.textContent = "\u6587\u4EF6\u5939\u540D\u79F0\u4E0D\u80FD\u5305\u542B\u659C\u6760";
+                errorEl.style.display = "block";
+              }
+              return;
+            }
+            if (errorEl) errorEl.style.display = "none";
+            if (confirmBtn) {
+              confirmBtn.textContent = "\u521B\u5EFA\u4E2D...";
+              confirmBtn.disabled = true;
+            }
+            try {
+              const client2 = createClient(await getOpenVikingConfig());
+              const targetUri = `${currentDirUri}${folderName}`;
+              await client2.fsMkdir(targetUri, "EchoMem folder");
+              closeOverlayPanel();
+              await loadRemoteFileList();
+            } catch (err) {
+              if (errorEl) {
+                errorEl.textContent = `\u521B\u5EFA\u5931\u8D25: ${err.message}`;
+                errorEl.style.display = "block";
+              }
+              if (confirmBtn) {
+                confirmBtn.textContent = "\u786E\u5B9A";
+                confirmBtn.disabled = false;
+              }
+            }
+          };
+          confirmBtn == null ? void 0 : confirmBtn.addEventListener("click", doCreate);
+          cancelBtn == null ? void 0 : cancelBtn.addEventListener("click", closeOverlayPanel);
+          input == null ? void 0 : input.addEventListener("keydown", (e2) => {
+            if (e2.key === "Enter") doCreate();
+            if (e2.key === "Escape") closeOverlayPanel();
+          });
+        }, 50);
+      });
+    }
+    loadRemoteFileList();
+    function clearActivePoll() {
+      if (activePollTimer) {
+        clearTimeout(activePollTimer);
+        activePollTimer = null;
+      }
+    }
+    function showStatus(msg, type = "info") {
+      if (!statusEl) return;
+      statusEl.style.display = "block";
+      const colors = {
+        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+      };
+      const c = colors[type] || colors.info;
+      statusEl.style.background = c.bg;
+      statusEl.style.border = `1px solid ${c.border}`;
+      statusEl.style.color = c.text;
+      statusEl.textContent = msg;
+    }
+    function showResult(html) {
+      if (!resultEl) return;
+      resultEl.style.display = "block";
+      resultEl.innerHTML = html;
+    }
+    function hideResult() {
+      if (!resultEl) return;
+      resultEl.style.display = "none";
+      resultEl.innerHTML = "";
+    }
+    function formatError(err) {
+      var _a2, _b2, _c2, _d2;
+      if (err.name === "AbortError" || ((_a2 = err.message) == null ? void 0 : _a2.includes("aborted"))) {
+        return "\u8BF7\u6C42\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u540E\u7AEF\u662F\u5426\u6B63\u5E38\u8FD0\u884C\u6216\u7F51\u7EDC\u8FDE\u63A5";
+      }
+      if ((_b2 = err.message) == null ? void 0 : _b2.includes("Failed to fetch")) {
+        return "\u65E0\u6CD5\u8FDE\u63A5\u5230 OpenViking \u540E\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E";
+      }
+      if (((_c2 = err.message) == null ? void 0 : _c2.includes("401")) || ((_d2 = err.message) == null ? void 0 : _d2.includes("403"))) {
+        return "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728 EchoMem \u4E3B\u9875\u7684\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key";
+      }
+      return err.message;
+    }
+    async function pollResourceStatus(resourceUri, fileName, sharedClient = null, attempt = 0, maxAttempts = 120) {
+      if (attempt >= maxAttempts) {
+        showStatus(`\u23F3 \u300C${fileName}\u300D\u5DF2\u63D0\u4EA4\u540E\u53F0\u5904\u7406\uFF0C\u8BF7\u5230\u300C\u67E5\u770B\u8D44\u6E90\u300D\u9875\u9762\u67E5\u770B\u8FDB\u5EA6`, "info");
+        showResult(`
+        <div style="padding: 12px; background: #f0f7ff; border: 1px solid #c7d8f5; border-radius: 8px; font-size: 13px; color: #333;">
+          <p style="margin-bottom: 6px;">\u{1F4C4} <strong>${fileName}</strong></p>
+          <p style="color: #667eea; margin: 0;">\u6B63\u5728\u540E\u53F0\u5904\u7406\u4E2D\uFF0C\u8BF7\u7A0D\u540E\u5230\u300C\u67E5\u770B\u8D44\u6E90\u300D\u9875\u9762\u67E5\u770B\u7ED3\u679C</p>
+        </div>
+      `);
+        return;
+      }
+      try {
+        const client2 = sharedClient || createClient(await getOpenVikingConfig());
+        const abstract = await client2.contentAbstract(resourceUri);
+        const isNotReady = typeof abstract === "string" && abstract.includes("not ready");
+        console.log("[EchoMem] poll abstract", attempt, isNotReady, abstract == null ? void 0 : abstract.slice(0, 60));
+        if (!isNotReady) {
+          showStatus(`\u2705 \u300C${fileName}\u300D\u5904\u7406\u5B8C\u6210`, "success");
+          return;
+        }
+        showStatus(`\u23F3 \u300C${fileName}\u300D\u6B63\u5728\u5904\u7406\u4E2D\uFF08\u7B2C ${attempt + 1} \u6B21\u68C0\u67E5\uFF09...`, "info");
+        activePollTimer = setTimeout(() => {
+          pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
+        }, 5e3);
+      } catch (err) {
+        console.warn("[EchoMem] poll failed", err);
+        const msg = err.message || "";
+        if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("API Key")) {
+          showStatus("\u274C \u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key", "error");
+          showResult(`
+          <div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; color: #b91c1c;">
+            <p style="margin-bottom: 6px;">\u274C \u8BA4\u8BC1\u5931\u8D25</p>
+            <p style="margin: 0;">\u8F6E\u8BE2\u8FC7\u7A0B\u4E2D API Key \u9A8C\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5230 EchoMem \u4E3B\u9875\u7684\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5\u5E76\u91CD\u65B0\u4FDD\u5B58\u914D\u7F6E\u3002</p>
+          </div>
+        `);
+          return;
+        }
+        if (msg.includes("404") || msg.includes("not found") || msg.includes("Not Found")) {
+          showStatus(`\u23F3 \u300C${fileName}\u300D\u6B63\u5728\u5904\u7406\u4E2D\uFF08\u7B2C ${attempt + 1} \u6B21\u68C0\u67E5\uFF09...`, "info");
+          activePollTimer = setTimeout(() => {
+            pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
+          }, 5e3);
+          return;
+        }
+        activePollTimer = setTimeout(() => {
+          pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
+        }, 5e3);
+      }
+    }
+    async function doUpload(file) {
+      clearActivePoll();
+      hideResult();
+      showStatus("\u6B63\u5728\u4E0A\u4F20...", "info");
+      try {
+        const config = await getOpenVikingConfig();
+        const client2 = createClient(config);
+        const uploadResult = await client2.tempUpload(file);
+        const tempFileId = uploadResult == null ? void 0 : uploadResult.temp_file_id;
+        if (!tempFileId) throw new Error("\u4E0A\u4F20\u5931\u8D25\uFF1A\u672A\u8FD4\u56DE\u4E34\u65F6\u6587\u4EF6 ID");
+        showStatus("\u6587\u4EF6\u5DF2\u4E0A\u4F20\uFF0C\u6B63\u5728\u63D0\u4EA4\u5904\u7406...", "info");
+        const addResult = await client2.addResource({
+          tempFileId,
+          parent: currentDirUri,
+          wait: false,
+          sourceName: file.name,
+          keepOriginal: true
+        });
+        const resourceUri = (addResult == null ? void 0 : addResult.root_uri) || `${currentDirUri}${file.name}`;
+        showStatus(`\u2705 \u300C${file.name}\u300D\u5DF2\u63D0\u4EA4\uFF0C\u5F00\u59CB\u8F6E\u8BE2\u5904\u7406\u72B6\u6001...`, "success");
+        await loadRemoteFileList();
+        pollResourceStatus(resourceUri, file.name);
+      } catch (err) {
+        showStatus(`\u274C \u4E0A\u4F20\u5931\u8D25: ${formatError(err)}`, "error");
+      }
+    }
+    dropzone.addEventListener("click", (e2) => {
+      if (e2.target !== fileInput) {
+        fileInput.click();
+      }
+    });
+    fileInput.addEventListener("change", () => {
+      var _a2;
+      const file = (_a2 = fileInput.files) == null ? void 0 : _a2[0];
+      if (file) doUpload(file);
+      fileInput.value = "";
+    });
+    dropzone.addEventListener("dragover", (e2) => {
+      e2.preventDefault();
+      dropzone.style.borderColor = "#2563eb";
+      dropzone.style.background = "#f0f7ff";
+    });
+    dropzone.addEventListener("dragleave", (e2) => {
+      e2.preventDefault();
+      dropzone.style.borderColor = "#ccc";
+      dropzone.style.background = "#fafafa";
+    });
+    dropzone.addEventListener("drop", (e2) => {
+      var _a2, _b2;
+      e2.preventDefault();
+      dropzone.style.borderColor = "#ccc";
+      dropzone.style.background = "#fafafa";
+      const file = (_b2 = (_a2 = e2.dataTransfer) == null ? void 0 : _a2.files) == null ? void 0 : _b2[0];
+      if (file) doUpload(file);
+    });
   }
 
   // src/panels/association/index.js
@@ -40301,7 +41185,7 @@
       id: "resources",
       title: "\u8D44\u6E90\u7BA1\u7406",
       description: "\u7BA1\u7406\u6587\u4EF6\u8D44\u6E90\u4E0E\u4E0A\u4F20\u5185\u5BB9",
-      render: getResourceHomeContent
+      render: getResourceImportContent
     },
     association: {
       id: "association",
@@ -40445,427 +41329,63 @@
   `;
   }
 
-  // src/services/openviking-client.js
-  var DEFAULT_CONFIG = {
-    baseUrl: "http://127.0.0.1:1933",
-    apiKey: "",
-    agentId: "echomem-extension",
-    authEnabled: false,
-    accountId: "default",
-    userId: "default",
-    timeoutMs: 5e3
-  };
-  var OpenVikingClient = class {
-    constructor(config = {}) {
-      this.cfg = { ...DEFAULT_CONFIG, ...config };
-    }
-    _buildHeaders() {
-      const headers = this._buildAuthHeaders();
-      headers["Content-Type"] = "application/json";
-      return headers;
-    }
-    _buildAuthHeaders() {
-      const headers = {};
-      if (this.cfg.agentId) {
-        headers["X-OpenViking-Agent"] = this.cfg.agentId;
+  // src/panels/resource/index.js
+  function getResourceHomeContent() {
+    const sections = [
+      {
+        id: "import",
+        title: "\u2B06\uFE0F \u8D44\u6E90\u5BFC\u5165",
+        desc: "\u4E0A\u4F20\u672C\u5730\u6587\u4EF6\u6216\u901A\u8FC7 URL \u6DFB\u52A0\u8D44\u6E90",
+        color: "#2563eb"
+      },
+      {
+        id: "manage",
+        title: "\u{1F4CB} \u67E5\u770B\u8D44\u6E90",
+        desc: "\u6D4F\u89C8\u3001\u9884\u89C8\u548C\u5220\u9664\u5DF2\u5BFC\u5165\u7684\u8D44\u6E90",
+        color: "#059669"
       }
-      if (this.cfg.authEnabled) {
-        if (this.cfg.apiKey) {
-          headers["X-API-Key"] = this.cfg.apiKey;
-        }
-        if (this.cfg.accountId) {
-          headers["X-OpenViking-Account"] = this.cfg.accountId;
-        }
-        if (this.cfg.userId) {
-          headers["X-OpenViking-User"] = this.cfg.userId;
-        }
-      }
-      return headers;
-    }
-    async find(query, options = {}) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/search/find`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            query,
-            target_uri: options.targetUri || "viking://user/memories",
-            limit: options.limit || 5,
-            score_threshold: options.scoreThreshold || 0
-          }),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async healthCheck() {
-      const headers = this._buildAuthHeaders();
-      const response = await fetch(`${this.cfg.baseUrl}/health`, {
-        method: "GET",
-        headers
-      });
-      return response.ok;
-    }
-    async createSession(sessionId = null) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const body = {};
-        if (sessionId) {
-          body.session_id = sessionId;
-        }
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async addMessage(sessionId, message) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const response = await fetch(
-          `${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              role: message.role,
-              content: message.text
-            }),
-            signal: controller.signal
-          }
-        );
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async appendMessages(sessionId, messages) {
-      const results = [];
-      for (const msg of messages) {
-        const result = await this.addMessage(sessionId, msg);
-        results.push(result);
-      }
-      return results;
-    }
-    async commitSession(sessionId) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/commit`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ wait: true }),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    // ── Resource Management ──
-    async tempUpload(file) {
-      var _a2;
-      const controller = new AbortController();
-      const uploadTimeoutMs = this.cfg.uploadTimeoutMs || 12e4;
-      const timer = setTimeout(() => controller.abort(), uploadTimeoutMs);
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("telemetry", "false");
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/resources/temp_upload`, {
-          method: "POST",
-          headers,
-          body: formData,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async addResource(options = {}) {
-      var _a2;
-      const controller = new AbortController();
-      const resourceTimeoutMs = this.cfg.resourceTimeoutMs || 3e5;
-      const timer = setTimeout(() => controller.abort(), resourceTimeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/resources`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            path: options.path || void 0,
-            temp_file_id: options.tempFileId || void 0,
-            to: options.to || void 0,
-            parent: options.parent || void 0,
-            reason: options.reason || "EchoMem extension upload",
-            instruction: options.instruction || "",
-            wait: options.wait ?? true,
-            timeout: options.timeout || void 0,
-            strict: options.strict ?? false,
-            source_name: options.sourceName || void 0
-          }),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    // ── Filesystem ──
-    async fsLs(uri, options = {}) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        if (options.simple) params.set("simple", "true");
-        if (options.recursive) params.set("recursive", "true");
-        if (options.output) params.set("output", options.output);
-        if (options.absLimit) params.set("abs_limit", String(options.absLimit));
-        if (options.showAllHidden) params.set("show_all_hidden", "true");
-        if (options.nodeLimit) params.set("node_limit", String(options.nodeLimit));
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/ls?${params.toString()}`, {
-          method: "GET",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async fsStat(uri) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/stat?${params.toString()}`, {
-          method: "GET",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async fsMkdir(uri, description = "") {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/mkdir`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ uri, description }),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async fsRm(uri, recursive = false) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        if (recursive) params.set("recursive", "true");
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs?${params.toString()}`, {
-          method: "DELETE",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    // ── Content ──
-    async contentRead(uri, options = {}) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        if (options.offset !== void 0) params.set("offset", String(options.offset));
-        if (options.limit !== void 0) params.set("limit", String(options.limit));
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/read?${params.toString()}`, {
-          method: "GET",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async contentOverview(uri) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/overview?${params.toString()}`, {
-          method: "GET",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async contentAbstract(uri) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/abstract?${params.toString()}`, {
-          method: "GET",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-  };
-  function createClient(config) {
-    return new OpenVikingClient(config);
+    ];
+    const cards = sections.map((s) => `
+    <div class="claw-resource-section" data-resource-section="${s.id}" style="
+      padding: 16px;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    " onmouseenter="this.style.borderColor='${s.color}';this.style.background='#fafafa';this.style.transform='translateX(4px)'"
+       onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='none';this.style.transform='none'"
+    >
+      <div style="
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: ${s.color}15;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
+      ">${s.title.split(" ")[0]}</div>
+      <div style="flex: 1;">
+        <p style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 2px;">${s.title.split(" ").slice(1).join(" ")}</p>
+        <p style="font-size: 12px; color: #888;">${s.desc}</p>
+      </div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    </div>
+  `).join("");
+    return `
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      ${cards}
+    </div>
+  `;
   }
 
-  // src/core/content-injector.js
-  function findInputElement() {
-    var _a2, _b2, _c2;
-    const platform2 = getCurrentPlatform();
-    if (!platform2) return null;
-    const selector = (_c2 = (_b2 = (_a2 = platform2.config) == null ? void 0 : _a2.launcher) == null ? void 0 : _b2.validateSelectors) == null ? void 0 : _c2.textarea;
-    if (!selector) return null;
-    return document.querySelector(selector);
-  }
-  var MEM_TAG_OPEN = "<relevant-memories>";
-  var MEM_TAG_CLOSE = "</relevant-memories>";
-  function stripMemoryBlock(text) {
-    const start3 = text.indexOf(MEM_TAG_OPEN);
-    if (start3 === -1) return text.trim();
-    const end2 = text.indexOf(MEM_TAG_CLOSE, start3);
-    if (end2 === -1) return text.trim();
-    return (text.slice(0, start3) + text.slice(end2 + MEM_TAG_CLOSE.length)).trim();
-  }
-  function injectContent(content, options = {}) {
-    const textarea = findInputElement();
-    if (!textarea) {
-      console.warn("EchoMem: \u672A\u627E\u5230\u8F93\u5165\u6846\uFF0C\u65E0\u6CD5\u6CE8\u5165\u5185\u5BB9");
-      return false;
-    }
-    const existing = textarea.value || "";
-    let base2 = options.replace ? stripMemoryBlock(existing) : existing;
-    const cleanContent = content.replace(new RegExp(MEM_TAG_OPEN, "g"), "").replace(new RegExp(MEM_TAG_CLOSE, "g"), "").trim();
-    if (!cleanContent) return false;
-    const block = `${MEM_TAG_OPEN}
-${cleanContent}
-${MEM_TAG_CLOSE}`;
-    const next = base2 ? `${base2}
-
-${block}` : block;
-    textarea.value = next;
-    try {
-      textarea.selectionStart = textarea.selectionEnd = next.length;
-    } catch (_) {
-    }
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    if (options.focus !== false) {
-      textarea.focus();
-    }
-    return true;
-  }
-
-  // src/panels/resource/import.js
+  // src/panels/resource/manage.js
   function getPlatformKey() {
     const platform2 = getCurrentPlatform();
     return (platform2 == null ? void 0 : platform2.key) || "unknown";
@@ -40879,303 +41399,6 @@ ${block}` : block;
   function getResourceDirUri() {
     const platform2 = getPlatformKey();
     const month = getCurrentMonthDir();
-    return `viking://resources/${platform2}/${month}`;
-  }
-  function getResourceImportContent() {
-    return `
-    <div style="display: flex; flex-direction: column; gap: 16px; color: #333;">
-      <!-- \u672C\u5730\u6587\u4EF6\u4E0A\u4F20 -->
-      <div>
-        <p style="font-weight: 600; font-size: 14px; margin-bottom: 10px;">\u{1F4C1} \u672C\u5730\u6587\u4EF6\u4E0A\u4F20</p>
-        <div id="claw-resource-dropzone" style="
-          border: 2px dashed #ccc;
-          border-radius: 10px;
-          padding: 32px 20px;
-          text-align: center;
-          cursor: pointer;
-          transition: all 0.2s;
-          background: #fafafa;
-        " onmouseenter="this.style.borderColor='#2563eb';this.style.background='#f0f7ff'"
-           onmouseleave="this.style.borderColor='#ccc';this.style.background='#fafafa'">
-          <p style="font-size: 28px; margin-bottom: 8px;">\u{1F4E4}</p>
-          <p style="font-size: 14px; font-weight: 500; margin-bottom: 4px;">\u70B9\u51FB\u6216\u62D6\u62FD\u6587\u4EF6\u5230\u6B64\u5904</p>
-          <p style="font-size: 12px; color: #888;">\u652F\u6301 PDF, DOC, TXT, MD \u7B49\u683C\u5F0F</p>
-          <input type="file" id="claw-resource-file-input" style="display: none;" />
-        </div>
-      </div>
-
-      <!-- URL \u4E0A\u4F20 -->
-      <div>
-        <p style="font-weight: 600; font-size: 14px; margin-bottom: 10px;">\u{1F310} \u901A\u8FC7 URL \u6DFB\u52A0</p>
-        <div style="display: flex; gap: 8px;">
-          <input type="text" id="claw-resource-url-input" placeholder="\u8F93\u5165\u8D44\u6E90 URL\uFF08HTTP/HTTPS\uFF09" style="
-            flex: 1;
-            padding: 10px 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 13px;
-            outline: none;
-          " />
-          <button id="claw-resource-url-btn" style="
-            padding: 10px 16px;
-            background: #2563eb;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 13px;
-            cursor: pointer;
-            white-space: nowrap;
-          ">\u6DFB\u52A0</button>
-        </div>
-      </div>
-
-      <!-- \u72B6\u6001\u63D0\u793A -->
-      <div id="claw-resource-import-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
-
-      <!-- \u5904\u7406\u7ED3\u679C\u533A -->
-      <div id="claw-resource-import-result" style="display: none;"></div>
-    </div>
-  `;
-  }
-  var activePollTimer = null;
-  async function initImportPanel(bodyElement) {
-    if (!bodyElement) return;
-    const dropzone = bodyElement.querySelector("#claw-resource-dropzone");
-    const fileInput = bodyElement.querySelector("#claw-resource-file-input");
-    const urlInput = bodyElement.querySelector("#claw-resource-url-input");
-    const urlBtn = bodyElement.querySelector("#claw-resource-url-btn");
-    const statusEl = bodyElement.querySelector("#claw-resource-import-status");
-    const resultEl = bodyElement.querySelector("#claw-resource-import-result");
-    if (!dropzone || !fileInput) return;
-    function clearActivePoll() {
-      if (activePollTimer) {
-        clearTimeout(activePollTimer);
-        activePollTimer = null;
-      }
-    }
-    function showStatus(msg, type = "info") {
-      if (!statusEl) return;
-      statusEl.style.display = "block";
-      const colors = {
-        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
-        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
-        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
-      };
-      const c = colors[type] || colors.info;
-      statusEl.style.background = c.bg;
-      statusEl.style.border = `1px solid ${c.border}`;
-      statusEl.style.color = c.text;
-      statusEl.textContent = msg;
-    }
-    function showResult(html) {
-      if (!resultEl) return;
-      resultEl.style.display = "block";
-      resultEl.innerHTML = html;
-    }
-    function hideResult() {
-      if (!resultEl) return;
-      resultEl.style.display = "none";
-      resultEl.innerHTML = "";
-    }
-    function formatError(err) {
-      var _a2, _b2, _c2, _d2;
-      if (err.name === "AbortError" || ((_a2 = err.message) == null ? void 0 : _a2.includes("aborted"))) {
-        return "\u8BF7\u6C42\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u540E\u7AEF\u662F\u5426\u6B63\u5E38\u8FD0\u884C\u6216\u7F51\u7EDC\u8FDE\u63A5";
-      }
-      if ((_b2 = err.message) == null ? void 0 : _b2.includes("Failed to fetch")) {
-        return "\u65E0\u6CD5\u8FDE\u63A5\u5230 OpenViking \u540E\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E";
-      }
-      if (((_c2 = err.message) == null ? void 0 : _c2.includes("401")) || ((_d2 = err.message) == null ? void 0 : _d2.includes("403"))) {
-        return "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728 EchoMem \u4E3B\u9875\u7684\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key";
-      }
-      return err.message;
-    }
-    async function pollResourceStatus(resourceUri, fileName, sharedClient = null, attempt = 0, maxAttempts = 120) {
-      if (attempt >= maxAttempts) {
-        showStatus(`\u23F3 \u300C${fileName}\u300D\u5DF2\u63D0\u4EA4\u540E\u53F0\u5904\u7406\uFF0C\u8BF7\u5230\u300C\u67E5\u770B\u8D44\u6E90\u300D\u9875\u9762\u67E5\u770B\u8FDB\u5EA6`, "info");
-        showResult(`
-        <div style="padding: 12px; background: #f0f7ff; border: 1px solid #c7d8f5; border-radius: 8px; font-size: 13px; color: #333;">
-          <p style="margin-bottom: 6px;">\u{1F4C4} <strong>${fileName}</strong></p>
-          <p style="color: #667eea; margin: 0;">\u6B63\u5728\u540E\u53F0\u5904\u7406\u4E2D\uFF0C\u8BF7\u7A0D\u540E\u5230\u300C\u67E5\u770B\u8D44\u6E90\u300D\u9875\u9762\u67E5\u770B\u7ED3\u679C</p>
-        </div>
-      `);
-        return;
-      }
-      try {
-        const client2 = sharedClient || createClient(await getOpenVikingConfig());
-        const abstract = await client2.contentAbstract(resourceUri);
-        const isNotReady = typeof abstract === "string" && abstract.includes("not ready");
-        console.log("[EchoMem] poll abstract", attempt, isNotReady, abstract == null ? void 0 : abstract.slice(0, 60));
-        if (!isNotReady) {
-          showStatus(`\u2705 \u300C${fileName}\u300D\u5904\u7406\u5B8C\u6210`, "success");
-          showResult(`
-          <div style="padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
-            <p style="font-size: 13px; color: #15803d; margin-bottom: 10px;">\u2705 \u300C${fileName}\u300D\u5DF2\u5904\u7406\u5B8C\u6210</p>
-            <div style="display: flex; gap: 8px;">
-              <button id="claw-result-save-only" style="flex: 1; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; cursor: pointer;">\u4EC5\u4FDD\u5B58</button>
-              <button id="claw-result-insert" style="flex: 1; padding: 8px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">\u63D2\u5165\u5BF9\u8BDD</button>
-            </div>
-          </div>
-        `);
-          const saveBtn = resultEl.querySelector("#claw-result-save-only");
-          const insertBtn = resultEl.querySelector("#claw-result-insert");
-          saveBtn == null ? void 0 : saveBtn.addEventListener("click", hideResult);
-          insertBtn == null ? void 0 : insertBtn.addEventListener("click", async () => {
-            insertBtn.textContent = "\u63D2\u5165\u4E2D...";
-            try {
-              const contentResult = await client2.contentOverview(resourceUri);
-              const text = typeof contentResult === "string" ? contentResult : JSON.stringify(contentResult, null, 2);
-              injectContent(text, { replace: false });
-              hideResult();
-            } catch (err) {
-              alert(`\u63D2\u5165\u5931\u8D25: ${err.message}`);
-              insertBtn.textContent = "\u63D2\u5165\u5BF9\u8BDD";
-            }
-          });
-          return;
-        }
-        showStatus(`\u23F3 \u300C${fileName}\u300D\u6B63\u5728\u5904\u7406\u4E2D\uFF08\u7B2C ${attempt + 1} \u6B21\u68C0\u67E5\uFF09...`, "info");
-        activePollTimer = setTimeout(() => {
-          pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
-        }, 5e3);
-      } catch (err) {
-        console.warn("[EchoMem] poll failed", err);
-        const msg = err.message || "";
-        if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("API Key")) {
-          showStatus("\u274C \u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key", "error");
-          showResult(`
-          <div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; color: #b91c1c;">
-            <p style="margin-bottom: 6px;">\u274C \u8BA4\u8BC1\u5931\u8D25</p>
-            <p style="margin: 0;">\u8F6E\u8BE2\u8FC7\u7A0B\u4E2D API Key \u9A8C\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5230 EchoMem \u4E3B\u9875\u7684\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5\u5E76\u91CD\u65B0\u4FDD\u5B58\u914D\u7F6E\u3002</p>
-          </div>
-        `);
-          return;
-        }
-        if (msg.includes("404") || msg.includes("not found") || msg.includes("Not Found")) {
-          showStatus(`\u23F3 \u300C${fileName}\u300D\u6B63\u5728\u5904\u7406\u4E2D\uFF08\u7B2C ${attempt + 1} \u6B21\u68C0\u67E5\uFF09...`, "info");
-          activePollTimer = setTimeout(() => {
-            pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
-          }, 5e3);
-          return;
-        }
-        activePollTimer = setTimeout(() => {
-          pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
-        }, 5e3);
-      }
-    }
-    async function doUpload(file) {
-      var _a2;
-      clearActivePoll();
-      hideResult();
-      showStatus("\u6B63\u5728\u4E0A\u4F20...", "info");
-      try {
-        const config = await getOpenVikingConfig();
-        const client2 = createClient(config);
-        const uploadResult = await client2.tempUpload(file);
-        const tempFileId = uploadResult == null ? void 0 : uploadResult.temp_file_id;
-        if (!tempFileId) throw new Error("\u4E0A\u4F20\u5931\u8D25\uFF1A\u672A\u8FD4\u56DE\u4E34\u65F6\u6587\u4EF6 ID");
-        const parentUri = getResourceDirUri();
-        try {
-          await client2.fsMkdir(parentUri, `Resources for ${getPlatformKey()}`);
-        } catch (mkdirErr) {
-          if (!((_a2 = mkdirErr.message) == null ? void 0 : _a2.toLowerCase().includes("exist"))) {
-            console.warn("EchoMem: mkdir warning", mkdirErr.message);
-          }
-        }
-        showStatus("\u6587\u4EF6\u5DF2\u4E0A\u4F20\uFF0C\u6B63\u5728\u63D0\u4EA4\u5904\u7406...", "info");
-        const addResult = await client2.addResource({
-          tempFileId,
-          parent: parentUri,
-          wait: false,
-          sourceName: file.name
-        });
-        const resourceUri = (addResult == null ? void 0 : addResult.root_uri) || `${parentUri}/${file.name}`;
-        showStatus(`\u2705 \u300C${file.name}\u300D\u5DF2\u63D0\u4EA4\uFF0C\u5F00\u59CB\u8F6E\u8BE2\u5904\u7406\u72B6\u6001...`, "success");
-        pollResourceStatus(resourceUri, file.name);
-      } catch (err) {
-        showStatus(`\u274C \u4E0A\u4F20\u5931\u8D25: ${formatError(err)}`, "error");
-      }
-    }
-    async function doUrlAdd(url) {
-      var _a2;
-      if (!url.trim()) return;
-      clearActivePoll();
-      hideResult();
-      showStatus("\u6B63\u5728\u6DFB\u52A0 URL \u8D44\u6E90...", "info");
-      try {
-        const config = await getOpenVikingConfig();
-        const client2 = createClient(config);
-        const parentUri = getResourceDirUri();
-        try {
-          await client2.fsMkdir(parentUri, `Resources for ${getPlatformKey()}`);
-        } catch (mkdirErr) {
-          if (!((_a2 = mkdirErr.message) == null ? void 0 : _a2.toLowerCase().includes("exist"))) {
-            console.warn("EchoMem: mkdir warning", mkdirErr.message);
-          }
-        }
-        const addResult = await client2.addResource({
-          path: url.trim(),
-          parent: parentUri,
-          wait: false
-        });
-        const resourceUri = (addResult == null ? void 0 : addResult.root_uri) || `${parentUri}/${url.split("/").pop() || "resource"}`;
-        showStatus(`\u2705 URL \u8D44\u6E90\u5DF2\u63D0\u4EA4\uFF0C\u5F00\u59CB\u8F6E\u8BE2\u5904\u7406\u72B6\u6001...`, "success");
-        pollResourceStatus(resourceUri, url.split("/").pop() || "resource");
-      } catch (err) {
-        showStatus(`\u274C \u6DFB\u52A0\u5931\u8D25: ${formatError(err)}`, "error");
-      }
-    }
-    dropzone.addEventListener("click", (e2) => {
-      if (e2.target !== fileInput) {
-        fileInput.click();
-      }
-    });
-    fileInput.addEventListener("change", () => {
-      var _a2;
-      const file = (_a2 = fileInput.files) == null ? void 0 : _a2[0];
-      if (file) doUpload(file);
-      fileInput.value = "";
-    });
-    dropzone.addEventListener("dragover", (e2) => {
-      e2.preventDefault();
-      dropzone.style.borderColor = "#2563eb";
-      dropzone.style.background = "#f0f7ff";
-    });
-    dropzone.addEventListener("dragleave", (e2) => {
-      e2.preventDefault();
-      dropzone.style.borderColor = "#ccc";
-      dropzone.style.background = "#fafafa";
-    });
-    dropzone.addEventListener("drop", (e2) => {
-      var _a2, _b2;
-      e2.preventDefault();
-      dropzone.style.borderColor = "#ccc";
-      dropzone.style.background = "#fafafa";
-      const file = (_b2 = (_a2 = e2.dataTransfer) == null ? void 0 : _a2.files) == null ? void 0 : _b2[0];
-      if (file) doUpload(file);
-    });
-    urlBtn == null ? void 0 : urlBtn.addEventListener("click", () => {
-      doUrlAdd((urlInput == null ? void 0 : urlInput.value) || "");
-    });
-    urlInput == null ? void 0 : urlInput.addEventListener("keydown", (e2) => {
-      if (e2.key === "Enter") doUrlAdd((urlInput == null ? void 0 : urlInput.value) || "");
-    });
-  }
-
-  // src/panels/resource/manage.js
-  function getPlatformKey2() {
-    const platform2 = getCurrentPlatform();
-    return (platform2 == null ? void 0 : platform2.key) || "unknown";
-  }
-  function getCurrentMonthDir2() {
-    const now = /* @__PURE__ */ new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    return `${year}-${month}`;
-  }
-  function getResourceDirUri2() {
-    const platform2 = getPlatformKey2();
-    const month = getCurrentMonthDir2();
     return `viking://resources/${platform2}/${month}`;
   }
   function getResourceManageContent() {
@@ -41271,9 +41494,9 @@ ${block}` : block;
     try {
       const config = await getOpenVikingConfig();
       const client2 = createClient(config);
-      const dirUri = getResourceDirUri2();
+      const dirUri = getResourceDirUri();
       try {
-        await client2.fsMkdir(dirUri, `Resources for ${getPlatformKey2()}`);
+        await client2.fsMkdir(dirUri, `Resources for ${getPlatformKey()}`);
       } catch (mkdirErr) {
         if (!((_a2 = mkdirErr.message) == null ? void 0 : _a2.toLowerCase().includes("exist"))) {
           console.warn("EchoMem: mkdir warning", mkdirErr.message);
@@ -41506,7 +41729,7 @@ ${block}` : block;
       <div style="text-align: center; padding: 40px 20px; color: #b91c1c; background: #fef2f2; border-radius: 8px;">
         <p style="font-size: 14px; margin-bottom: 6px;">\u274C \u52A0\u8F7D\u5931\u8D25</p>
         <p style="font-size: 12px;">${err.message}</p>
-        <p style="font-size: 11px; color: #888; margin-top: 8px;">\u76EE\u5F55: ${getResourceDirUri2()}</p>
+        <p style="font-size: 11px; color: #888; margin-top: 8px;">\u76EE\u5F55: ${getResourceDirUri()}</p>
       </div>
     `;
     }
@@ -42512,6 +42735,10 @@ ${MEM_TAG_CLOSE2}`;
     if (panel.id === "association") {
       await loadConfigValues();
       bindConfigUI();
+    }
+    if (panel.id === "resources") {
+      const body = getPanelBodyElement();
+      initImportPanel(body);
     }
   }
   function navigateToSkillSection(sectionId) {

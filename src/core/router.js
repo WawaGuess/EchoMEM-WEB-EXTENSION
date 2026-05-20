@@ -109,6 +109,11 @@ export async function navigateToEchoMemPanel(panelIdOrTitle) {
     await loadConfigValues();
     bindConfigUI();
   }
+
+  if (panel.id === 'resources') {
+    const body = getPanelBodyElement();
+    initImportPanel(body);
+  }
 }
 
 export function navigateToSkillSection(sectionId) {
