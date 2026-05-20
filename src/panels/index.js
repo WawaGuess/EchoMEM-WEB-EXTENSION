@@ -16,7 +16,11 @@ import {
 } from './echomem/config.js';
 import { getInputAssociationContent } from './association/index.js';
 import { getFeedbackContent, getGraphOverlayContent } from './feedback/index.js';
-import { getPerformanceContent } from './performance/index.js';
+import {
+  getPerformanceContent,
+  fetchPerformanceData,
+  initPerformancePanel
+} from './performance/index.js';
 import {
   getSkillStoreHomeContent,
   getSkillHistoryContent,
@@ -33,6 +37,8 @@ export {
   resolvePanelId,
   getEchoMemHomeContent,
   getPerformanceContent,
+  fetchPerformanceData,
+  initPerformancePanel,
   getResourceHomeContent,
   getResourceImportContent,
   getResourceManageContent,

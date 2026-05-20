@@ -40773,49 +40773,120 @@ ${block}` : block;
   }
 
   // src/panels/performance/index.js
+  var FMT = (n) => n.toLocaleString("zh-CN");
+  function skeletonValue(width = "60px") {
+    return `<span class="perf-skeleton" style="
+    display: inline-block;
+    width: ${width}; height: 20px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    animation: perf-skeleton-pulse 1.5s ease-in-out infinite;
+  "></span>`;
+  }
   function getPerformanceContent() {
-    const metrics = [
-      { label: "\u4ECA\u65E5\u4F1A\u8BDD", value: "0" },
-      { label: "Skill \u4F7F\u7528", value: "0" },
-      { label: "\u8054\u60F3\u89E6\u53D1", value: "0" },
-      { label: "\u8D44\u6E90\u5F15\u7528", value: "0" },
-      { label: "\u53CD\u9988\u62A5\u544A", value: "0" }
-    ];
-    const metricCards = metrics.map((metric) => `
-    <div style="
-      padding: 14px;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      background: #f9fafb;
-    ">
-      <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">${metric.label}</p>
-      <p style="margin: 0; font-size: 22px; font-weight: 700; color: #111827;">${metric.value}</p>
-    </div>
-  `).join("");
     return `
-    <div style="color: #374151;">
-      <p style="margin: 0 0 14px; font-size: 13px; color: #6b7280; line-height: 1.6;">
-        \u5F53\u524D\u4E3A\u6548\u80FD\u6982\u89C8\u5360\u4F4D\uFF0C\u540E\u7EED\u53EF\u63A5\u5165\u771F\u5B9E\u4F1A\u8BDD\u3001Skill\u3001\u8054\u60F3\u3001\u8D44\u6E90\u5F15\u7528\u548C\u53CD\u9988\u62A5\u544A\u6570\u636E\u3002
-      </p>
+    <style>
+      @keyframes perf-skeleton-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+    </style>
+    <div id="perf-root" style="color: #374151; display: flex; flex-direction: column; gap: 12px;">
+      <!-- \u6838\u5FC3\u6307\u6807\uFF1A\u9884\u8BA1\u8282\u7701 -->
       <div style="
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-        margin-bottom: 16px;
+        padding: 18px 16px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+        border: 1px solid #a7f3d0;
+        text-align: center;
       ">
-        ${metricCards}
+        <div style="font-size: 12px; color: #059669; font-weight: 500; margin-bottom: 6px;">\u{1F4B0} \u9884\u8BA1\u8282\u7701 Token</div>
+        <div id="perf-saved" style="font-size: 32px; font-weight: 800; color: #047857; line-height: 1;">${skeletonValue("100px")}</div>
       </div>
-      <div style="
-        padding: 14px;
-        border: 1px solid #e5e7eb;
+
+      <!-- \u6210\u672C\u5BF9\u6BD4\uFF1A\u7528\u6237\u6D88\u8017 vs \u540E\u7AEF\u6D88\u8017 -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">\u7528\u6237\u4F1A\u8BDD\u6D88\u8017</p>
+          <p id="perf-user" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
+        </div>
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">EchoMem \u540E\u7AEF\u6D88\u8017</p>
+          <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
+        </div>
+      </div>
+
+      <!-- \u8282\u7701\u8BF4\u660E -->
+      <div id="perf-desc" style="
+        padding: 12px 14px;
         border-radius: 8px;
         background: #fff;
+        border: 1px solid #e5e7eb;
+        font-size: 12px;
+        color: #6b7280;
+        line-height: 1.6;
       ">
-        <p style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #111827;">\u6700\u8FD1\u72B6\u6001</p>
-        <p style="margin: 0; font-size: 13px; color: #9ca3af;">\u6682\u65E0\u6548\u80FD\u6570\u636E</p>
+        <span style="color: #059669; font-weight: 600;">\u6B63\u5728\u52A0\u8F7D\u6570\u636E\u2026</span>
       </div>
     </div>
   `;
+  }
+  async function fetchPerformanceData() {
+    return {
+      userTokens: 45280,
+      savedTokens: 12500,
+      backendTokens: 32780
+    };
+  }
+  function updatePerformanceDOM(bodyElement, data) {
+    if (!bodyElement) return;
+    const savedEl = bodyElement.querySelector("#perf-saved");
+    const userEl = bodyElement.querySelector("#perf-user");
+    const backendEl = bodyElement.querySelector("#perf-backend");
+    const descEl = bodyElement.querySelector("#perf-desc");
+    if (savedEl) savedEl.textContent = FMT(data.savedTokens ?? 0);
+    if (userEl) userEl.textContent = FMT(data.userTokens ?? 0);
+    if (backendEl) backendEl.textContent = FMT(data.backendTokens ?? 0);
+    if (descEl) {
+      descEl.innerHTML = `
+      <span style="color: #059669; font-weight: 600;">\u51C0\u8282\u7701\uFF1A</span>
+      EchoMem \u672C\u6B21\u5E2E\u4F60\u8282\u7701\u4E86 <strong style="color: #111827;">${FMT(data.savedTokens ?? 0)}</strong> tokens
+      \uFF08\u540E\u7AEF\u6D88\u8017 ${FMT(data.backendTokens ?? 0)} tokens \u5DF2\u8BA1\u5165\u6210\u672C\uFF09\u3002
+    `;
+    }
+  }
+  function initPerformancePanel(bodyElement, options = {}) {
+    let pollTimer = null;
+    let destroyed = false;
+    async function refresh() {
+      if (destroyed) return;
+      try {
+        const data = await fetchPerformanceData();
+        if (!destroyed) updatePerformanceDOM(bodyElement, data);
+      } catch (err) {
+        console.warn("EchoMem: performance data refresh failed", err);
+        const descEl = bodyElement == null ? void 0 : bodyElement.querySelector("#perf-desc");
+        if (descEl && !destroyed) {
+          descEl.innerHTML = `<span style="color: #dc2626;">\u6570\u636E\u52A0\u8F7D\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5</span>`;
+        }
+      }
+    }
+    refresh();
+    const { pollInterval } = options;
+    if (pollInterval && pollInterval > 0) {
+      pollTimer = setInterval(refresh, pollInterval);
+    }
+    return {
+      destroy() {
+        destroyed = true;
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      }
+    };
   }
 
   // src/panels/skill-store/index.js
@@ -42672,6 +42743,13 @@ ${MEM_TAG_CLOSE2}`;
   }
 
   // src/core/router.js
+  var perfPanelCleanup = null;
+  function cleanupPerformancePanel() {
+    if (perfPanelCleanup) {
+      perfPanelCleanup.destroy();
+      perfPanelCleanup = null;
+    }
+  }
   var skillStoreRoutes = {
     history: {
       title: "\u7528\u6237\u5386\u53F2 Skill",
@@ -42705,6 +42783,7 @@ ${MEM_TAG_CLOSE2}`;
     }
   };
   function openEchoMemHomePanel() {
+    cleanupPerformancePanel();
     setCurrentRoute({ type: "home" });
     openCustomPanel("EchoMem", getEchoMemHomeContent());
     const customPanel = document.querySelector(".claw-custom-panel");
@@ -42726,10 +42805,23 @@ ${MEM_TAG_CLOSE2}`;
         }
       });
     } else {
-      openCustomPanel(panel.title, getPanelContent(panel.id), {
-        showBack: true,
-        onBack: openEchoMemHomePanel
-      });
+      cleanupPerformancePanel();
+      if (panel.id === "performance") {
+        openCustomPanel(panel.title, getPerformanceContent(), {
+          showBack: true,
+          onBack: openEchoMemHomePanel
+        });
+        const body = getPanelBodyElement();
+        perfPanelCleanup = initPerformancePanel(body, {
+          pollInterval: 3e4
+          // 每 30 秒轮询一次，可按需调整
+        });
+      } else {
+        openCustomPanel(panel.title, getPanelContent(panel.id), {
+          showBack: true,
+          onBack: openEchoMemHomePanel
+        });
+      }
     }
     bindPanelNavigation();
     if (panel.id === "association") {

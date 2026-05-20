@@ -19,7 +19,10 @@ import {
   getSkillManageContent,
   getResourceHomeContent,
   getResourceImportContent,
-  getResourceManageContent
+  getResourceManageContent,
+  getPerformanceContent,
+  fetchPerformanceData,
+  initPerformancePanel
 } from '../panels/index.js';
 import { initImportPanel } from '../panels/resource/import.js';
 import { initManagePanel } from '../panels/resource/manage.js';
@@ -34,6 +37,16 @@ import {
   getInputAssociationContent,
   toggleInputAssociation
 } from '../panels/association/index.js';
+
+// 效能面板轮询清理句柄
+let perfPanelCleanup = null;
+
+function cleanupPerformancePanel() {
+  if (perfPanelCleanup) {
+    perfPanelCleanup.destroy();
+    perfPanelCleanup = null;
+  }
+}
 
 const skillStoreRoutes = {
   history: {
@@ -70,6 +83,7 @@ const resourceSubRoutes = {
 };
 
 export function openEchoMemHomePanel() {
+  cleanupPerformancePanel();
   setCurrentRoute({ type: 'home' });
   openCustomPanel('EchoMem', getEchoMemHomeContent());
   // 重置事件绑定标记，确保新渲染的面板可以重新绑定事件
@@ -96,10 +110,24 @@ export async function navigateToEchoMemPanel(panelIdOrTitle) {
       }
     });
   } else {
-    openCustomPanel(panel.title, getPanelContent(panel.id), {
-      showBack: true,
-      onBack: openEchoMemHomePanel
-    });
+    cleanupPerformancePanel();
+
+    if (panel.id === 'performance') {
+      // 先渲染骨架屏，再异步加载数据（支持轮询刷新）
+      openCustomPanel(panel.title, getPerformanceContent(), {
+        showBack: true,
+        onBack: openEchoMemHomePanel
+      });
+      const body = getPanelBodyElement();
+      perfPanelCleanup = initPerformancePanel(body, {
+        pollInterval: 30000 // 每 30 秒轮询一次，可按需调整
+      });
+    } else {
+      openCustomPanel(panel.title, getPanelContent(panel.id), {
+        showBack: true,
+        onBack: openEchoMemHomePanel
+      });
+    }
   }
 
   bindPanelNavigation();
