@@ -25,8 +25,6 @@ import {
   getSkillStoreHomeContent,
   getSkillHistoryContent,
   getSkillUploadContent,
-  getSkillPurchaseContent,
-  getSkillMerchantContent,
   getSkillManageContent
 } from './skill-store/index.js';
 
@@ -50,7 +48,5 @@ export {
   getSkillStoreHomeContent,
   getSkillHistoryContent,
   getSkillUploadContent,
-  getSkillPurchaseContent,
-  getSkillMerchantContent,
   getSkillManageContent
 };

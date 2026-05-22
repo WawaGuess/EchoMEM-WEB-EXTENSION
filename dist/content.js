@@ -40892,11 +40892,9 @@ ${block}` : block;
   // src/panels/skill-store/index.js
   function getSkillStoreHomeContent() {
     const sections = [
-      { id: "history", title: "\u{1F4DC} \u7528\u6237\u5386\u53F2 Skill", desc: "\u67E5\u770B\u548C\u7BA1\u7406\u4F60\u4F7F\u7528\u8FC7\u7684 Skill", color: "#667eea" },
-      { id: "upload", title: "\u2B06\uFE0F \u4E0A\u4F20 Skill \u5230\u5546\u5E97", desc: "\u4E0A\u4F20\u4F60\u7684\u81EA\u5B9A\u4E49 Skill \u5230\u5546\u5E97", color: "#42a5f5" },
-      { id: "purchase", title: "\u{1F6D2} \u5546\u5E97 Skill \u8D2D\u4E70", desc: "\u6D4F\u89C8\u548C\u8D2D\u4E70\u5546\u5E97\u4E2D\u7684 Skill", color: "#66bb6a" },
-      { id: "merchant", title: "\u{1F3EA} \u5546\u5BB6\u63D0\u4F9B\u7684 Skill", desc: "\u5B98\u65B9\u548C\u8BA4\u8BC1\u5546\u5BB6\u7684 Skill", color: "#ffa726" },
-      { id: "manage", title: "\u2699\uFE0F Skill \u5B89\u88C5\u7BA1\u7406", desc: "\u7BA1\u7406\u5DF2\u5B89\u88C5\u7684 Skill", color: "#ef5350" }
+      { id: "history", title: "\u{1F4DC} \u6211\u7684 Skill", desc: "\u67E5\u770B\u548C\u7BA1\u7406\u4F60\u4F7F\u7528\u8FC7\u7684 Skill", color: "#667eea" },
+      { id: "upload", title: "\u2B06\uFE0F \u4E0A\u4F20 Skill", desc: "\u4E0A\u4F20\u4F60\u7684\u81EA\u5B9A\u4E49 Skill", color: "#42a5f5" },
+      { id: "manage", title: "\u2699\uFE0F \u5B89\u88C5\u7BA1\u7406", desc: "\u7BA1\u7406\u5DF2\u5B89\u88C5\u7684 Skill", color: "#ef5350" }
     ];
     const cards = sections.map((s) => `
     <div class="claw-skill-section" data-section="${s.id}" style="
@@ -41010,154 +41008,26 @@ ${block}` : block;
         <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u4E0A\u4F20\u987B\u77E5</p>
         <ul style="font-size: 13px; color: #666; padding-left: 18px; line-height: 1.8;">
           <li>Skill \u6587\u4EF6\u9700\u5305\u542B\u5B8C\u6574\u7684\u914D\u7F6E\u4FE1\u606F</li>
-          <li>\u4E0A\u4F20\u540E\u9700\u8981\u7ECF\u8FC7\u5BA1\u6838\u624D\u80FD\u4E0A\u67B6</li>
+          <li>\u4E0A\u4F20\u540E\u76F4\u63A5\u5B89\u88C5\u5230\u672C\u5730\u4F7F\u7528</li>
           <li>\u7981\u6B62\u4E0A\u4F20\u5305\u542B\u6076\u610F\u4EE3\u7801\u7684 Skill</li>
-          <li>\u5BA1\u6838\u901A\u5E38\u9700\u8981 1-3 \u4E2A\u5DE5\u4F5C\u65E5</li>
+          <li>\u540C\u540D Skill \u4E0A\u4F20\u5C06\u8986\u76D6\u65E7\u7248\u672C</li>
         </ul>
       </div>
       <div>
-        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u6211\u7684\u4E0A\u4F20\u8BB0\u5F55</p>
+        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u4E0A\u4F20\u8BB0\u5F55</p>
         <div style="padding: 12px; background: #f5f5f5; border-radius: 8px; font-size: 13px; color: #888;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
             <span>\u4EE3\u7801\u5BA1\u67E5\u52A9\u624B</span>
-            <span style="color: #ffa726;">\u5BA1\u6838\u4E2D</span>
+            <span style="color: #66bb6a;">\u5DF2\u5BFC\u5165</span>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
             <span>API \u6587\u6863\u751F\u6210\u5668</span>
-            <span style="color: #ffa726;">\u5BA1\u6838\u4E2D</span>
+            <span style="color: #66bb6a;">\u5DF2\u5BFC\u5165</span>
           </div>
           <div style="display: flex; justify-content: space-between;">
             <span>\u65E5\u5FD7\u5206\u6790\u5DE5\u5177</span>
-            <span style="color: #66bb6a;">\u5DF2\u901A\u8FC7</span>
+            <span style="color: #66bb6a;">\u5DF2\u5BFC\u5165</span>
           </div>
-        </div>
-      </div>
-    </div>
-  `;
-  }
-  function getSkillPurchaseContent() {
-    return `
-    <div style="color: #666;">
-      <div style="display: flex; flex-direction: column; gap: 10px;">
-        <div style="
-          padding: 14px;
-          border: 1px solid #e0e0e0;
-          border-radius: 10px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          cursor: pointer;
-          transition: all 0.2s;
-        " onmouseenter="this.style.borderColor='#667eea';this.style.background='#f8f9ff'" onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='none'"
-        >
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="width: 40px; height: 40px; background: #e3f2fd; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px;">\u{1F4CA}</div>
-            <div>
-              <p style="font-weight: 500; color: #333; font-size: 14px;">\u6570\u636E\u5206\u6790\u5927\u5E08</p>
-              <p style="font-size: 11px; color: #888;">\u2B50 4.8 \xB7 \u5DF2\u552E 1.2k \xB7 \u5F00\u53D1\u8005: DataLab</p>
-            </div>
-          </div>
-          <span style="padding: 5px 12px; background: #667eea; color: white; border-radius: 6px; font-size: 13px; font-weight: 600;">\xA5 9.9</span>
-        </div>
-        <div style="
-          padding: 14px;
-          border: 1px solid #e0e0e0;
-          border-radius: 10px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          cursor: pointer;
-          transition: all 0.2s;
-        " onmouseenter="this.style.borderColor='#667eea';this.style.background='#f8f9ff'" onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='none'"
-        >
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="width: 40px; height: 40px; background: #f3e5f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px;">\u{1F4DD}</div>
-            <div>
-              <p style="font-weight: 500; color: #333; font-size: 14px;">\u667A\u80FD\u5199\u4F5C\u52A9\u624B</p>
-              <p style="font-size: 11px; color: #888;">\u2B50 4.6 \xB7 \u5DF2\u552E 856 \xB7 \u5F00\u53D1\u8005: WriteAI</p>
-            </div>
-          </div>
-          <span style="padding: 5px 12px; background: #667eea; color: white; border-radius: 6px; font-size: 13px; font-weight: 600;">\xA5 19.9</span>
-        </div>
-        <div style="
-          padding: 14px;
-          border: 1px solid #e0e0e0;
-          border-radius: 10px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          cursor: pointer;
-          transition: all 0.2s;
-        " onmouseenter="this.style.borderColor='#667eea';this.style.background='#f8f9ff'" onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='none'"
-        >
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="width: 40px; height: 40px; background: #e8f5e9; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px;">\u{1F3A8}</div>
-            <div>
-              <p style="font-weight: 500; color: #333; font-size: 14px;">\u56FE\u50CF\u751F\u6210\u5668</p>
-              <p style="font-size: 11px; color: #888;">\u2B50 4.9 \xB7 \u5DF2\u552E 2.3k \xB7 \u5F00\u53D1\u8005: ArtGen</p>
-            </div>
-          </div>
-          <span style="padding: 5px 12px; background: #667eea; color: white; border-radius: 6px; font-size: 13px; font-weight: 600;">\xA5 29.9</span>
-        </div>
-      </div>
-    </div>
-  `;
-  }
-  function getSkillMerchantContent() {
-    return `
-    <div style="color: #666;">
-      <div style="display: flex; flex-direction: column; gap: 10px;">
-        <div style="
-          padding: 16px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 10px;
-          color: white;
-          cursor: pointer;
-        ">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 36px; height: 36px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px;">\u{1F3E2}</div>
-              <p style="font-weight: 600; font-size: 15px;">\u4F01\u4E1A\u7EA7\u77E5\u8BC6\u5E93</p>
-            </div>
-            <span style="padding: 3px 10px; background: rgba(255,255,255,0.2); border-radius: 10px; font-size: 11px;">\u5B98\u65B9</span>
-          </div>
-          <p style="font-size: 13px; opacity: 0.9; line-height: 1.5;">\u96C6\u6210\u4F01\u4E1A\u5185\u90E8\u6587\u6863\u3001\u6D41\u7A0B\u3001\u89C4\u8303\u7684\u667A\u80FD\u52A9\u624B\uFF0C\u652F\u6301\u591A\u90E8\u95E8\u534F\u4F5C\u548C\u6743\u9650\u7BA1\u7406\u3002</p>
-        </div>
-        <div style="
-          padding: 16px;
-          background: #f8f9fa;
-          border: 1px solid #e0e0e0;
-          border-radius: 10px;
-          cursor: pointer;
-          transition: all 0.2s;
-        " onmouseenter="this.style.borderColor='#667eea';this.style.background='#f0f7ff'" onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='#f8f9fa'"
-        >
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 36px; height: 36px; background: #e3f2fd; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px;">\u{1F4CB}</div>
-              <p style="font-weight: 600; color: #333; font-size: 15px;">\u9879\u76EE\u7BA1\u7406\u52A9\u624B</p>
-            </div>
-            <span style="padding: 3px 10px; background: #e3f2fd; color: #1976d2; border-radius: 10px; font-size: 11px;">\u8BA4\u8BC1\u5546\u5BB6</span>
-          </div>
-          <p style="font-size: 13px; color: #888; line-height: 1.5;">\u652F\u6301 Jira\u3001Trello\u3001Notion \u7B49\u9879\u76EE\u7BA1\u7406\u5DE5\u5177\uFF0C\u81EA\u52A8\u751F\u6210\u9879\u76EE\u62A5\u544A\u548C\u8FDB\u5EA6\u8DDF\u8E2A\u3002</p>
-        </div>
-        <div style="
-          padding: 16px;
-          background: #f8f9fa;
-          border: 1px solid #e0e0e0;
-          border-radius: 10px;
-          cursor: pointer;
-          transition: all 0.2s;
-        " onmouseenter="this.style.borderColor='#667eea';this.style.background='#f0f7ff'" onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='#f8f9fa'"
-        >
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 36px; height: 36px; background: #fff3e0; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px;">\u{1F512}</div>
-              <p style="font-weight: 600; color: #333; font-size: 15px;">\u5B89\u5168\u5BA1\u8BA1\u52A9\u624B</p>
-            </div>
-            <span style="padding: 3px 10px; background: #e3f2fd; color: #1976d2; border-radius: 10px; font-size: 11px;">\u8BA4\u8BC1\u5546\u5BB6</span>
-          </div>
-          <p style="font-size: 13px; color: #888; line-height: 1.5;">\u81EA\u52A8\u5316\u5B89\u5168\u6F0F\u6D1E\u626B\u63CF\u548C\u4EE3\u7801\u5BA1\u8BA1\uFF0C\u652F\u6301\u591A\u79CD\u7F16\u7A0B\u8BED\u8A00\u548C\u6846\u67B6\u3002</p>
         </div>
       </div>
     </div>
@@ -41272,8 +41142,8 @@ ${block}` : block;
     },
     skillStore: {
       id: "skillStore",
-      title: "skill\u5546\u5E97",
-      description: "\u6D4F\u89C8\u3001\u4E0A\u4F20\u3001\u5B89\u88C5 Skill",
+      title: "Skill \u7BA1\u7406",
+      description: "\u67E5\u770B\u3001\u5BFC\u5165\u3001\u7BA1\u7406 Skill",
       render: getSkillStoreHomeContent
     },
     performance: {
@@ -41288,6 +41158,7 @@ ${block}` : block;
     "\u8F93\u5165\u8054\u60F3": "association",
     "\u8BA4\u77E5\u53CD\u9988": "feedback",
     "skill\u5546\u5E97": "skillStore",
+    "Skill \u7BA1\u7406": "skillStore",
     "\u6548\u80FD": "performance"
   };
   function resolvePanelId(panelIdOrTitle) {
@@ -42752,23 +42623,15 @@ ${MEM_TAG_CLOSE2}`;
   }
   var skillStoreRoutes = {
     history: {
-      title: "\u7528\u6237\u5386\u53F2 Skill",
+      title: "\u6211\u7684 Skill",
       render: getSkillHistoryContent
     },
     upload: {
-      title: "\u4E0A\u4F20 Skill \u5230\u5546\u5E97",
+      title: "\u4E0A\u4F20 Skill",
       render: getSkillUploadContent
     },
-    purchase: {
-      title: "\u5546\u5E97 Skill \u8D2D\u4E70",
-      render: getSkillPurchaseContent
-    },
-    merchant: {
-      title: "\u5546\u5BB6\u63D0\u4F9B\u7684 Skill",
-      render: getSkillMerchantContent
-    },
     manage: {
-      title: "Skill \u5B89\u88C5\u7BA1\u7406",
+      title: "\u5B89\u88C5\u7BA1\u7406",
       render: getSkillManageContent
     }
   };
@@ -42844,7 +42707,7 @@ ${MEM_TAG_CLOSE2}`;
     openCustomPanel(route.title, route.render(), {
       showBack: true,
       onBack: () => {
-        openCustomPanel("skill\u5546\u5E97", getSkillStoreHomeContent(), {
+        openCustomPanel("Skill \u7BA1\u7406", getSkillStoreHomeContent(), {
           showBack: true,
           onBack: openEchoMemHomePanel
         });

@@ -25,8 +25,8 @@ export const panelRegistry = {
   },
   skillStore: {
     id: 'skillStore',
-    title: 'skill商店',
-    description: '浏览、上传、安装 Skill',
+    title: 'Skill 管理',
+    description: '查看、导入、管理 Skill',
     render: getSkillStoreHomeContent
   },
   performance: {
@@ -42,6 +42,7 @@ const legacyPanelIds = {
   '输入联想': 'association',
   '认知反馈': 'feedback',
   'skill商店': 'skillStore',
+  'Skill 管理': 'skillStore',
   '效能': 'performance'
 };
 

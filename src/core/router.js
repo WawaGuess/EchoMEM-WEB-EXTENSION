@@ -14,8 +14,6 @@ import {
   getSkillStoreHomeContent,
   getSkillHistoryContent,
   getSkillUploadContent,
-  getSkillPurchaseContent,
-  getSkillMerchantContent,
   getSkillManageContent,
   getResourceHomeContent,
   getResourceImportContent,
@@ -50,23 +48,15 @@ function cleanupPerformancePanel() {
 
 const skillStoreRoutes = {
   history: {
-    title: '用户历史 Skill',
+    title: '我的 Skill',
     render: getSkillHistoryContent
   },
   upload: {
-    title: '上传 Skill 到商店',
+    title: '上传 Skill',
     render: getSkillUploadContent
   },
-  purchase: {
-    title: '商店 Skill 购买',
-    render: getSkillPurchaseContent
-  },
-  merchant: {
-    title: '商家提供的 Skill',
-    render: getSkillMerchantContent
-  },
   manage: {
-    title: 'Skill 安装管理',
+    title: '安装管理',
     render: getSkillManageContent
   }
 };
@@ -157,7 +147,7 @@ export function navigateToSkillSection(sectionId) {
   openCustomPanel(route.title, route.render(), {
     showBack: true,
     onBack: () => {
-      openCustomPanel('skill商店', getSkillStoreHomeContent(), {
+      openCustomPanel('Skill 管理', getSkillStoreHomeContent(), {
         showBack: true,
         onBack: openEchoMemHomePanel
       });
