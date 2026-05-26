@@ -565,6 +565,7 @@
     if (panelConfig.type === "sidebar") {
       const container = document.querySelector(panelConfig.containerSelector);
       if (!container) return;
+      document.querySelectorAll(".claw-overlay-backdrop").forEach((b) => b.remove());
       if (!originalPanelContent) {
         originalPanelContent = container.innerHTML;
       }
@@ -680,12 +681,16 @@
       }, 300);
     }
     document.querySelectorAll(".claw-overlay-backdrop").forEach((b) => {
+      b.style.pointerEvents = "none";
       b.style.opacity = "0";
       setTimeout(() => b.remove(), 300);
     });
   }
   function restoreOriginalPanel() {
-    closeOverlayPanel();
+    if (currentOverlayPanel) {
+      closeOverlayPanel();
+    }
+    document.querySelectorAll(".claw-overlay-backdrop").forEach((b) => b.remove());
     const platform2 = getCurrentPlatform();
     if (platform2) {
       const panelConfig = getPanelConfig(platform2);

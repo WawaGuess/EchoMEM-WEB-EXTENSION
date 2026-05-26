@@ -219,6 +219,9 @@ export function openCustomPanel(title, contentHtml, options = {}) {
     const container = document.querySelector(panelConfig.containerSelector);
     if (!container) return;
 
+    // 防御性清理：移除可能残留的遮罩层
+    document.querySelectorAll('.claw-overlay-backdrop').forEach(b => b.remove());
+
     if (!originalPanelContent) {
       originalPanelContent = container.innerHTML;
     }
@@ -359,14 +362,20 @@ export function closeOverlayPanel() {
 
   // 3. 移除遮罩层
   document.querySelectorAll('.claw-overlay-backdrop').forEach(b => {
+    b.style.pointerEvents = 'none';  // 立即禁用点击拦截
     b.style.opacity = '0';
     setTimeout(() => b.remove(), 300);
   });
 }
 
 export function restoreOriginalPanel() {
-  // 1. 关闭 overlay 浮层
-  closeOverlayPanel();
+  // 1. 仅在存在 overlay 时才关闭（sidebar 模式下可能无 overlay）
+  if (currentOverlayPanel) {
+    closeOverlayPanel();
+  }
+
+  // 防御性清理：同步移除任何残留的遮罩层
+  document.querySelectorAll('.claw-overlay-backdrop').forEach(b => b.remove());
 
   // 2. 恢复 sidebar 内容
   const platform = getCurrentPlatform();
