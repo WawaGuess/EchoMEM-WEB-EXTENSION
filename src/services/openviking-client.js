@@ -245,6 +245,35 @@ class OpenVikingClient {
     }
   }
 
+  async addSkill(options = {}) {
+    const controller = new AbortController();
+    const resourceTimeoutMs = this.cfg.resourceTimeoutMs || 300000;
+    const timer = setTimeout(() => controller.abort(), resourceTimeoutMs);
+
+    try {
+      const headers = this._buildHeaders();
+      const response = await fetch(`${this.cfg.baseUrl}/api/v1/skills`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          data: options.data || undefined,
+          temp_file_id: options.tempFileId || undefined,
+          wait: options.wait ?? false,
+          timeout: options.timeout || undefined,
+        }),
+        signal: controller.signal,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.status === 'error') {
+        throw new Error(data.error?.message || `HTTP ${response.status}`);
+      }
+      return data.result || data;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   // ── Filesystem ──
 
   async fsLs(uri, options = {}) {

@@ -998,6 +998,33 @@
         clearTimeout(timer);
       }
     }
+    async addSkill(options = {}) {
+      var _a2;
+      const controller = new AbortController();
+      const resourceTimeoutMs = this.cfg.resourceTimeoutMs || 3e5;
+      const timer = setTimeout(() => controller.abort(), resourceTimeoutMs);
+      try {
+        const headers = this._buildHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/skills`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            data: options.data || void 0,
+            temp_file_id: options.tempFileId || void 0,
+            wait: options.wait ?? false,
+            timeout: options.timeout || void 0
+          }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
     // ── Filesystem ──
     async fsLs(uri, options = {}) {
       var _a2;
@@ -40894,7 +40921,58 @@ ${block}` : block;
     };
   }
 
+  // src/utils/skill-parser.js
+  var FRONTMATTER_PATTERN = /^---\s*\n(.*?)\n---\s*\n(.*)$/s;
+  function parseSkillMd(content) {
+    const cleanContent = content.replace(/^\uFEFF/, "");
+    const match = cleanContent.match(FRONTMATTER_PATTERN);
+    if (!match) {
+      return {
+        frontmatter: {},
+        body: cleanContent
+      };
+    }
+    let frontmatter = {};
+    try {
+      frontmatter = parseSimpleYaml(match[1]);
+    } catch (err) {
+      console.warn("Failed to parse skill frontmatter:", err);
+    }
+    return {
+      frontmatter,
+      body: match[2]
+    };
+  }
+  function parseSimpleYaml(yamlText) {
+    const result = {};
+    const lines = yamlText.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const colonIndex = trimmed.indexOf(":");
+      if (colonIndex === -1) continue;
+      const key = trimmed.slice(0, colonIndex).trim();
+      let value = trimmed.slice(colonIndex + 1).trim();
+      if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
+        value = value.slice(1, -1);
+      }
+      if (key) {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
+  function getEntryName(entry) {
+    if (entry == null ? void 0 : entry.name) return entry.name;
+    if (entry == null ? void 0 : entry.uri) {
+      const parts = entry.uri.split("/").filter(Boolean);
+      return parts[parts.length - 1] || "\u672A\u547D\u540D";
+    }
+    return "\u672A\u547D\u540D";
+  }
+
   // src/panels/skill-store/index.js
+  var SKILL_ROOT_URI = "viking://agent/skills";
   function getSkillStoreHomeContent() {
     const sections = [
       { id: "history", title: "\u{1F4DC} \u6211\u7684 Skill", desc: "\u67E5\u770B\u548C\u7BA1\u7406\u4F60\u4F7F\u7528\u8FC7\u7684 Skill", color: "#667eea" },
@@ -40940,189 +41018,596 @@ ${block}` : block;
   `;
   }
   function getSkillHistoryContent() {
+    return getSkillListContent("\u6211\u7684 Skill");
+  }
+  function getSkillManageContent() {
+    return getSkillListContent("\u5B89\u88C5\u7BA1\u7406", { showDelete: true });
+  }
+  function getSkillListContent(title, options = {}) {
     return `
-    <div style="color: #666;">
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        <div style="
-          padding: 12px;
-          background: #f0f7ff;
-          border: 1px solid #c7d8f5;
-          border-radius: 8px;
+    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+      <!-- \u641C\u7D22\u6846 -->
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="claw-skill-search" placeholder="\u641C\u7D22 Skill \u540D\u79F0\u6216\u63CF\u8FF0..." style="
+          flex: 1;
+          padding: 8px 12px;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 13px;
+          outline: none;
+          transition: border-color 0.2s;
+        " onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#d1d5db'">
+        <button id="claw-skill-btn-refresh" style="
+          padding: 8px 12px;
+          background: white;
+          color: #374151;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 12px;
+          cursor: pointer;
           display: flex;
-          justify-content: space-between;
           align-items: center;
+          gap: 4px;
+          white-space: nowrap;
         ">
-          <div>
-            <p style="font-weight: 500; color: #333; font-size: 14px;">SQL \u67E5\u8BE2\u52A9\u624B</p>
-            <p style="font-size: 12px; color: #888;">\u4E0A\u6B21\u4F7F\u7528: 2\u5929\u524D \xB7 \u4F7F\u7528 15 \u6B21</p>
-          </div>
-          <span style="padding: 3px 10px; background: #667eea; color: white; border-radius: 10px; font-size: 11px;">\u5DF2\u542F\u7528</span>
-        </div>
-        <div style="
-          padding: 12px;
-          background: #f5f5f5;
-          border: 1px solid #e0e0e0;
-          border-radius: 8px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        ">
-          <div>
-            <p style="font-weight: 500; color: #333; font-size: 14px;">JSON \u683C\u5F0F\u5316</p>
-            <p style="font-size: 12px; color: #888;">\u4E0A\u6B21\u4F7F\u7528: 1\u5468\u524D \xB7 \u4F7F\u7528 8 \u6B21</p>
-          </div>
-          <span style="padding: 3px 10px; background: #999; color: white; border-radius: 10px; font-size: 11px;">\u5DF2\u505C\u7528</span>
-        </div>
-        <div style="
-          padding: 12px;
-          background: #f0f7ff;
-          border: 1px solid #c7d8f5;
-          border-radius: 8px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        ">
-          <div>
-            <p style="font-weight: 500; color: #333; font-size: 14px;">\u6B63\u5219\u8868\u8FBE\u5F0F\u5DE5\u5177</p>
-            <p style="font-size: 12px; color: #888;">\u4E0A\u6B21\u4F7F\u7528: 3\u5929\u524D \xB7 \u4F7F\u7528 23 \u6B21</p>
-          </div>
-          <span style="padding: 3px 10px; background: #667eea; color: white; border-radius: 10px; font-size: 11px;">\u5DF2\u542F\u7528</span>
-        </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          \u5237\u65B0
+        </button>
       </div>
+
+      <!-- Toast -->
+      <div id="claw-skill-toast" style="display: none;"></div>
+
+      <!-- \u52A0\u8F7D\u4E2D -->
+      <div id="claw-skill-list-loading" style="text-align: center; padding: 40px 20px; color: #888;">
+        <p style="font-size: 14px;">\u23F3 \u6B63\u5728\u52A0\u8F7D Skill \u5217\u8868...</p>
+      </div>
+
+      <!-- \u5217\u8868\u5185\u5BB9 -->
+      <div id="claw-skill-list-content" style="display: none;"></div>
     </div>
   `;
   }
   function getSkillUploadContent() {
     return `
-    <div style="color: #666;">
-      <div style="
+    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+      <!-- \u4E0A\u4F20\u533A\u57DF -->
+      <div id="claw-skill-dropzone" style="
         border: 2px dashed #ccc;
         border-radius: 12px;
-        padding: 40px 20px;
+        padding: 32px 20px;
         text-align: center;
         cursor: pointer;
         transition: all 0.2s;
-        margin-bottom: 20px;
-      " onmouseenter="this.style.borderColor='#667eea';this.style.background='#f8f9ff'" onmouseleave="this.style.borderColor='#ccc';this.style.background='none'"
+        background: #fafafa;
+      " onmouseenter="this.style.borderColor='#667eea';this.style.background='#f8f9ff'" onmouseleave="this.style.borderColor='#ccc';this.style.background='#fafafa'"
       >
-        <p style="font-size: 36px; margin-bottom: 8px;">\u{1F4E4}</p>
+        <p style="font-size: 32px; margin-bottom: 8px;">\u{1F4E4}</p>
         <p style="font-size: 14px; color: #333; font-weight: 500; margin-bottom: 4px;">\u70B9\u51FB\u6216\u62D6\u62FD\u4E0A\u4F20 Skill \u6587\u4EF6</p>
-        <p style="font-size: 12px; color: #999;">\u652F\u6301 .skill .json .yaml \u683C\u5F0F\uFF0C\u6700\u5927 10MB</p>
+        <p style="font-size: 12px; color: #888;">\u652F\u6301 .md / .txt\uFF08\u5185\u5BB9\u987B\u7B26\u5408 SKILL.md \u683C\u5F0F\uFF09/ .zip\uFF0C\u5355\u4E2A\u6587\u4EF6\u4E0D\u8D85\u8FC7 10MB</p>
+        <input type="file" id="claw-skill-file-input" accept=".md,.txt,.zip" style="display: none;" />
       </div>
-      <div style="margin-bottom: 20px;">
-        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u4E0A\u4F20\u987B\u77E5</p>
-        <ul style="font-size: 13px; color: #666; padding-left: 18px; line-height: 1.8;">
-          <li>Skill \u6587\u4EF6\u9700\u5305\u542B\u5B8C\u6574\u7684\u914D\u7F6E\u4FE1\u606F</li>
-          <li>\u4E0A\u4F20\u540E\u76F4\u63A5\u5B89\u88C5\u5230\u672C\u5730\u4F7F\u7528</li>
-          <li>\u7981\u6B62\u4E0A\u4F20\u5305\u542B\u6076\u610F\u4EE3\u7801\u7684 Skill</li>
-          <li>\u540C\u540D Skill \u4E0A\u4F20\u5C06\u8986\u76D6\u65E7\u7248\u672C</li>
+
+      <!-- \u72B6\u6001\u63D0\u793A -->
+      <div id="claw-skill-upload-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
+
+      <!-- \u4E0A\u4F20\u987B\u77E5 -->
+      <div style="padding: 12px; background: #f8f9fa; border-radius: 8px;">
+        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 13px;">\u{1F4CB} \u4E0A\u4F20\u987B\u77E5</p>
+        <ul style="font-size: 12px; color: #666; padding-left: 18px; line-height: 1.8; margin: 0;">
+          <li>SKILL.md \u5FC5\u987B\u4EE5 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">---</code> \u5F00\u5934\uFF0Cfrontmatter \u4E2D\u5FC5\u987B\u5305\u542B <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">name</code> \u5B57\u6BB5</li>
+          <li>zip \u6839\u76EE\u5F55\u4E0B\u5FC5\u987B\u76F4\u63A5\u5305\u542B SKILL.md\uFF0C\u4E0D\u80FD\u5957\u5728\u5B50\u6587\u4EF6\u5939\u91CC</li>
+          <li>\u5982\u5B58\u5728\u540C\u540D Skill\uFF0C\u5C06\u76F4\u63A5\u8986\u76D6</li>
+          <li>\u524D\u7AEF\u6821\u9A8C\u4EC5\u4F9B\u53C2\u8003\uFF0C\u6700\u7EC8\u683C\u5F0F\u4EE5\u670D\u52A1\u7AEF\u89E3\u6790\u4E3A\u51C6</li>
+          <li>\u4E0A\u4F20\u6210\u529F\u540E\u53EF\u5728\u300C\u6211\u7684 Skill\u300D\u4E2D\u67E5\u770B</li>
         </ul>
-      </div>
-      <div>
-        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u4E0A\u4F20\u8BB0\u5F55</p>
-        <div style="padding: 12px; background: #f5f5f5; border-radius: 8px; font-size: 13px; color: #888;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span>\u4EE3\u7801\u5BA1\u67E5\u52A9\u624B</span>
-            <span style="color: #66bb6a;">\u5DF2\u5BFC\u5165</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span>API \u6587\u6863\u751F\u6210\u5668</span>
-            <span style="color: #66bb6a;">\u5DF2\u5BFC\u5165</span>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span>\u65E5\u5FD7\u5206\u6790\u5DE5\u5177</span>
-            <span style="color: #66bb6a;">\u5DF2\u5BFC\u5165</span>
-          </div>
-        </div>
       </div>
     </div>
   `;
   }
-  function getSkillManageContent() {
-    return `
-    <div style="color: #666;">
-      <div style="display: flex; flex-direction: column; gap: 10px;">
-        <div style="
-          padding: 14px;
-          background: #f5f5f5;
-          border-radius: 8px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        ">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="width: 40px; height: 40px; background: #e3f2fd; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px;">\u{1F4CA}</div>
-            <div>
-              <p style="font-weight: 500; color: #333; font-size: 14px;">\u6570\u636E\u5206\u6790\u5927\u5E08</p>
-              <p style="font-size: 12px; color: #888;">v2.1.0 \xB7 \u5360\u7528 12MB \xB7 \u4E0A\u6B21\u66F4\u65B0: 3\u5929\u524D</p>
-            </div>
-          </div>
-          <div style="display: flex; gap: 6px;">
-            <button style="padding: 5px 12px; background: #667eea; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">\u66F4\u65B0</button>
-            <button style="padding: 5px 12px; background: #ffebee; color: #c62828; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">\u5378\u8F7D</button>
-          </div>
+  async function initSkillUploadPanel(bodyElement) {
+    if (!bodyElement) return;
+    const dropzone = bodyElement.querySelector("#claw-skill-dropzone");
+    const fileInput = bodyElement.querySelector("#claw-skill-file-input");
+    const statusEl = bodyElement.querySelector("#claw-skill-upload-status");
+    if (!dropzone || !fileInput) return;
+    function showStatus(msg, type = "info") {
+      if (!statusEl) return;
+      statusEl.style.display = "block";
+      const colors = {
+        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+      };
+      const c = colors[type] || colors.info;
+      statusEl.style.background = c.bg;
+      statusEl.style.border = `1px solid ${c.border}`;
+      statusEl.style.color = c.text;
+      statusEl.textContent = msg;
+    }
+    function formatError(err) {
+      var _a2, _b2, _c2, _d2;
+      if (err.name === "AbortError" || ((_a2 = err.message) == null ? void 0 : _a2.includes("aborted"))) {
+        return "\u8BF7\u6C42\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u540E\u7AEF\u662F\u5426\u6B63\u5E38\u8FD0\u884C\u6216\u7F51\u7EDC\u8FDE\u63A5";
+      }
+      if ((_b2 = err.message) == null ? void 0 : _b2.includes("Failed to fetch")) {
+        return "\u65E0\u6CD5\u8FDE\u63A5\u5230 OpenViking \u540E\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E";
+      }
+      if (((_c2 = err.message) == null ? void 0 : _c2.includes("401")) || ((_d2 = err.message) == null ? void 0 : _d2.includes("403"))) {
+        return "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728 EchoMem \u4E3B\u9875\u7684\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key";
+      }
+      return err.message;
+    }
+    async function validateFile(file) {
+      const MAX_SIZE = 10 * 1024 * 1024;
+      if (file.size > MAX_SIZE) {
+        throw new Error("\u6587\u4EF6\u8FC7\u5927\uFF0C\u8BF7\u538B\u7F29\u9644\u4EF6\u540E\u91CD\u8BD5");
+      }
+      const ext = file.name.split(".").pop().toLowerCase();
+      if (ext === "md" || ext === "txt") {
+        const text = await file.text();
+        if (!text.trim().startsWith("---")) {
+          throw new Error("SKILL.md \u5FC5\u987B\u4EE5 --- \u5F00\u5934");
+        }
+        const { frontmatter } = parseSkillMd(text);
+        if (!frontmatter.name) {
+          throw new Error("frontmatter \u4E2D\u5FC5\u987B\u5305\u542B name \u5B57\u6BB5");
+        }
+      }
+      return true;
+    }
+    async function executeUpload(file, skillName) {
+      showStatus("\u6B63\u5728\u4E0A\u4F20...", "info");
+      try {
+        const config = await getOpenVikingConfig();
+        const client2 = createClient(config);
+        const uploadResult = await client2.tempUpload(file);
+        const tempFileId = uploadResult == null ? void 0 : uploadResult.temp_file_id;
+        if (!tempFileId) throw new Error("\u4E0A\u4F20\u5931\u8D25\uFF1A\u672A\u8FD4\u56DE\u4E34\u65F6\u6587\u4EF6 ID");
+        showStatus("\u6587\u4EF6\u5DF2\u4E0A\u4F20\uFF0C\u6B63\u5728\u521B\u5EFA Skill...", "info");
+        const skillResult = await client2.addSkill({
+          tempFileId,
+          wait: false
+        });
+        showStatus(`\u2705 Skill\u300C${skillResult.name || skillName}\u300D\u4E0A\u4F20\u6210\u529F`, "success");
+      } catch (err) {
+        showStatus(`\u274C \u4E0A\u4F20\u5931\u8D25: ${formatError(err)}`, "error");
+      }
+    }
+    async function doUpload(file) {
+      showStatus("\u6B63\u5728\u6821\u9A8C\u6587\u4EF6...", "info");
+      try {
+        await validateFile(file);
+      } catch (err) {
+        showStatus(`\u274C ${err.message}`, "error");
+        return;
+      }
+      const ext = file.name.split(".").pop().toLowerCase();
+      let skillName = file.name;
+      if (ext === "md" || ext === "txt") {
+        try {
+          const text = await file.text();
+          const { frontmatter } = parseSkillMd(text);
+          skillName = frontmatter.name || file.name;
+        } catch {
+        }
+      }
+      const safeName = skillName.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      const dialogId = "claw-skill-confirm-" + Date.now();
+      const dialogHtml = `
+      <div id="${dialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="text-align: center;">
+          <p style="font-size: 24px; margin: 0; line-height: 1;">\u26A0\uFE0F</p>
+          <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u4E0A\u4F20 Skill</p>
+          <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u5982\u5B58\u5728\u540C\u540D Skill\u300C<strong style="color: #111;">${safeName}</strong>\u300D\uFF0C\u5C06\u76F4\u63A5\u8986\u76D6\u3002</p>
         </div>
-        <div style="
-          padding: 14px;
-          background: #f5f5f5;
-          border-radius: 8px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        ">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="width: 40px; height: 40px; background: #f3e5f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px;">\u{1F4DD}</div>
-            <div>
-              <p style="font-weight: 500; color: #333; font-size: 14px;">\u667A\u80FD\u5199\u4F5C\u52A9\u624B</p>
-              <p style="font-size: 12px; color: #888;">v1.5.2 \xB7 \u5360\u7528 8MB \xB7 \u5DF2\u662F\u6700\u65B0\u7248\u672C</p>
-            </div>
-          </div>
-          <div style="display: flex; gap: 6px;">
-            <button style="padding: 5px 12px; background: #e8f5e9; color: #2e7d32; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">\u6700\u65B0</button>
-            <button style="padding: 5px 12px; background: #ffebee; color: #c62828; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">\u5378\u8F7D</button>
-          </div>
-        </div>
-        <div style="
-          padding: 14px;
-          background: #f5f5f5;
-          border-radius: 8px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        ">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="width: 40px; height: 40px; background: #fff3e0; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px;">\u{1F50D}</div>
-            <div>
-              <p style="font-weight: 500; color: #333; font-size: 14px;">\u6B63\u5219\u8868\u8FBE\u5F0F\u5DE5\u5177</p>
-              <p style="font-size: 12px; color: #888;">v1.0.0 \xB7 \u5360\u7528 3MB \xB7 \u4E0A\u6B21\u66F4\u65B0: 1\u5468\u524D</p>
-            </div>
-          </div>
-          <div style="display: flex; gap: 6px;">
-            <button style="padding: 5px 12px; background: #667eea; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">\u66F4\u65B0</button>
-            <button style="padding: 5px 12px; background: #ffebee; color: #c62828; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">\u5378\u8F7D</button>
-          </div>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+          <button id="claw-skill-confirm-cancel" style="
+            padding: 8px 20px;
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+          ">\u53D6\u6D88</button>
+          <button id="claw-skill-confirm-ok" style="
+            padding: 8px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+          ">\u786E\u8BA4\u4E0A\u4F20</button>
         </div>
       </div>
-      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
-        <div style="display: flex; justify-content: space-between; font-size: 13px; color: #666;">
-          <span>\u5DF2\u5B89\u88C5: 5 \u4E2A Skill</span>
-          <span>\u603B\u5360\u7528: 45MB</span>
+    `;
+      openCenterOverlay("\u4E0A\u4F20\u786E\u8BA4", dialogHtml, {
+        width: "360px",
+        maxWidth: "360px",
+        height: "240px",
+        maxHeight: "280px"
+      });
+      setTimeout(() => {
+        const cancelBtn = document.getElementById("claw-skill-confirm-cancel");
+        const okBtn = document.getElementById("claw-skill-confirm-ok");
+        cancelBtn == null ? void 0 : cancelBtn.addEventListener("click", () => {
+          closeOverlayPanel();
+          statusEl.style.display = "none";
+        });
+        okBtn == null ? void 0 : okBtn.addEventListener("click", () => {
+          closeOverlayPanel();
+          executeUpload(file, skillName);
+        });
+      }, 50);
+    }
+    dropzone.addEventListener("click", (e2) => {
+      if (e2.target !== fileInput) {
+        fileInput.click();
+      }
+    });
+    fileInput.addEventListener("change", () => {
+      var _a2;
+      const file = (_a2 = fileInput.files) == null ? void 0 : _a2[0];
+      if (file) doUpload(file);
+      fileInput.value = "";
+    });
+    dropzone.addEventListener("dragover", (e2) => {
+      e2.preventDefault();
+      dropzone.style.borderColor = "#667eea";
+      dropzone.style.background = "#f8f9ff";
+    });
+    dropzone.addEventListener("dragleave", (e2) => {
+      e2.preventDefault();
+      dropzone.style.borderColor = "#ccc";
+      dropzone.style.background = "#fafafa";
+    });
+    dropzone.addEventListener("drop", (e2) => {
+      var _a2, _b2;
+      e2.preventDefault();
+      dropzone.style.borderColor = "#ccc";
+      dropzone.style.background = "#fafafa";
+      const file = (_b2 = (_a2 = e2.dataTransfer) == null ? void 0 : _a2.files) == null ? void 0 : _b2[0];
+      if (file) doUpload(file);
+    });
+  }
+  var skillCache = null;
+  async function initSkillHistoryPanel(bodyElement) {
+    return initSkillListPanel(bodyElement, { showDelete: false });
+  }
+  async function initSkillManagePanel(bodyElement) {
+    return initSkillListPanel(bodyElement, { showDelete: true });
+  }
+  async function initSkillListPanel(bodyElement, options = {}) {
+    if (!bodyElement) return;
+    const searchInput = bodyElement.querySelector("#claw-skill-search");
+    const refreshBtn = bodyElement.querySelector("#claw-skill-btn-refresh");
+    const toastEl = bodyElement.querySelector("#claw-skill-toast");
+    const loadingEl = bodyElement.querySelector("#claw-skill-list-loading");
+    const contentEl = bodyElement.querySelector("#claw-skill-list-content");
+    if (!loadingEl || !contentEl) return;
+    let allSkills = [];
+    let filteredSkills = [];
+    function showToast(msg, type = "info") {
+      if (!toastEl) return;
+      const colors = {
+        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+      };
+      const c = colors[type] || colors.info;
+      toastEl.style.display = "block";
+      toastEl.style.padding = "10px 12px";
+      toastEl.style.borderRadius = "6px";
+      toastEl.style.fontSize = "13px";
+      toastEl.style.marginBottom = "8px";
+      toastEl.style.background = c.bg;
+      toastEl.style.border = `1px solid ${c.border}`;
+      toastEl.style.color = c.text;
+      toastEl.textContent = msg;
+      setTimeout(() => {
+        if (toastEl) {
+          toastEl.style.display = "none";
+          toastEl.textContent = "";
+        }
+      }, 4e3);
+    }
+    function formatDate2(ts) {
+      if (!ts) return "-";
+      const d = typeof ts === "string" ? new Date(ts) : new Date(ts * 1e3);
+      if (isNaN(d.getTime())) return "-";
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    function renderSkills(skills) {
+      if (skills.length === 0) {
+        contentEl.innerHTML = `
+        <div style="text-align: center; padding: 40px 20px; color: #999;">
+          <p style="font-size: 36px; margin-bottom: 12px;">\u{1F4C2}</p>
+          <p style="font-size: 14px;">\u6682\u65E0 Skill</p>
+          <p style="font-size: 12px; margin-top: 6px;">\u8BF7\u5148\u4E0A\u4F20 Skill \u6587\u4EF6</p>
         </div>
-        <button style="
-          width: 100%;
-          margin-top: 12px;
-          padding: 10px;
-          background: #ffebee;
-          color: #c62828;
-          border: 1px solid #ef9a9a;
-          border-radius: 6px;
+      `;
+        return;
+      }
+      const itemsHtml = skills.map((skill, index) => {
+        const desc = skill.description || "\u6682\u65E0\u63CF\u8FF0";
+        const version3 = skill.version ? `v${skill.version}` : "";
+        const author = skill.author || "";
+        const metaParts = [version3, author, formatDate2(skill.modifiedAt)].filter(Boolean);
+        const meta = metaParts.join(" \xB7 ") || "-";
+        const deleteBtnHtml = options.showDelete ? `<button class="claw-skill-btn-delete" data-uri="${skill.uri}" data-name="${skill.name}" style="
+            padding: 4px 10px;
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+            border-radius: 5px;
+            font-size: 11px;
+            cursor: pointer;
+            flex-shrink: 0;
+          ">\u5220\u9664</button>` : "";
+        return `
+        <div class="claw-skill-item" data-index="${index}" style="
+          padding: 12px;
+          background: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
           cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
-        ">\u4E00\u952E\u5378\u8F7D\u5168\u90E8 Skill</button>
+          transition: all 0.2s;
+        " onmouseenter="this.style.background='#f0f7ff';this.style.borderColor='#c7d8f5'" onmouseleave="this.style.background='#f9fafb';this.style.borderColor='#e5e7eb'"
+        >
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+            <div style="flex: 1; min-width: 0;">
+              <p style="font-weight: 600; font-size: 13px; color: #111827; margin-bottom: 2px; word-break: break-all;">${skill.name}</p>
+              <p style="font-size: 12px; color: #6b7280; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px;">${desc}</p>
+              <p style="font-size: 11px; color: #9ca3af;">${meta}</p>
+            </div>
+            <div style="display: flex; align-items: flex-start; gap: 6px; flex-shrink: 0;">
+              ${deleteBtnHtml}
+              <svg class="claw-skill-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 4px; transition: transform 0.2s;">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="claw-skill-detail" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+            ${renderDetail(skill)}
+          </div>
+        </div>
+      `;
+      }).join("");
+      contentEl.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        ${itemsHtml}
       </div>
-    </div>
-  `;
+    `;
+      contentEl.querySelectorAll(".claw-skill-item").forEach((item) => {
+        item.addEventListener("click", (e2) => {
+          if (e2.target.closest(".claw-skill-btn-delete")) return;
+          const detail = item.querySelector(".claw-skill-detail");
+          const icon = item.querySelector(".claw-skill-toggle-icon");
+          if (!detail) return;
+          const isOpen = detail.style.display === "block";
+          contentEl.querySelectorAll(".claw-skill-detail").forEach((d) => d.style.display = "none");
+          contentEl.querySelectorAll(".claw-skill-toggle-icon").forEach((i) => i.style.transform = "none");
+          if (!isOpen) {
+            detail.style.display = "block";
+            if (icon) icon.style.transform = "rotate(180deg)";
+          }
+        });
+      });
+      if (options.showDelete) {
+        contentEl.querySelectorAll(".claw-skill-btn-delete").forEach((btn) => {
+          btn.addEventListener("click", async (e2) => {
+            e2.stopPropagation();
+            const uri = btn.dataset.uri;
+            const name = btn.dataset.name;
+            if (!uri) return;
+            const safeDelName = (name || uri).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+            const delDialogId = "claw-skill-del-confirm-" + Date.now();
+            const delDialogHtml = `
+            <div id="${delDialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="text-align: center;">
+                <p style="font-size: 24px; margin: 0; line-height: 1;">\u{1F5D1}\uFE0F</p>
+                <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u5220\u9664 Skill</p>
+                <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u786E\u5B9A\u5220\u9664 Skill\u300C<strong style="color: #111;">${safeDelName}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
+              </div>
+              <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="claw-skill-del-cancel" style="
+                  padding: 8px 20px;
+                  background: #f3f4f6;
+                  color: #374151;
+                  border: 1px solid #d1d5db;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  cursor: pointer;
+                  font-weight: 500;
+                ">\u53D6\u6D88</button>
+                <button id="claw-skill-del-ok" style="
+                  padding: 8px 20px;
+                  background: #ef5350;
+                  color: white;
+                  border: none;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  cursor: pointer;
+                  font-weight: 500;
+                ">\u786E\u8BA4\u5220\u9664</button>
+              </div>
+            </div>
+          `;
+            openCenterOverlay("\u5220\u9664\u786E\u8BA4", delDialogHtml, {
+              width: "360px",
+              maxWidth: "360px",
+              height: "240px",
+              maxHeight: "280px"
+            });
+            setTimeout(() => {
+              const cancelBtn = document.getElementById("claw-skill-del-cancel");
+              const okBtn = document.getElementById("claw-skill-del-ok");
+              cancelBtn == null ? void 0 : cancelBtn.addEventListener("click", () => {
+                closeOverlayPanel();
+              });
+              okBtn == null ? void 0 : okBtn.addEventListener("click", async () => {
+                closeOverlayPanel();
+                btn.textContent = "\u5220\u9664\u4E2D...";
+                btn.disabled = true;
+                try {
+                  const config = await getOpenVikingConfig();
+                  const client2 = createClient(config);
+                  await client2.fsRm(uri, true);
+                  showToast(`\u2705 Skill\u300C${name || "\u672A\u547D\u540D"}\u300D\u5DF2\u5220\u9664`, "success");
+                  skillCache = null;
+                  await loadSkills();
+                } catch (err) {
+                  showToast(`\u274C \u5220\u9664\u5931\u8D25: ${err.message}`, "error");
+                  btn.textContent = "\u5220\u9664";
+                  btn.disabled = false;
+                }
+              });
+            }, 50);
+            return;
+          });
+        });
+      }
+    }
+    function renderDetail(skill) {
+      const descHtml = skill.description ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">${skill.description.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : "";
+      const bodyPreview = skill.rawContent ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; max-height: 200px; overflow-y: auto; padding: 8px; background: #f3f4f6; border-radius: 6px; white-space: pre-wrap; word-break: break-word;">${skill.rawContent.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : "";
+      return `
+      ${descHtml}
+      ${bodyPreview}
+      <div style="margin-top: 8px;">
+        <span style="font-size: 11px; color: #9ca3af; font-family: monospace; word-break: break-all;">${skill.uri}</span>
+      </div>
+    `;
+    }
+    function filterSkills(keyword) {
+      if (!keyword.trim()) {
+        filteredSkills = allSkills;
+      } else {
+        const k = keyword.toLowerCase();
+        filteredSkills = allSkills.filter(
+          (s) => s.name.toLowerCase().includes(k) || s.description && s.description.toLowerCase().includes(k)
+        );
+      }
+      renderSkills(filteredSkills);
+    }
+    async function loadSkills() {
+      var _a2;
+      if (skillCache) {
+        allSkills = skillCache;
+        filteredSkills = allSkills;
+        loadingEl.style.display = "none";
+        contentEl.style.display = "block";
+        renderSkills(filteredSkills);
+        return;
+      }
+      loadingEl.style.display = "block";
+      contentEl.style.display = "none";
+      try {
+        const config = await getOpenVikingConfig();
+        const client2 = createClient(config);
+        try {
+          await client2.fsMkdir(SKILL_ROOT_URI, "Agent skills");
+        } catch (mkdirErr) {
+          if (!((_a2 = mkdirErr.message) == null ? void 0 : _a2.toLowerCase().includes("exist"))) {
+            console.warn("EchoMem: mkdir warning", mkdirErr.message);
+          }
+        }
+        const lsResult = await client2.fsLs(SKILL_ROOT_URI, {
+          output: "agent",
+          absLimit: 128,
+          showAllHidden: false
+        });
+        console.log("[EchoMem:skill] fsLs result:", lsResult);
+        let entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
+        entries = entries.filter((e2) => {
+          var _a3;
+          return e2.isDir || ((_a3 = e2.stat) == null ? void 0 : _a3.isDir);
+        });
+        console.log("[EchoMem:skill] filtered entries:", entries);
+        if (entries.length === 0) {
+          allSkills = [];
+          skillCache = allSkills;
+          loadingEl.style.display = "none";
+          contentEl.style.display = "block";
+          renderSkills([]);
+          return;
+        }
+        const skills = await Promise.all(
+          entries.map(async (entry) => {
+            const dirName = getEntryName(entry);
+            try {
+              const baseUri = entry.uri.replace(/\/$/, "");
+              const skillUri = `${baseUri}/SKILL.md`;
+              console.log("[EchoMem:skill] reading:", skillUri, "dirName:", dirName);
+              const readResult = await client2.contentRead(skillUri);
+              console.log("[EchoMem:skill] readResult type:", typeof readResult, "preview:", String(readResult).slice(0, 60));
+              const content = typeof readResult === "string" ? readResult : (readResult == null ? void 0 : readResult.content) || "";
+              const { frontmatter, body } = parseSkillMd(content);
+              console.log("[EchoMem:skill] parsed frontmatter:", JSON.stringify(frontmatter));
+              return {
+                name: dirName,
+                dirName,
+                description: entry.abstract || "",
+                uri: baseUri,
+                rawContent: content.slice(0, 1e3),
+                modifiedAt: entry.modTime || entry.mtime || entry.modifiedAt
+              };
+            } catch (err) {
+              console.warn(`Failed to read skill ${dirName}:`, err);
+              return {
+                name: dirName,
+                dirName,
+                description: "\u8BFB\u53D6\u5931\u8D25",
+                uri: entry.uri,
+                error: true
+              };
+            }
+          })
+        );
+        console.log("[EchoMem:skill] final skills:", skills.map((s) => ({ name: s.name, dirName: s.dirName })));
+        allSkills = skills.filter((s) => !s.error);
+        allSkills.sort((a, b) => {
+          const ta = a.modifiedAt ? new Date(a.modifiedAt).getTime() : 0;
+          const tb = b.modifiedAt ? new Date(b.modifiedAt).getTime() : 0;
+          return tb - ta;
+        });
+        skillCache = allSkills;
+        filteredSkills = allSkills;
+        loadingEl.style.display = "none";
+        contentEl.style.display = "block";
+        renderSkills(filteredSkills);
+      } catch (err) {
+        loadingEl.style.display = "none";
+        contentEl.style.display = "block";
+        contentEl.innerHTML = `
+        <div style="text-align: center; padding: 40px 20px; color: #b91c1c; background: #fef2f2; border-radius: 8px;">
+          <p style="font-size: 14px; margin-bottom: 6px;">\u274C \u52A0\u8F7D\u5931\u8D25</p>
+          <p style="font-size: 12px;">${err.message}</p>
+        </div>
+      `;
+      }
+    }
+    let searchTimer = null;
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          filterSkills(searchInput.value);
+        }, 300);
+      });
+    }
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", async () => {
+        skillCache = null;
+        if (searchInput) searchInput.value = "";
+        await loadSkills();
+      });
+    }
+    await loadSkills();
   }
 
   // src/panels/registry.js
@@ -42719,6 +43204,14 @@ ${MEM_TAG_CLOSE2}`;
         bindPanelNavigation();
       }
     });
+    const body = getPanelBodyElement();
+    if (sectionId === "upload") {
+      initSkillUploadPanel(body);
+    } else if (sectionId === "history") {
+      initSkillHistoryPanel(body);
+    } else if (sectionId === "manage") {
+      initSkillManagePanel(body);
+    }
     bindPanelControls();
   }
   function navigateToResourceSection(sectionId) {

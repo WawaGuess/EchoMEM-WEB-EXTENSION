@@ -29,6 +29,11 @@ import {
   initConfigPanel
 } from '../panels/echomem/config.js';
 import {
+  initSkillUploadPanel,
+  initSkillHistoryPanel,
+  initSkillManagePanel
+} from '../panels/skill-store/index.js';
+import {
   bindToggleButton,
   bindConfigUI,
   loadConfigValues,
@@ -154,6 +159,17 @@ export function navigateToSkillSection(sectionId) {
       bindPanelNavigation();
     }
   });
+
+  // Initialize skill sub-pages
+  const body = getPanelBodyElement();
+  if (sectionId === 'upload') {
+    initSkillUploadPanel(body);
+  } else if (sectionId === 'history') {
+    initSkillHistoryPanel(body);
+  } else if (sectionId === 'manage') {
+    initSkillManagePanel(body);
+  }
+
   bindPanelControls();
 }
 

@@ -30,6 +30,8 @@ docs/
 | [architecture/2026-05-11-smart-completion-implementation.md](./architecture/2026-05-11-smart-completion-implementation.md) | 智能补全功能实现总结：OpenViking 召回 + 本地算法 + 多选浮层 + 合并式插入；含 OpenViking 认证开关（authEnabled）逻辑 |
 | [architecture/2026-05-16-session-recording-implementation.md](./architecture/2026-05-16-session-recording-implementation.md) | 会话录制模块实现：DOM 提取、消息 diff、流式完成检测、OpenViking 同步，含去重与防重设计 |
 | [architecture/2026-05-20-resource-import-ftp-like-implementation.md](./architecture/2026-05-20-resource-import-ftp-like-implementation.md) | 资源导入 FTP 化改造实现总结：前端上传/浏览/新建文件夹流程，OpenViking `keep_original` 备份逻辑，HTTP 接口清单与数据流 |
+| [architecture/2026-05-26-skill-upload-implementation.md](./architecture/2026-05-26-skill-upload-implementation.md) | Skill 上传创建功能实现总结：前端校验/temp_upload/add_skill 流程，OpenViking SkillProcessor 解析落盘逻辑，含时序图 |
+| [architecture/2026-05-26-skill-list-reading-implementation.md](./architecture/2026-05-26-skill-list-reading-implementation.md) | Skill 列表与详情查看功能实现总结：fsLs/contentRead 适配，frontmatter 去除后的数据获取策略，缓存与性能优化，含时序图 |
 | [proposals/README.md](./proposals/README.md) | 后续方案草稿区的使用规则 |
 
 ## 方案记录
