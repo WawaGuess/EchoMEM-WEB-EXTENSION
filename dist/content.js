@@ -1640,10 +1640,10 @@ ${block}` : block;
         return "\u8BF7\u6C42\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u540E\u7AEF\u662F\u5426\u6B63\u5E38\u8FD0\u884C\u6216\u7F51\u7EDC\u8FDE\u63A5";
       }
       if ((_b2 = err.message) == null ? void 0 : _b2.includes("Failed to fetch")) {
-        return "\u65E0\u6CD5\u8FDE\u63A5\u5230 OpenViking \u540E\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E";
+        return "\u65E0\u6CD5\u8FDE\u63A5\u5230\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E";
       }
       if (((_c2 = err.message) == null ? void 0 : _c2.includes("401")) || ((_d2 = err.message) == null ? void 0 : _d2.includes("403"))) {
-        return "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728 EchoMem \u4E3B\u9875\u7684\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key";
+        return "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728 EchoMem \u4E3B\u9875\u7684\u300C\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key";
       }
       return err.message;
     }
@@ -1675,11 +1675,11 @@ ${block}` : block;
         console.warn("[EchoMem] poll failed", err);
         const msg = err.message || "";
         if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("API Key")) {
-          showStatus("\u274C \u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key", "error");
+          showStatus("\u274C \u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728\u300C\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key", "error");
           showResult(`
           <div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; color: #b91c1c;">
             <p style="margin-bottom: 6px;">\u274C \u8BA4\u8BC1\u5931\u8D25</p>
-            <p style="margin: 0;">\u8F6E\u8BE2\u8FC7\u7A0B\u4E2D API Key \u9A8C\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5230 EchoMem \u4E3B\u9875\u7684\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5\u5E76\u91CD\u65B0\u4FDD\u5B58\u914D\u7F6E\u3002</p>
+            <p style="margin: 0;">\u8F6E\u8BE2\u8FC7\u7A0B\u4E2D API Key \u9A8C\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5230 EchoMem \u4E3B\u9875\u7684\u300C\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5\u5E76\u91CD\u65B0\u4FDD\u5B58\u914D\u7F6E\u3002</p>
           </div>
         `);
           return;
@@ -1795,7 +1795,7 @@ ${block}` : block;
       <div style="margin-bottom: 16px;">
         <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u{1F4A1} \u529F\u80FD\u8BF4\u660E</p>
         <ul style="font-size: 13px; color: #666; padding-left: 18px; line-height: 1.8; margin: 0;">
-          <li>\u5386\u53F2\u8BB0\u5FC6\u53EC\u56DE\uFF1A\u6839\u636E\u8F93\u5165\u5B9E\u65F6\u53EC\u56DE OpenViking \u4E2D\u7684\u76F8\u5173\u8BB0\u5FC6</li>
+          <li>\u5386\u53F2\u8BB0\u5FC6\u53EC\u56DE\uFF1A\u6839\u636E\u8F93\u5165\u5B9E\u65F6\u53EC\u56DE\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u4E2D\u7684\u76F8\u5173\u8BB0\u5FC6</li>
           <li>\u8BED\u4E49\u641C\u7D22\uFF1A\u652F\u6301\u8FD1\u4E49\u8BCD\u548C\u8BED\u4E49\u76F8\u5173\u5185\u5BB9\u7684\u53EC\u56DE</li>
           <li>\u70B9\u51FB\u63D2\u5165\uFF1A\u70B9\u51FB\u5EFA\u8BAE\u5FEB\u901F\u63D2\u5165\u5230\u8F93\u5165\u6846</li>
         </ul>
@@ -41179,10 +41179,10 @@ ${block}` : block;
         return "\u8BF7\u6C42\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u540E\u7AEF\u662F\u5426\u6B63\u5E38\u8FD0\u884C\u6216\u7F51\u7EDC\u8FDE\u63A5";
       }
       if ((_b2 = err.message) == null ? void 0 : _b2.includes("Failed to fetch")) {
-        return "\u65E0\u6CD5\u8FDE\u63A5\u5230 OpenViking \u540E\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E";
+        return "\u65E0\u6CD5\u8FDE\u63A5\u5230\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E";
       }
       if (((_c2 = err.message) == null ? void 0 : _c2.includes("401")) || ((_d2 = err.message) == null ? void 0 : _d2.includes("403"))) {
-        return "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728 EchoMem \u4E3B\u9875\u7684\u300COpenViking \u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key";
+        return "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728 EchoMem \u4E3B\u9875\u7684\u300C\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key";
       }
       return err.message;
     }
@@ -41793,7 +41793,7 @@ ${block}` : block;
         flex-shrink: 0;
       "></span>
       <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1;">
-        <span style="font-size: 14px; font-weight: 600; color: #111827;">\u2699\uFE0F OpenViking \u8FDE\u63A5\u914D\u7F6E</span>
+        <span style="font-size: 14px; font-weight: 600; color: #111827;">\u2699\uFE0F \u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E</span>
         <span style="font-size: 12px; color: #6b7280; line-height: 1.45;">\u914D\u7F6E\u540E\u7AEF\u5730\u5740\u3001API Key \u548C\u8BA4\u8BC1\u4FE1\u606F</span>
       </span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
@@ -43292,7 +43292,7 @@ ${MEM_TAG_CLOSE2}`;
       type: "panel",
       panelId: "openvikingConfig"
     });
-    openCustomPanel("OpenViking \u8FDE\u63A5\u914D\u7F6E", getOpenVikingConfigContent(), {
+    openCustomPanel("\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E", getOpenVikingConfigContent(), {
       showBack: true,
       onBack: openEchoMemHomePanel
     });

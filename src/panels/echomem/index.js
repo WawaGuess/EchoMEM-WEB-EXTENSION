@@ -87,7 +87,7 @@ export function getEchoMemHomeContent() {
         flex-shrink: 0;
       "></span>
       <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1;">
-        <span style="font-size: 14px; font-weight: 600; color: #111827;">⚙️ OpenViking 连接配置</span>
+        <span style="font-size: 14px; font-weight: 600; color: #111827;">⚙️ 记忆后端引擎连接配置</span>
         <span style="font-size: 12px; color: #6b7280; line-height: 1.45;">配置后端地址、API Key 和认证信息</span>
       </span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">

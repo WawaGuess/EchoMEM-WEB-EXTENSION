@@ -209,7 +209,7 @@ export function navigateToConfigPanel() {
     panelId: 'openvikingConfig'
   });
 
-  openCustomPanel('OpenViking 连接配置', getOpenVikingConfigContent(), {
+  openCustomPanel('记忆后端引擎连接配置', getOpenVikingConfigContent(), {
     showBack: true,
     onBack: openEchoMemHomePanel
   });

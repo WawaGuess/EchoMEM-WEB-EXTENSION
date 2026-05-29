@@ -434,10 +434,10 @@ export async function initImportPanel(bodyElement) {
       return '请求超时，请检查后端是否正常运行或网络连接';
     }
     if (err.message?.includes('Failed to fetch')) {
-      return '无法连接到 OpenViking 后端，请检查服务地址和认证配置';
+      return '无法连接到记忆后端引擎，请检查服务地址和认证配置';
     }
     if (err.message?.includes('401') || err.message?.includes('403')) {
-      return '认证失败，请在 EchoMem 主页的「OpenViking 连接配置」中检查 API Key';
+      return '认证失败，请在 EchoMem 主页的「记忆后端引擎连接配置」中检查 API Key';
     }
     return err.message;
   }
@@ -478,11 +478,11 @@ export async function initImportPanel(bodyElement) {
       const msg = err.message || '';
 
       if (msg.includes('401') || msg.includes('Unauthorized') || msg.includes('API Key')) {
-        showStatus('❌ 认证失败，请在「OpenViking 连接配置」中检查 API Key', 'error');
+        showStatus('❌ 认证失败，请在「记忆后端引擎连接配置」中检查 API Key', 'error');
         showResult(`
           <div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; color: #b91c1c;">
             <p style="margin-bottom: 6px;">❌ 认证失败</p>
-            <p style="margin: 0;">轮询过程中 API Key 验证失败，请到 EchoMem 主页的「OpenViking 连接配置」中检查并重新保存配置。</p>
+            <p style="margin: 0;">轮询过程中 API Key 验证失败，请到 EchoMem 主页的「记忆后端引擎连接配置」中检查并重新保存配置。</p>
           </div>
         `);
         return;

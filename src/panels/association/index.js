@@ -48,7 +48,7 @@ export function getInputAssociationContent() {
       <div style="margin-bottom: 16px;">
         <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">💡 功能说明</p>
         <ul style="font-size: 13px; color: #666; padding-left: 18px; line-height: 1.8; margin: 0;">
-          <li>历史记忆召回：根据输入实时召回 OpenViking 中的相关记忆</li>
+          <li>历史记忆召回：根据输入实时召回记忆后端引擎中的相关记忆</li>
           <li>语义搜索：支持近义词和语义相关内容的召回</li>
           <li>点击插入：点击建议快速插入到输入框</li>
         </ul>
