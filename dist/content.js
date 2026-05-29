@@ -40824,33 +40824,59 @@ ${block}` : block;
       }
     </style>
     <div id="perf-root" style="color: #374151; display: flex; flex-direction: column; gap: 12px;">
-      <!-- \u6838\u5FC3\u6307\u6807\uFF1A\u9884\u8BA1\u8282\u7701 -->
+      <!-- \u6838\u5FC3\u6307\u6807\uFF1A\u603B Token \u6D88\u8017 -->
       <div style="
         padding: 18px 16px;
         border-radius: 10px;
-        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-        border: 1px solid #a7f3d0;
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        border: 1px solid #bfdbfe;
         text-align: center;
       ">
-        <div style="font-size: 12px; color: #059669; font-weight: 500; margin-bottom: 6px;">\u{1F4B0} \u9884\u8BA1\u8282\u7701 Token</div>
-        <div id="perf-saved" style="font-size: 32px; font-weight: 800; color: #047857; line-height: 1;">${skeletonValue("100px")}</div>
+        <div style="font-size: 12px; color: #2563eb; font-weight: 500; margin-bottom: 6px;">\u603B Token \u6D88\u8017</div>
+        <div id="perf-total" style="font-size: 32px; font-weight: 800; color: #1d4ed8; line-height: 1;">${skeletonValue("100px")}</div>
       </div>
 
-      <!-- \u6210\u672C\u5BF9\u6BD4\uFF1A\u7528\u6237\u6D88\u8017 vs \u540E\u7AEF\u6D88\u8017 -->
+      <!-- \u4F1A\u8BDD\u7EDF\u8BA1 -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
         <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">\u7528\u6237\u4F1A\u8BDD\u6D88\u8017</p>
-          <p id="perf-user" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">\u4F1A\u8BDD\u6570</p>
+          <p id="perf-sessions" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("60px")}</p>
+        </div>
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">\u8F6E\u6B21\u6570</p>
+          <p id="perf-turns" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("60px")}</p>
+        </div>
+      </div>
+
+      <!-- Input / Output \u62C6\u5206 -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">Input Tokens</p>
+          <p id="perf-input" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
           <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
         </div>
         <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">EchoMem \u540E\u7AEF\u6D88\u8017</p>
-          <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">Output Tokens</p>
+          <p id="perf-output" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
           <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
         </div>
       </div>
 
-      <!-- \u8282\u7701\u8BF4\u660E -->
+      <!-- \u540E\u7AEF\u6D88\u8017 & \u8282\u7701\uFF08\u5F85\u63A5\u5165\uFF09 -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; opacity: 0.6;">
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">EchoMem \u540E\u7AEF\u6D88\u8017</p>
+          <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #9ca3af;">--</p>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">\u5F85\u63A5\u5165</p>
+        </div>
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; opacity: 0.6;">
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">\u9884\u8BA1\u8282\u7701 Token</p>
+          <p id="perf-saved" style="margin: 0; font-size: 20px; font-weight: 700; color: #9ca3af;">--</p>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">\u5F85\u8BA1\u7B97</p>
+        </div>
+      </div>
+
+      <!-- \u8BF4\u660E -->
       <div id="perf-desc" style="
         padding: 12px 14px;
         border-radius: 8px;
@@ -40860,32 +40886,54 @@ ${block}` : block;
         color: #6b7280;
         line-height: 1.6;
       ">
-        <span style="color: #059669; font-weight: 600;">\u6B63\u5728\u52A0\u8F7D\u6570\u636E\u2026</span>
+        <span style="color: #2563eb; font-weight: 600;">\u6B63\u5728\u52A0\u8F7D\u6570\u636E\u2026</span>
       </div>
     </div>
   `;
   }
   async function fetchPerformanceData() {
-    return {
-      userTokens: 45280,
-      savedTokens: 12500,
-      backendTokens: 32780
-    };
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ action: "fetchStatsSummary" }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!response || !response.success) {
+          reject(new Error((response == null ? void 0 : response.error) || "Unknown error"));
+          return;
+        }
+        const data = response.data;
+        resolve({
+          totalSessions: data.total_sessions ?? 0,
+          totalTurns: data.total_turns ?? 0,
+          totalInputTokens: data.total_input_tokens ?? 0,
+          totalOutputTokens: data.total_output_tokens ?? 0,
+          totalTokens: data.total_tokens ?? 0,
+          since: data.since
+        });
+      });
+    });
   }
   function updatePerformanceDOM(bodyElement, data) {
     if (!bodyElement) return;
-    const savedEl = bodyElement.querySelector("#perf-saved");
-    const userEl = bodyElement.querySelector("#perf-user");
-    const backendEl = bodyElement.querySelector("#perf-backend");
+    const totalEl = bodyElement.querySelector("#perf-total");
+    const sessionsEl = bodyElement.querySelector("#perf-sessions");
+    const turnsEl = bodyElement.querySelector("#perf-turns");
+    const inputEl = bodyElement.querySelector("#perf-input");
+    const outputEl = bodyElement.querySelector("#perf-output");
     const descEl = bodyElement.querySelector("#perf-desc");
-    if (savedEl) savedEl.textContent = FMT(data.savedTokens ?? 0);
-    if (userEl) userEl.textContent = FMT(data.userTokens ?? 0);
-    if (backendEl) backendEl.textContent = FMT(data.backendTokens ?? 0);
+    if (totalEl) totalEl.textContent = FMT(data.totalTokens ?? 0);
+    if (sessionsEl) sessionsEl.textContent = FMT(data.totalSessions ?? 0);
+    if (turnsEl) turnsEl.textContent = FMT(data.totalTurns ?? 0);
+    if (inputEl) inputEl.textContent = FMT(data.totalInputTokens ?? 0);
+    if (outputEl) outputEl.textContent = FMT(data.totalOutputTokens ?? 0);
     if (descEl) {
+      const sinceText = data.since ? `\u81EA ${new Date(data.since).toLocaleString("zh-CN")} \u8D77\u7EDF\u8BA1` : "\u7EDF\u8BA1\u8303\u56F4\uFF1A\u5168\u90E8\u5386\u53F2\u4F1A\u8BDD";
       descEl.innerHTML = `
-      <span style="color: #059669; font-weight: 600;">\u51C0\u8282\u7701\uFF1A</span>
-      EchoMem \u672C\u6B21\u5E2E\u4F60\u8282\u7701\u4E86 <strong style="color: #111827;">${FMT(data.savedTokens ?? 0)}</strong> tokens
-      \uFF08\u540E\u7AEF\u6D88\u8017 ${FMT(data.backendTokens ?? 0)} tokens \u5DF2\u8BA1\u5165\u6210\u672C\uFF09\u3002
+      <span style="color: #2563eb; font-weight: 600;">Token \u7EDF\u8BA1\uFF1A</span>
+      \u7D2F\u8BA1 ${FMT(data.totalSessions ?? 0)} \u4E2A\u4F1A\u8BDD\uFF0C${FMT(data.totalTurns ?? 0)} \u8F6E\u5BF9\u8BDD\uFF0C
+      \u5171\u6D88\u8017 <strong style="color: #111827;">${FMT(data.totalTokens ?? 0)}</strong> tokens\u3002
+      <br><span style="color: #9ca3af;">${sinceText}</span>
     `;
     }
   }

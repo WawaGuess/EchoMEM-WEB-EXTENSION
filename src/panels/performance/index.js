@@ -31,33 +31,59 @@ export function getPerformanceContent() {
       }
     </style>
     <div id="perf-root" style="color: #374151; display: flex; flex-direction: column; gap: 12px;">
-      <!-- 核心指标：预计节省 -->
+      <!-- 核心指标：总 Token 消耗 -->
       <div style="
         padding: 18px 16px;
         border-radius: 10px;
-        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-        border: 1px solid #a7f3d0;
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        border: 1px solid #bfdbfe;
         text-align: center;
       ">
-        <div style="font-size: 12px; color: #059669; font-weight: 500; margin-bottom: 6px;">💰 预计节省 Token</div>
-        <div id="perf-saved" style="font-size: 32px; font-weight: 800; color: #047857; line-height: 1;">${skeletonValue('100px')}</div>
+        <div style="font-size: 12px; color: #2563eb; font-weight: 500; margin-bottom: 6px;">总 Token 消耗</div>
+        <div id="perf-total" style="font-size: 32px; font-weight: 800; color: #1d4ed8; line-height: 1;">${skeletonValue('100px')}</div>
       </div>
 
-      <!-- 成本对比：用户消耗 vs 后端消耗 -->
+      <!-- 会话统计 -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
         <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">用户会话消耗</p>
-          <p id="perf-user" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('80px')}</p>
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">会话数</p>
+          <p id="perf-sessions" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('60px')}</p>
+        </div>
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">轮次数</p>
+          <p id="perf-turns" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('60px')}</p>
+        </div>
+      </div>
+
+      <!-- Input / Output 拆分 -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">Input Tokens</p>
+          <p id="perf-input" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('80px')}</p>
           <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
         </div>
         <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">EchoMem 后端消耗</p>
-          <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('80px')}</p>
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">Output Tokens</p>
+          <p id="perf-output" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('80px')}</p>
           <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
         </div>
       </div>
 
-      <!-- 节省说明 -->
+      <!-- 后端消耗 & 节省（待接入） -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; opacity: 0.6;">
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">EchoMem 后端消耗</p>
+          <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #9ca3af;">--</p>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">待接入</p>
+        </div>
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; opacity: 0.6;">
+          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">预计节省 Token</p>
+          <p id="perf-saved" style="margin: 0; font-size: 20px; font-weight: 700; color: #9ca3af;">--</p>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">待计算</p>
+        </div>
+      </div>
+
+      <!-- 说明 -->
       <div id="perf-desc" style="
         padding: 12px 14px;
         border-radius: 8px;
@@ -67,7 +93,7 @@ export function getPerformanceContent() {
         color: #6b7280;
         line-height: 1.6;
       ">
-        <span style="color: #059669; font-weight: 600;">正在加载数据…</span>
+        <span style="color: #2563eb; font-weight: 600;">正在加载数据…</span>
       </div>
     </div>
   `;
@@ -76,22 +102,31 @@ export function getPerformanceContent() {
 // ── 数据获取 ────────────────────────────────────────────────────────────
 
 /**
- * 从后端获取 Token 效能数据
- * TODO: 接入真实 API，替换为实际请求
+ * 从后端获取用户会话 Token 统计数据
+ * 通过 background script 代理请求，绕过页面域 CORS 限制
  */
 export async function fetchPerformanceData() {
-  // 示例：
-  // const { createClient } = await import('../../services/openviking-client.js');
-  // const { getOpenVikingConfig } = await import('../../services/config.js');
-  // const client = createClient(await getOpenVikingConfig());
-  // const res = await client.get('/api/performance/tokens');
-  // return res.data;
-
-  return {
-    userTokens: 45280,
-    savedTokens: 12500,
-    backendTokens: 32780
-  };
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ action: 'fetchStatsSummary' }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!response || !response.success) {
+        reject(new Error(response?.error || 'Unknown error'));
+        return;
+      }
+      const data = response.data;
+      resolve({
+        totalSessions: data.total_sessions ?? 0,
+        totalTurns: data.total_turns ?? 0,
+        totalInputTokens: data.total_input_tokens ?? 0,
+        totalOutputTokens: data.total_output_tokens ?? 0,
+        totalTokens: data.total_tokens ?? 0,
+        since: data.since,
+      });
+    });
+  });
 }
 
 // ── DOM 更新 ────────────────────────────────────────────────────────────
@@ -99,20 +134,28 @@ export async function fetchPerformanceData() {
 function updatePerformanceDOM(bodyElement, data) {
   if (!bodyElement) return;
 
-  const savedEl = bodyElement.querySelector('#perf-saved');
-  const userEl  = bodyElement.querySelector('#perf-user');
-  const backendEl = bodyElement.querySelector('#perf-backend');
-  const descEl  = bodyElement.querySelector('#perf-desc');
+  const totalEl    = bodyElement.querySelector('#perf-total');
+  const sessionsEl = bodyElement.querySelector('#perf-sessions');
+  const turnsEl    = bodyElement.querySelector('#perf-turns');
+  const inputEl    = bodyElement.querySelector('#perf-input');
+  const outputEl   = bodyElement.querySelector('#perf-output');
+  const descEl     = bodyElement.querySelector('#perf-desc');
 
-  if (savedEl) savedEl.textContent = FMT(data.savedTokens ?? 0);
-  if (userEl)  userEl.textContent  = FMT(data.userTokens ?? 0);
-  if (backendEl) backendEl.textContent = FMT(data.backendTokens ?? 0);
+  if (totalEl)    totalEl.textContent    = FMT(data.totalTokens ?? 0);
+  if (sessionsEl) sessionsEl.textContent = FMT(data.totalSessions ?? 0);
+  if (turnsEl)    turnsEl.textContent    = FMT(data.totalTurns ?? 0);
+  if (inputEl)    inputEl.textContent    = FMT(data.totalInputTokens ?? 0);
+  if (outputEl)   outputEl.textContent   = FMT(data.totalOutputTokens ?? 0);
 
   if (descEl) {
+    const sinceText = data.since
+      ? `自 ${new Date(data.since).toLocaleString('zh-CN')} 起统计`
+      : '统计范围：全部历史会话';
     descEl.innerHTML = `
-      <span style="color: #059669; font-weight: 600;">净节省：</span>
-      EchoMem 本次帮你节省了 <strong style="color: #111827;">${FMT(data.savedTokens ?? 0)}</strong> tokens
-      （后端消耗 ${FMT(data.backendTokens ?? 0)} tokens 已计入成本）。
+      <span style="color: #2563eb; font-weight: 600;">Token 统计：</span>
+      累计 ${FMT(data.totalSessions ?? 0)} 个会话，${FMT(data.totalTurns ?? 0)} 轮对话，
+      共消耗 <strong style="color: #111827;">${FMT(data.totalTokens ?? 0)}</strong> tokens。
+      <br><span style="color: #9ca3af;">${sinceText}</span>
     `;
   }
 }

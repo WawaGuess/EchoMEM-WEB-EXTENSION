@@ -46,6 +46,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true;
   }
+
+  if (request.action === 'fetchStatsSummary') {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+
+    fetch('http://127.0.0.1:8000/api/stats/summary', {
+      method: 'GET',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        clearTimeout(timer);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          sendResponse({ success: false, error: data.error?.message || `HTTP ${response.status}` });
+        } else {
+          sendResponse({ success: true, data });
+        }
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        sendResponse({ success: false, error: err.message });
+      });
+    return true;
+  }
 });
 
 // 监听标签页更新

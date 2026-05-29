@@ -6,36 +6,54 @@
 
 ## 需求目标
 
-1. 展示三类可获取的 Token 数据：
-   - **预计节省 Token**：EchoMem 帮助用户节省的 Token 数量（核心价值指标）
-   - **用户会话消耗**：当前页面 AI 会话实际产生的 Token 消耗
-   - **EchoMem 后端消耗**：EchoMem 服务自身产生的 Token 消耗
-2. 由于无法获取"无 EchoMem 时的原始会话 Token 总量"，界面中不展示任何依赖该值的计算或百分比。
+1. 展示用户会话 Token 统计数据（已接入真实接口）：
+   - **总 Token 消耗**：累计所有会话的 Token 总量
+   - **会话数 / 轮次数**：统计范围内的会话和对话轮次
+   - **Input / Output Tokens**：Token 消耗按输入/输出拆分
+2. **EchoMem 后端消耗**和**预计节省 Token**两个指标仍待后续接入：
+   - 后端消耗需等独立接口就绪
+   - 节省 Token 需等前端计算逻辑确定
+   - 当前 UI 中这两处显示灰色占位（"-- / 待接入"）
 3. 数据通过接口异步获取，面板打开时需支持**骨架屏占位 + 数据实时填充**。
 4. 支持**定时轮询刷新**，用户无需关闭重开面板即可看到最新数据。
 
 ## 界面布局
 
-面板宽度沿用平台配置 `400px`，内部采用纵向三段式布局：
+面板宽度沿用平台配置 `400px`，内部采用纵向多段式布局：
 
 ### 1. 核心指标区（全宽大卡片）
 
-- 绿色渐变背景（`#ecfdf5 → #d1fae5`），视觉突出
-- 标题："💰 预计节省 Token"
-- 数值：32px 大字号， emerald-700 色
-- 该指标为用户最关心的核心价值，放在首屏最显眼位置
+- 蓝色渐变背景（`#eff6ff → #dbeafe`），视觉突出
+- 标题："总 Token 消耗"
+- 数值：32px 大字号，blue-700 色
+- 该指标为用户最关心的总量指标，放在首屏最显眼位置
 
-### 2. 成本对比区（双列网格）
+### 2. 会话统计区（双列网格）
 
 - 2 列等宽卡片，gap 10px
-- 左卡："用户会话消耗" + 数值 + "tokens" 单位
-- 右卡："EchoMem 后端消耗" + 数值 + "tokens" 单位
+- 左卡："会话数" + 数值
+- 右卡："轮次数" + 数值
 - 卡片样式：浅灰背景（`#f9fafb`）+ 边框，数值 20px 加粗
 
-### 3. 说明文字区
+### 3. Input / Output 拆分区（双列网格）
+
+- 2 列等宽卡片，gap 10px
+- 左卡："Input Tokens" + 数值 + "tokens" 单位
+- 右卡："Output Tokens" + 数值 + "tokens" 单位
+- 与第 2 区共用同一卡片样式
+
+### 4. 后端消耗 & 节省占位区（双列网格，置灰）
+
+- 2 列等宽卡片，gap 10px，整体 `opacity: 0.6`
+- 左卡："EchoMem 后端消耗" + "--" + "待接入"
+- 右卡："预计节省 Token" + "--" + "待计算"
+- 灰色文字提示用户该部分功能尚未开放
+
+### 5. 说明文字区
 
 - 白色背景卡片
-- 显示净节省计算说明：节省量已扣除后端消耗成本
+- 显示累计统计说明：会话数、轮次数、总消耗量
+- 若接口返回 `since` 时间，追加统计起始时间
 - 加载中状态显示"正在加载数据…"
 - 加载失败显示红色错误提示
 
@@ -72,7 +90,7 @@
 | 模块 | 路径 | 职责 |
 |------|------|------|
 | `getPerformanceContent` | `src/panels/performance/index.js` | 返回带骨架屏的 HTML 字符串（含 id 锚点供 DOM 更新定位） |
-| `fetchPerformanceData` | `src/panels/performance/index.js` | 异步获取 Token 数据（当前返回占位对象，TODO 处接真实 API） |
+| `fetchPerformanceData` | `src/panels/performance/index.js` | 异步获取 Token 数据，已通过 background script 代理接入真实接口 |
 | `updatePerformanceDOM` | `src/panels/performance/index.js` | 纯 DOM 更新函数，轮询复用 |
 | `initPerformancePanel` | `src/panels/performance/index.js` | 首次加载 + 可选轮询，返回 `{ destroy }` 生命周期句柄 |
 | `navigateToEchoMemPanel` | `src/core/router.js` | 路由层：打开效能面板时先渲染骨架屏，再调用 init |
@@ -90,38 +108,37 @@
 
 ### fetchPerformanceData（数据获取层）
 
-当前为占位实现：
+当前已实现用户会话统计接口接入，通过 background script 代理请求绕过页面域 CORS 限制：
 
 ```js
 export async function fetchPerformanceData() {
-  // TODO: 接入真实 API
-  return {
-    userTokens: 45280,
-    savedTokens: 12500,
-    backendTokens: 32780
-  };
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ action: 'fetchStatsSummary' }, (response) => {
+      // ... 处理 response，映射为内部数据结构
+    });
+  });
 }
 ```
 
-接入真实接口时，只需替换函数体为实际请求：
-
-```js
-const { createClient } = await import('../../services/openviking-client.js');
-const { getOpenVikingConfig } = await import('../../services/config.js');
-const client = createClient(await getOpenVikingConfig());
-const res = await client.get('/api/performance/tokens');
-return res.data;
-```
-
-**约定数据结构**：
+**约定数据结构（当前已接入字段）**：
 
 ```ts
 interface PerformanceData {
-  userTokens: number;    // 用户会话 Token 消耗量
-  savedTokens: number;   // 预计节省 Token 量
-  backendTokens: number; // EchoMem 后端 Token 消耗量
+  totalSessions: number;      // 累计会话数
+  totalTurns: number;         // 累计对话轮次
+  totalInputTokens: number;   // 累计 Input Tokens
+  totalOutputTokens: number;  // 累计 Output Tokens
+  totalTokens: number;        // Token 消耗总量
+  since: string | null;       // 统计起始时间（ISO 字符串）
 }
 ```
+
+**待接入字段**：
+
+| 字段 | 状态 | 说明 |
+|------|------|------|
+| `backendTokens` | 待接口就绪 | EchoMem 后端 Token 消耗量，需等独立接口开发完成 |
+| `savedTokens` | 待逻辑确定 | 预计节省 Token 量，需等前端计算逻辑确定后接入 |
 
 ### 轮询间隔调整
 

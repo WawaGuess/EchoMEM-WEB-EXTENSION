@@ -54,34 +54,71 @@ function skeletonValue(width = '60px') {
 
 返回完整的 HTML 字符串（无参数）。关键特征：
 
-- 数值区域使用 `id="perf-saved"`、`id="perf-user"`、`id="perf-backend"` 作为 DOM 更新锚点
+- 数值区域使用以下 id 作为 DOM 更新锚点：
+  - `id="perf-total"` — 总 Token 消耗（核心指标区）
+  - `id="perf-sessions"` / `id="perf-turns"` — 会话统计区
+  - `id="perf-input"` / `id="perf-output"` — Input/Output 拆分区
+  - `id="perf-backend"` / `id="perf-saved"` — 后端消耗 & 节省占位区（当前写死为"--"）
 - 说明区域使用 `id="perf-desc"` 作为状态/错误提示锚点
-- 骨架屏占位条宽度：核心指标 100px，双列卡片 80px
+- 骨架屏占位条宽度：核心指标 100px，双列卡片 60px~80px
 
 ### `fetchPerformanceData()`
 
-当前为硬编码占位，返回固定对象：
+已实现真实接口接入，通过 background script 代理请求绕过页面域 CORS 限制：
 
 ```js
-return {
-  userTokens: 45280,
-  savedTokens: 12500,
-  backendTokens: 32780
-};
+export async function fetchPerformanceData() {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ action: 'fetchStatsSummary' }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!response || !response.success) {
+        reject(new Error(response?.error || 'Unknown error'));
+        return;
+      }
+      const data = response.data;
+      resolve({
+        totalSessions: data.total_sessions ?? 0,
+        totalTurns: data.total_turns ?? 0,
+        totalInputTokens: data.total_input_tokens ?? 0,
+        totalOutputTokens: data.total_output_tokens ?? 0,
+        totalTokens: data.total_tokens ?? 0,
+        since: data.since,
+      });
+    });
+  });
+}
 ```
 
-文件内已预留接入注释，后续只需把注释中的 `createClient` + `client.get(...)` 逻辑解注释即可。要求后端返回的数据结构与此一致。
+对应的 background script handler 在 `background.js` 中：
+
+```js
+if (request.action === 'fetchStatsSummary') {
+  fetch('http://127.0.0.1:8000/api/stats/summary', { ... })
+    .then(...)
+    .catch(...);
+  return true;
+}
+```
+
+当前接口仅返回用户会话统计字段，`backendTokens` 和 `savedTokens` 仍待后续接入。
 
 ### `updatePerformanceDOM(bodyElement, data)`
 
-内部函数，通过 `querySelector` 定位 4 个 id 锚点，直接修改 `textContent` 或 `innerHTML`：
+内部函数，通过 `querySelector` 定位 6 个 id 锚点，直接修改 `textContent` 或 `innerHTML`：
 
 | 元素 id | 更新内容 |
 |---------|----------|
-| `perf-saved` | `data.savedTokens` 格式化后文本 |
-| `perf-user` | `data.userTokens` 格式化后文本 |
-| `perf-backend` | `data.backendTokens` 格式化后文本 |
-| `perf-desc` | 替换为完整的节省说明 HTML |
+| `perf-total` | `data.totalTokens` 格式化后文本 |
+| `perf-sessions` | `data.totalSessions` 格式化后文本 |
+| `perf-turns` | `data.totalTurns` 格式化后文本 |
+| `perf-input` | `data.totalInputTokens` 格式化后文本 |
+| `perf-output` | `data.totalOutputTokens` 格式化后文本 |
+| `perf-desc` | 替换为累计统计说明 HTML（含 `since` 时间） |
+
+`perf-backend` 和 `perf-saved` 当前为写死的占位值（"--"），不参与 DOM 更新。
 
 **注意**：该函数不处理骨架屏 class 的移除。当 `textContent` 被真实数值覆盖后，骨架屏的 `<span>` 元素即被替换，无需额外清理样式。
 
@@ -278,10 +315,11 @@ navigateToEchoMemPanel('performance')
             │
             ├── refresh()                  // 立即执行
             │       └── fetchPerformanceData()
-            │               └── 当前返回硬编码对象
+            │               └── chrome.runtime.sendMessage({ action: 'fetchStatsSummary' })
+            │                       └── background.js fetch('http://127.0.0.1:8000/api/stats/summary')
             │
             └── updatePerformanceDOM(body, data)
-                    └── 修改 #perf-saved / #perf-user / #perf-backend / #perf-desc
+                    └── 修改 #perf-total / #perf-sessions / #perf-turns / #perf-input / #perf-output / #perf-desc
             │
             └── setInterval(refresh, 30000)  // 启动轮询
 
@@ -324,5 +362,6 @@ openEchoMemHomePanel()
 
 | 位置 | 说明 |
 |------|------|
-| `src/panels/performance/index.js:82` | `fetchPerformanceData()` 需接入真实 API |
-| `src/core/router.js:123` | `pollInterval: 30000` 可按需改为配置化读取 |
+| `src/panels/performance/index.js` | `backendTokens` 接口地址待补充，接入后更新 `fetchPerformanceData` 和 DOM 渲染逻辑 |
+| `src/panels/performance/index.js` | `savedTokens` 前端计算逻辑待确定，确定后更新 DOM 渲染和说明文案 |
+| `src/core/router.js` | `pollInterval: 30000` 可按需改为配置化读取 |
