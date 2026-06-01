@@ -12,7 +12,7 @@
 用户点击 EchoMem launcher
     │
     ▼
-打开 EchoMem 主面板（右侧 sidebar 或 overlay）
+打开 EchoMem 主面板（右侧 overlay 浮层）
     │
     ▼
 点击"认知反馈"菜单项
@@ -37,7 +37,7 @@
 
 新增 `openCenterOverlay()` 函数，与现有的 `openCustomPanel()` 并存：
 
-- `openCustomPanel()`：负责正常的 sidebar / 右侧 overlay 逻辑
+- `openCustomPanel()`：负责正常的右侧 overlay 逻辑
 - `openCenterOverlay()`：打开居中、大尺寸的浮动窗口，用于认知反馈图谱
 
 **浮层样式**：
@@ -52,13 +52,13 @@
 - 点击关闭按钮：关闭浮层
 - 点击返回按钮：关闭浮层 + 回到 EchoMem 主面板
 - 点击遮罩层：关闭浮层
-- 关闭浮层时不影响右侧 sidebar（HIGO）或恢复右侧 overlay（DeepSeek）
+- 关闭浮层时不影响右侧 EchoMem 主面板
 
 ### 2. 平台适配
 
 | 平台 | EchoMem 主面板 | 认知图谱浮层 | 关闭后的行为 |
 |------|---------------|-------------|-------------|
-| HIGO Office | sidebar（右侧抽屉） | 居中 overlay | 关闭浮层，sidebar 保持 EchoMem 主面板 |
+| HIGO Office | 右侧 overlay | 居中 overlay | 关闭浮层，右侧 overlay 保持 EchoMem 主面板 |
 | DeepSeek | 右侧 overlay | 居中 overlay | 关闭浮层，恢复右侧 EchoMem overlay |
 
 **实现要点**：
@@ -126,10 +126,10 @@
 
 **解决**：`openCenterOverlay` 不再调用 `restoreOriginalPanel()`，改为直接清理已存在的 overlay DOM 和遮罩层。
 
-### 问题 2：关闭认知图谱后右侧 sidebar 也关闭
-**原因**：`restoreOriginalPanel()` 总是恢复 sidebar 内容，导致 EchoMem 主面板被关闭。
+### 问题 2：关闭认知图谱后 EchoMem 主面板也关闭
+**原因**：`restoreOriginalPanel()` 会调用 `closeOverlayPanel()` 并清理所有面板状态，导致 EchoMem 主面板被关闭。
 
-**解决**：新增 `closeOverlayPanel()` 只关闭浮层不恢复 sidebar；`bindPanelEvents` 增加 `closeMode` 参数，认知图谱使用 `'overlay-only'` 模式。
+**解决**：新增 `closeOverlayPanel()` 只关闭当前浮层，如果有 `_previousOverlay` 则恢复它；`bindPanelEvents` 增加 `closeMode` 参数，认知图谱使用 `'overlay-only'` 模式。
 
 ### 问题 3：DeepSeek 关闭后右侧 overlay 消失且页面卡死
 **原因**：`closeOverlayPanel()` 的 `setTimeout` 回调依赖 `currentOverlayPanel` 变量，但该变量在回调执行前已被改回 `previousOverlay`。

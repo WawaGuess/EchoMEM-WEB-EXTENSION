@@ -68,8 +68,12 @@
         "strategy": "none"
       },
       "panelHost": {
-        "type": "sidebar",
-        "containerSelector": ".MuiDrawer-anchorRight .MuiDrawer-paper"
+        "type": "overlay",
+        "overlayConfig": {
+          "position": "right",
+          "width": "320px",
+          "backdrop": true
+        }
       },
       "sessionId": {
         "type": "regex",
@@ -161,7 +165,7 @@
         "type": "overlay",
         "overlayConfig": {
           "position": "right",
-          "width": "400px",
+          "width": "320px",
           "backdrop": true
         }
       },

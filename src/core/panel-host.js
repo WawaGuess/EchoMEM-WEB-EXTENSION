@@ -1,9 +1,8 @@
-// 面板系统（支持 sidebar 和 overlay 两种模式）
+// 面板系统（统一使用 overlay 模式）
 
 import { getCurrentPlatform } from './detection.js';
 import { setPanelOpen } from './state.js';
 
-let originalPanelContent = null;
 let isCustomPanelOpen = false;
 let currentOverlayPanel = null;
 
@@ -12,46 +11,11 @@ export function getPanelConfig(platform = getCurrentPlatform()) {
 }
 
 export function getPanelContainer() {
-  const platform = getCurrentPlatform();
-  if (!platform) return null;
-
-  const panelConfig = getPanelConfig(platform);
-  if (!panelConfig) return null;
-
-  if (panelConfig.type === 'sidebar') {
-    return document.querySelector(panelConfig.containerSelector);
-  } else if (panelConfig.type === 'overlay') {
-    return currentOverlayPanel;
-  }
-
-  return null;
+  return currentOverlayPanel;
 }
 
 export function isPanelOpen() {
   return isCustomPanelOpen;
-}
-
-export function getOriginalPanelContent() {
-  return originalPanelContent;
-}
-
-export function setOriginalPanelContent(content) {
-  originalPanelContent = content;
-}
-
-export function saveOriginalPanel() {
-  const platform = getCurrentPlatform();
-  if (!platform) return;
-
-  const panelConfig = getPanelConfig(platform);
-  if (!panelConfig) return;
-
-  if (panelConfig.type === 'sidebar') {
-    const container = document.querySelector(panelConfig.containerSelector);
-    if (container && !originalPanelContent) {
-      originalPanelContent = container.innerHTML;
-    }
-  }
 }
 
 function buildPanelHeader(title, showBack, onBack) {
@@ -223,28 +187,10 @@ export function openCustomPanel(title, contentHtml, options = {}) {
     </div>
   `;
 
-  if (panelConfig.type === 'sidebar') {
-    const container = document.querySelector(panelConfig.containerSelector);
-    if (!container) return;
-
-    // 防御性清理：移除可能残留的遮罩层
-    document.querySelectorAll('.claw-overlay-backdrop').forEach(b => b.remove());
-
-    if (!originalPanelContent) {
-      originalPanelContent = container.innerHTML;
-    }
-
-    container.innerHTML = panelHtml;
-    bindPanelEvents(container, showBack, onBack);
-    isCustomPanelOpen = true;
-    setPanelOpen(true);
-
-  } else if (panelConfig.type === 'overlay') {
-    createOverlayPanel(panelHtml, panelConfig.overlayConfig);
-    bindPanelEvents(currentOverlayPanel, showBack, onBack);
-    isCustomPanelOpen = true;
-    setPanelOpen(true);
-  }
+  createOverlayPanel(panelHtml, panelConfig.overlayConfig);
+  bindPanelEvents(currentOverlayPanel, showBack, onBack);
+  isCustomPanelOpen = true;
+  setPanelOpen(true);
 }
 
 function createOverlayPanel(panelHtml, overlayConfig) {
@@ -332,7 +278,7 @@ function createOverlayPanel(panelHtml, overlayConfig) {
 }
 
 /**
- * 仅关闭当前 overlay 浮层，不恢复 sidebar
+ * 关闭当前 overlay 浮层
  * 如果有 _previousOverlay，则恢复它
  */
 export function closeOverlayPanel() {
@@ -377,26 +323,10 @@ export function closeOverlayPanel() {
 }
 
 export function restoreOriginalPanel() {
-  // 1. 仅在存在 overlay 时才关闭（sidebar 模式下可能无 overlay）
   if (currentOverlayPanel) {
     closeOverlayPanel();
   }
-
-  // 防御性清理：同步移除任何残留的遮罩层
   document.querySelectorAll('.claw-overlay-backdrop').forEach(b => b.remove());
-
-  // 2. 恢复 sidebar 内容
-  const platform = getCurrentPlatform();
-  if (platform) {
-    const panelConfig = getPanelConfig(platform);
-    if (panelConfig && panelConfig.type === 'sidebar') {
-      const container = document.querySelector(panelConfig.containerSelector);
-      if (container && originalPanelContent) {
-        container.innerHTML = originalPanelContent;
-        console.log('Claw Extension: Sidebar panel restored');
-      }
-    }
-  }
 }
 
 export function getPanelBodyElement() {

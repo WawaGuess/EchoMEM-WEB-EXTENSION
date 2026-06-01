@@ -170,7 +170,7 @@ async function renderGraph(container) {
 }
 
 /**
- * 获取认知反馈面板内容（用于 sidebar 占位，实际打开时会走 openCenterOverlay）
+ * 获取认知反馈面板内容（作为基础内容，实际打开时会通过 openCenterOverlay 展示居中图谱）
  */
 export function getFeedbackContent() {
   return `

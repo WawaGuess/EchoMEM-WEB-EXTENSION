@@ -82,7 +82,7 @@ export function openCenterOverlay(title, contentHtml, options = {}) {
   // 4. 标记前序 overlay，用于关闭时恢复
   currentOverlayPanel._previousOverlay = existingOverlay;
 
-  // 5. 绑定事件（overlay-only 模式：只关浮层，不恢复 sidebar）
+  // 5. 绑定事件（overlay-only 模式：只关浮层，恢复前序面板）
   bindPanelEvents(currentOverlayPanel, showBack, onBack, 'overlay-only');
 }
 ```
@@ -91,7 +91,7 @@ export function openCenterOverlay(title, contentHtml, options = {}) {
 
 | 平台 | 打开前状态 | 处理逻辑 |
 |------|-----------|----------|
-| HIGO Office | `currentOverlayPanel = null`（sidebar 模式） | 直接创建居中浮层 |
+| HIGO Office | `currentOverlayPanel = null`（无已打开面板） | 直接创建居中浮层 |
 | DeepSeek | `currentOverlayPanel = EchoMem overlay` | 隐藏 EchoMem overlay，保存到 `_previousOverlay` |
 
 #### 1.2 关闭浮层 (`closeOverlayPanel`)
@@ -145,7 +145,7 @@ function bindPanelEvents(container, showBack, onBack, closeMode = 'restore') {
     if (closeMode === 'overlay-only') {
       closeOverlayPanel();  // 只关浮层
     } else {
-      restoreOriginalPanel();  // 关浮层 + 恢复 sidebar
+      restoreOriginalPanel();  // 关浮层 + 清理状态
     }
   });
 }
@@ -153,8 +153,8 @@ function bindPanelEvents(container, showBack, onBack, closeMode = 'restore') {
 
 | closeMode | 用途 | 行为 |
 |-----------|------|------|
-| `'restore'` | 正常 EchoMem 面板 | 关闭浮层 + 恢复 sidebar 内容 |
-| `'overlay-only'` | 认知图谱浮层 | 只关闭浮层，不恢复 sidebar |
+| `'restore'` | 正常 EchoMem 面板 | 关闭浮层 + 清理状态 |
+| `'overlay-only'` | 认知图谱浮层 | 只关闭浮层，恢复前序面板（如有） |
 
 ### 2. 路由适配 (`src/core/router.js`)
 
@@ -174,7 +174,7 @@ export async function navigateToEchoMemPanel(panelIdOrTitle) {
       }
     });
   } else {
-    // 其他面板：正常打开 sidebar/overlay
+    // 其他面板：正常打开 overlay
     openCustomPanel(panel.title, getPanelContent(panel.id), {
       showBack: true,
       onBack: openEchoMemHomePanel
@@ -351,7 +351,7 @@ closeOverlayPanel()
 
 ### 1. 为什么新增 `openCenterOverlay` 而不是扩展 `openCustomPanel`？
 
-**背景**：`openCustomPanel` 依赖 platform config 决定 sidebar/overlay 类型和位置。
+**背景**：`openCustomPanel` 依赖 platform config 决定 overlay 配置。
 
 **问题**：认知图谱需要强制居中显示，不依赖 platform 配置。
 
@@ -383,11 +383,11 @@ closeOverlayPanel()
 
 ### 5. 为什么返回按钮要先 `closeOverlayPanel` 再 `openEchoMemHomePanel`？
 
-**背景**：HIGO 是 sidebar 模式，EchoMem 主面板在 sidebar 里。
+**背景**：认知图谱浮层打开时会隐藏已有的 EchoMem 主面板 overlay（保存到 `_previousOverlay`）。
 
-**问题**：`openEchoMemHomePanel` 调用 `openCustomPanel`，但 `openCenterOverlay` 使用 `'overlay-only'` 模式，只关闭浮层不操作 sidebar。
+**问题**：返回时需要先关闭认知图谱浮层，再重新打开 EchoMem 主面板。
 
-**决策**：返回按钮回调改为 `() => { closeOverlayPanel(); openEchoMemHomePanel(); }`，确保先关闭浮层，再重新渲染主面板。
+**决策**：返回按钮回调改为 `() => { closeOverlayPanel(); openEchoMemHomePanel(); }`，`closeOverlayPanel` 会自动恢复前序 overlay，然后 `openEchoMemHomePanel` 重新渲染主面板。
 
 ### 6. 为什么 `openEchoMemHomePanel` 要重置 `clawEventsBound`？
 

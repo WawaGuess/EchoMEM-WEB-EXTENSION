@@ -4,9 +4,7 @@ import { addCustomButtons } from '../core/buttons.js';
 import { getCurrentPlatform } from '../core/detection.js';
 import { createDomLifecycle } from '../core/lifecycle.js';
 import {
-  getPanelConfig,
-  isPanelOpen,
-  setOriginalPanelContent
+  isPanelOpen
 } from '../core/panel.js';
 import { bindPanelNavigation } from '../core/router.js';
 import { bindRuntimeMessages } from '../services/messaging.js';
@@ -20,21 +18,8 @@ console.log('EchoMem Extension: Content script loaded');
 window.clawExtensionLoaded = true;
 window.echoMemExtensionLoaded = true;
 
-function syncOriginalSidebarContent() {
-  const platform = getCurrentPlatform();
-  const panelConfig = getPanelConfig(platform);
-
-  if (!panelConfig || panelConfig.type !== 'sidebar') return;
-
-  const container = document.querySelector(panelConfig.containerSelector);
-  if (container && !isPanelOpen() && !container.querySelector('.claw-custom-panel')) {
-    setOriginalPanelContent(container.innerHTML);
-  }
-}
-
 function refreshContentScriptMount() {
   addCustomButtons();
-  syncOriginalSidebarContent();
   bindPanelNavigation();
   // DOM 变化时尝试绑定输入框监听
   tryBindInputElement();

@@ -42,7 +42,7 @@ export const platformRegistry = {
 | `name` | 平台展示名称 |
 | `detection` | URL、标题、DOM、内容关键字检测配置 |
 | `launcher` | EchoMem 入口按钮挂载配置 |
-| `panelHost` | 面板承载方式，支持 `sidebar` 和 `overlay` |
+| `panelHost` | 面板承载方式，统一使用 `overlay` |
 | `menuItems` | 当前平台展示的功能面板 ID 列表 |
 
 功能面板使用 `panelRegistry` 注册，平台菜单通过稳定 `panelId` 引用面板：
@@ -223,87 +223,62 @@ function detectPlatformMultiLayer(detection) {
 | 匹配关键字 | `higo`, `HIGO`, `Higo2`（不区分大小写） |
 | 作用 | 确认页面文本内容包含品牌标识（body 无内容时跳过） |
 
-## 5. 面板系统（新增）
+## 5. 面板系统
 
-### 5.1 两种面板模式
+### 5.1 统一使用 Overlay 模式
 
-| 模式 | 说明 | 适用场景 |
-|------|------|----------|
-| `sidebar` | 替换页面现有侧边栏 | 有右侧边栏的页面（如 HIGO） |
-| `overlay` | 创建浮层面板 | 无侧边栏的页面 |
-
-### 5.2 Sidebar 模式
+所有平台统一使用 `overlay` 模式创建右侧面板，不再区分 `sidebar` 和 `overlay`。
 
 ```javascript
-panel: {
-  type: 'sidebar',
-  containerSelector: '.MuiDrawer-anchorRight .MuiDrawer-paper',
-  overlayConfig: null
-}
-```
-
-**行为**：
-- 打开面板：替换侧边栏的 `innerHTML`
-- 关闭面板：恢复保存的原始 `innerHTML`
-
-### 5.3 Overlay 模式
-
-```javascript
-panel: {
+panelHost: {
   type: 'overlay',
-  containerSelector: null,
   overlayConfig: {
     position: 'right',    // 'right' | 'left' | 'center'
-    width: '400px',       // 面板宽度
+    width: '320px',       // 面板宽度
     backdrop: true        // 是否显示遮罩层
   }
 }
 ```
 
 **行为**：
-- 打开面板：创建 `fixed` 定位的浮层，带动画滑入
-- 关闭面板：动画滑出后移除 DOM 元素
+- 打开面板：创建 `fixed` 定位的浮层，从右侧带动画滑入
+- 关闭面板：动画滑出后移除 DOM 元素，同时清理遮罩层
 
-### 5.4 面板位置示意
+### 5.2 面板位置示意
 
-**Sidebar 模式**：
+**HIGO Office（浮层覆盖在右侧 Drawer 上方）**：
 ```
 ┌─────────────────────────────────────────────┐
 │  HIGO Office 页面                            │
 │                                             │
-│  ┌─────────────────┐  ┌─────────────────┐  │
-│  │   聊天消息区域    │  │  右侧边栏        │  │
-│  │                 │  │  (被替换为面板)   │  │
-│  │                 │  │                  │  │
-│  │                 │  │  ┌───────────┐   │  │
-│  │                 │  │  │   标题    ×│   │  │
-│  │                 │  │  ├───────────┤   │  │
-│  │                 │  │  │           │   │  │
-│  │                 │  │  │   内容    │   │  │
-│  │                 │  │  │           │   │  │
-│  │                 │  │  └───────────┘   │  │
-│  └─────────────────┘  └─────────────────┘  │
+│  ┌─────────────────┐  ┌──────────────┐     │
+│  │   聊天消息区域    │  │  MUI Drawer  │     │
+│  │                 │  │  (被浮层覆盖)  │     │
+│  │                 │  │ ┌──────────┐ │     │
+│  │                 │  │ │ 标题    ×│ │     │
+│  │                 │  │ ├──────────┤ │     │
+│  │                 │  │ │   内容   │ │     │
+│  │                 │  │ └──────────┘ │     │
+│  └─────────────────┘  └──────────────┘     │
 │       ↑                                     │
 │  EchoMem 入口                               │
 └─────────────────────────────────────────────┘
 ```
 
-**Overlay 模式（右侧滑出）**：
+**DeepSeek（右侧滑出浮层）**：
 ```
 ┌─────────────────────────────────────────────┐
-│  无原生右侧栏页面（如 DeepSeek）               │
+│  DeepSeek 页面                               │
 │                                             │
-│  ┌─────────────────┐                        │
-│  │   聊天消息区域    │   ┌──────────────┐   │
-│  │                 │   │   浮层面板      │   │
-│  │                 │   │  ┌──────────┐  │   │
-│  │                 │   │  │ 标题    × │  │   │
-│  │                 │   │  ├──────────┤  │   │
-│  │                 │   │  │          │  │   │
-│  │                 │   │  │   内容   │  │   │
-│  │                 │   │  │          │  │   │
-│  └─────────────────┘   │  └──────────┘  │   │
-│       ↑                └──────────────┘   │
+│  ┌─────────────────┐  ┌──────────────┐     │
+│  │   聊天消息区域    │  │   浮层面板    │     │
+│  │                 │  │ ┌──────────┐ │     │
+│  │                 │  │ │ 标题    ×│ │     │
+│  │                 │  │ ├──────────┤ │     │
+│  │                 │  │ │   内容   │ │     │
+│  │                 │  │ └──────────┘ │     │
+│  └─────────────────┘  └──────────────┘     │
+│       ↑                                     │
 │  EchoMem 入口（在输入框外部上方）              │
 └─────────────────────────────────────────────┘
 ```
@@ -374,7 +349,7 @@ const lifecycle = createDomLifecycle({
 lifecycle.start();
 ```
 
-`refreshContentScriptMount()` 负责尝试注入 EchoMem 入口、同步 sidebar 原始内容，并绑定面板内的导航事件。
+`refreshContentScriptMount()` 负责尝试注入 EchoMem 入口，并绑定面板内的导航事件。
 
 ## 9. 控制台调试信息
 
@@ -398,7 +373,7 @@ Claw Extension: EchoMem launcher added for HIGO Office
 
 ## 10. 扩展新平台
 
-### 10.1 场景：有侧边栏的页面
+### 10.1 场景：有侧边栏的页面（浮层覆盖）
 
 ```javascript
 export const anotherPlatform = {
@@ -409,7 +384,7 @@ export const anotherPlatform = {
     titleKeywords: ['Chat'],
     domFeatures: {
       required: [
-        { selector: '.sidebar', description: '侧边栏' }
+        { selector: '.chat-container', description: '聊天容器' }
       ],
       optional: [
         { selector: 'textarea', description: '输入框' }
@@ -432,9 +407,12 @@ export const anotherPlatform = {
     insertPosition: 'before'
   },
   panelHost: {
-    type: 'sidebar',
-    containerSelector: '.sidebar',
-    overlayConfig: null
+    type: 'overlay',
+    overlayConfig: {
+      position: 'right',
+      width: '320px',
+      backdrop: true
+    }
   },
   menuItems: [
     { panelId: 'resources' },
@@ -511,8 +489,7 @@ export const floatingPlatform = {
 | `launcher.insertAfter` | 插入到指定元素之后（优先级高于 insertPosition） | `'._020ab5b'` |
 | `launcher.getBackgroundColor` | 动态获取入口栏背景色函数 | `() => '#fff'` |
 | `launcher.insertPosition` | 插入位置 | `'after'`, `'before'`, `'append'` |
-| `panelHost.type` | 面板类型 | `'sidebar'` 或 `'overlay'` |
-| `panelHost.containerSelector` | sidebar 容器选择器 | `.MuiDrawer-paper` |
+| `panelHost.type` | 面板类型 | `'overlay'`（统一使用浮层模式） |
 | `panelHost.overlayConfig` | overlay 配置 | `{ position, width, backdrop }` |
 | `menuItems` | EchoMem 功能导航列表 | `{ panelId }` |
 

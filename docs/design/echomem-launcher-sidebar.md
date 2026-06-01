@@ -13,7 +13,7 @@
 
 - 按钮文字：`EchoMem`
 - 位置：聊天框外部上方
-- 点击行为：打开右侧侧边栏，侧边栏中展示当前 4 个功能选项，并新增 1 个选项「效能」
+- 点击行为：打开右侧浮层，浮层中展示当前 4 个功能选项，并新增 1 个选项「效能」
 
 ## 2. 设计目标
 
@@ -33,7 +33,7 @@
         └── 点击
               │
               ▼
-        右侧侧边栏 / 右侧浮层
+        右侧浮层
         └── EchoMem 功能导航首页
               ├── 资源管理
               ├── 输入联想
@@ -249,11 +249,11 @@ menuItems: [
 | 文件 | 调整内容 |
 |------|----------|
 | `src/core/buttons.js` | 从注入按钮组改为注入 `EchoMem` 单入口；点击打开功能导航首页 |
-| `src/core/panel-host.js` | 承载 sidebar / overlay 面板，负责打开、关闭和恢复 |
+| `src/core/panel-host.js` | 承载 overlay 面板，负责打开、关闭和恢复 |
 | `src/core/router.js` | 统一处理 EchoMem 首页、功能详情和 Skill 商店子页面导航 |
 | `src/panels/registry.js` | 注册功能面板和稳定 `panelId` |
 | `src/panels/performance/` | 新增「效能」面板内容 |
-| `src/platforms/higo.js` | 配置 `EchoMem` launcher、sidebar panelHost 与 5 个菜单项 |
+| `src/platforms/higo.js` | 配置 `EchoMem` launcher、overlay panelHost 与 5 个菜单项 |
 | `src/platforms/deepseek.js` | 配置 `EchoMem` launcher、overlay panelHost 与 5 个菜单项 |
 | `src/entry/content.js` | 内容脚本源码入口 |
 | `dist/content.js` | Manifest 实际加载的构建产物 |
@@ -262,17 +262,14 @@ menuItems: [
 
 ## 9. 兼容策略
 
-### HIGO Office
+HIGO Office 和 DeepSeek 统一使用 `overlay` 模式：
 
-- 使用现有 `sidebar` 模式，点击 `EchoMem` 替换右侧侧边栏内容。
-- 关闭面板后恢复原始右侧栏。
+- 点击 `EchoMem` 后，从右侧滑出 320px 宽的浮层面板。
+- 面板带半透明遮罩层，点击遮罩或右上角关闭按钮可关闭面板。
 - 功能详情页点击返回，回到 `EchoMem` 功能导航首页。
+- 关闭面板后移除浮层 DOM，页面恢复原始状态。
 
-### DeepSeek
-
-- 页面没有可替换的右侧业务侧栏，继续使用现有 `overlay` 模式。
-- `EchoMem` 入口仍位于输入框外部上方。
-- 点击后从右侧滑出 EchoMem 功能导航浮层。
+> 历史版本曾使用 `sidebar` 模式（替换 HIGO 右侧 MUI Drawer 内容），现已统一为 `overlay` 以简化架构。
 
 ## 10. 交互验收标准
 
@@ -284,7 +281,7 @@ menuItems: [
 6. 点击前 4 个选项后，能进入当前已有对应面板。
 7. 点击「效能」后，能进入效能面板。
 8. 详情页点击返回后，回到 EchoMem 功能导航首页。
-9. 点击关闭后，HIGO 恢复原右侧栏，DeepSeek 移除浮层。
+9. 点击关闭后，浮层面板移除，页面恢复正常。
 10. 多次页面动态更新后不会重复注入多个 `EchoMem` 按钮。
 
 ## 11. 实施建议

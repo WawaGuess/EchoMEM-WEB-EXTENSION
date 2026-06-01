@@ -76,8 +76,12 @@
           strategy: "none"
         },
         panelHost: {
-          type: "sidebar",
-          containerSelector: ".MuiDrawer-anchorRight .MuiDrawer-paper"
+          type: "overlay",
+          overlayConfig: {
+            position: "right",
+            width: "320px",
+            backdrop: true
+          }
         },
         sessionId: {
           type: "regex",
@@ -169,7 +173,7 @@
           type: "overlay",
           overlayConfig: {
             position: "right",
-            width: "400px",
+            width: "320px",
             backdrop: true
           }
         },
@@ -383,7 +387,6 @@
   }
 
   // src/core/panel-host.js
-  var originalPanelContent = null;
   var isCustomPanelOpen = false;
   var currentOverlayPanel = null;
   function getPanelConfig(platform2 = getCurrentPlatform()) {
@@ -391,22 +394,7 @@
     return ((_a2 = platform2 == null ? void 0 : platform2.config) == null ? void 0 : _a2.panelHost) || ((_b2 = platform2 == null ? void 0 : platform2.config) == null ? void 0 : _b2.panel) || null;
   }
   function getPanelContainer() {
-    const platform2 = getCurrentPlatform();
-    if (!platform2) return null;
-    const panelConfig = getPanelConfig(platform2);
-    if (!panelConfig) return null;
-    if (panelConfig.type === "sidebar") {
-      return document.querySelector(panelConfig.containerSelector);
-    } else if (panelConfig.type === "overlay") {
-      return currentOverlayPanel;
-    }
-    return null;
-  }
-  function isPanelOpen() {
-    return isCustomPanelOpen;
-  }
-  function setOriginalPanelContent(content) {
-    originalPanelContent = content;
+    return currentOverlayPanel;
   }
   function buildPanelHeader(title, showBack, onBack) {
     if (showBack) {
@@ -570,23 +558,10 @@
       </div>
     </div>
   `;
-    if (panelConfig.type === "sidebar") {
-      const container = document.querySelector(panelConfig.containerSelector);
-      if (!container) return;
-      document.querySelectorAll(".claw-overlay-backdrop").forEach((b) => b.remove());
-      if (!originalPanelContent) {
-        originalPanelContent = container.innerHTML;
-      }
-      container.innerHTML = panelHtml;
-      bindPanelEvents(container, showBack, onBack);
-      isCustomPanelOpen = true;
-      setPanelOpen(true);
-    } else if (panelConfig.type === "overlay") {
-      createOverlayPanel(panelHtml, panelConfig.overlayConfig);
-      bindPanelEvents(currentOverlayPanel, showBack, onBack);
-      isCustomPanelOpen = true;
-      setPanelOpen(true);
-    }
+    createOverlayPanel(panelHtml, panelConfig.overlayConfig);
+    bindPanelEvents(currentOverlayPanel, showBack, onBack);
+    isCustomPanelOpen = true;
+    setPanelOpen(true);
   }
   function createOverlayPanel(panelHtml, overlayConfig) {
     if (currentOverlayPanel) {
@@ -699,17 +674,6 @@
       closeOverlayPanel();
     }
     document.querySelectorAll(".claw-overlay-backdrop").forEach((b) => b.remove());
-    const platform2 = getCurrentPlatform();
-    if (platform2) {
-      const panelConfig = getPanelConfig(platform2);
-      if (panelConfig && panelConfig.type === "sidebar") {
-        const container = document.querySelector(panelConfig.containerSelector);
-        if (container && originalPanelContent) {
-          container.innerHTML = originalPanelContent;
-          console.log("Claw Extension: Sidebar panel restored");
-        }
-      }
-    }
   }
   function getPanelBodyElement() {
     const container = getPanelContainer();
@@ -44678,18 +44642,8 @@ ${MEM_TAG_CLOSE2}`;
   console.log("EchoMem Extension: Content script loaded");
   window.clawExtensionLoaded = true;
   window.echoMemExtensionLoaded = true;
-  function syncOriginalSidebarContent() {
-    const platform2 = getCurrentPlatform();
-    const panelConfig = getPanelConfig(platform2);
-    if (!panelConfig || panelConfig.type !== "sidebar") return;
-    const container = document.querySelector(panelConfig.containerSelector);
-    if (container && !isPanelOpen() && !container.querySelector(".claw-custom-panel")) {
-      setOriginalPanelContent(container.innerHTML);
-    }
-  }
   function refreshContentScriptMount() {
     addCustomButtons();
-    syncOriginalSidebarContent();
     bindPanelNavigation();
     tryBindInputElement();
     const platform2 = getCurrentPlatform();

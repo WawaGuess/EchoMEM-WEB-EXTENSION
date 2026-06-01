@@ -75,7 +75,7 @@ EchoMEM-WEB-EXTENSION/
 1. Content script observes DOM changes with `MutationObserver`
 2. Platform detection checks URL, title, DOM features, and content keywords
 3. On supported pages, the script injects one `EchoMem` launcher near the chat input
-4. Clicking the launcher opens a right-side sidebar or overlay panel
+4. Clicking the launcher opens a right-side overlay panel
 5. Menu items open the corresponding feature panels, with back navigation to the EchoMem home panel
 
 ## Common Development Tasks
