@@ -61,49 +61,52 @@ function buildPanelHeader(title, showBack, onBack) {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 16px;
-        border-bottom: 1px solid #e0e0e0;
-        background: #fafafa;
+        padding: 20px 24px;
       ">
         <div style="display: flex; align-items: center; gap: 12px;">
           <button class="claw-back-btn" style="
-            background: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
             border: none;
+            background: rgba(58, 47, 40, 0.06);
             cursor: pointer;
-            padding: 4px;
-            border-radius: 4px;
+            padding: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #666;
-            transition: background 0.2s;
+            color: #9a8b7a;
+            transition: all 0.4s ease;
           " title="返回">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"></line>
               <polyline points="12 19 5 12 12 5"></polyline>
             </svg>
           </button>
           <h6 style="
             margin: 0;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 600;
-            color: #333;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #3a2f28;
+            font-family: Roboto, 'Noto Sans SC', sans-serif;
+            letter-spacing: -0.01em;
           ">${title}</h6>
         </div>
         <button class="claw-close-panel" style="
-          background: none;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
           border: none;
+          background: rgba(58, 47, 40, 0.06);
           cursor: pointer;
-          padding: 4px;
-          border-radius: 4px;
+          padding: 0;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #666;
-          transition: background 0.2s;
+          color: #9a8b7a;
+          transition: all 0.4s ease;
         " title="关闭">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
@@ -116,30 +119,31 @@ function buildPanelHeader(title, showBack, onBack) {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 16px;
-        border-bottom: 1px solid #e0e0e0;
-        background: #fafafa;
+        padding: 28px 28px 20px;
       ">
         <h6 style="
           margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-          color: #333;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: 22px;
+          font-weight: 700;
+          color: #3a2f28;
+          font-family: Roboto, 'Noto Sans SC', sans-serif;
+          letter-spacing: -0.01em;
         ">${title}</h6>
         <button class="claw-close-panel" style="
-          background: none;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
           border: none;
+          background: rgba(58, 47, 40, 0.06);
+          color: #9a8b7a;
           cursor: pointer;
-          padding: 4px;
-          border-radius: 4px;
+          padding: 0;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #666;
-          transition: background 0.2s;
+          transition: all 0.4s ease;
         " title="关闭">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
@@ -154,10 +158,12 @@ function bindPanelEvents(container, showBack, onBack, closeMode = 'restore') {
     const backBtn = container.querySelector('.claw-back-btn');
     if (backBtn) {
       backBtn.addEventListener('mouseenter', () => {
-        backBtn.style.background = '#f0f0f0';
+        backBtn.style.background = 'rgba(58, 47, 40, 0.12)';
+        backBtn.style.color = '#5a4f42';
       });
       backBtn.addEventListener('mouseleave', () => {
-        backBtn.style.background = 'none';
+        backBtn.style.background = 'rgba(58, 47, 40, 0.06)';
+        backBtn.style.color = '#9a8b7a';
       });
       backBtn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -170,10 +176,12 @@ function bindPanelEvents(container, showBack, onBack, closeMode = 'restore') {
   const closeBtn = container.querySelector('.claw-close-panel');
   if (closeBtn) {
     closeBtn.addEventListener('mouseenter', () => {
-      closeBtn.style.background = '#f0f0f0';
+      closeBtn.style.background = 'rgba(58, 47, 40, 0.12)';
+      closeBtn.style.color = '#5a4f42';
     });
     closeBtn.addEventListener('mouseleave', () => {
-      closeBtn.style.background = 'none';
+      closeBtn.style.background = 'rgba(58, 47, 40, 0.06)';
+      closeBtn.style.color = '#9a8b7a';
     });
     closeBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -202,13 +210,13 @@ export function openCustomPanel(title, contentHtml, options = {}) {
       display: flex;
       flex-direction: column;
       height: 100%;
-      background: #fff;
+      background: linear-gradient(180deg, #f5f0eb 0%, #ede7e0 100%);
     ">
       ${headerHtml}
       <div class="claw-custom-panel-body" style="
         flex: 1;
         overflow-y: auto;
-        padding: 16px;
+        padding: 8px 20px 28px;
       ">
         ${contentHtml}
       </div>
@@ -302,7 +310,7 @@ function createOverlayPanel(panelHtml, overlayConfig) {
   overlay.style.cssText = `
     position: fixed;
     ${positionStyles}
-    background: #fff;
+    background: #f5f0eb;
     z-index: 9999;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     transition: transform 0.3s ease;
@@ -420,7 +428,7 @@ export function openCenterOverlay(title, contentHtml, options = {}) {
       display: flex;
       flex-direction: column;
       height: 100%;
-      background: #fff;
+      background: linear-gradient(180deg, #f5f0eb 0%, #ede7e0 100%);
     ">
       ${headerHtml}
       <div class="claw-custom-panel-body" style="

@@ -26,3 +26,4 @@ build/
 *.temp
 /.superpowers/
 /.claude/design-reviews/
+/design-examples/
