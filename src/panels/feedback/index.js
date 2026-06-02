@@ -78,6 +78,7 @@ function loadECharts() {
 /**
  * 初始化并渲染知识图谱
  * @param {HTMLElement} container - 图表容器元素
+ * 文档：docs/flows/cognitive-feedback/图谱渲染.md
  */
 async function renderGraph(container) {
   try {

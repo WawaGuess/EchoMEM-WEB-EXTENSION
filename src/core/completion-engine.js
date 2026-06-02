@@ -1,3 +1,4 @@
+// 文档：docs/flows/input-association/补全流程.md
 // 补全引擎 — 关键词提取、短语提取、相关性评分、补全生成、排序
 
 import {

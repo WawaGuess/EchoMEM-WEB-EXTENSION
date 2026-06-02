@@ -1,3 +1,4 @@
+// 文档：docs/flows/panel-system/生命周期.md
 import {
   getPanelBodyElement,
   openCustomPanel,

@@ -1,94 +1,125 @@
 # EchoMem 文档目录
 
-本文档目录用于保存 EchoMem Web Extension 的现行设计、运行架构说明和历史方案归档。
+本文档目录按**功能域聚类**组织，便于按功能查找和维护。
 
 ## 目录结构
 
 ```
 docs/
-├── README.md
-├── architecture/
-│   ├── platform-detection.md
-│   ├── detection-flow.mmd
-│   └── 2026-05-11-smart-completion-implementation.md
-├── design/
-│   └── echomem-launcher-sidebar.md
-├── proposals/
-│   └── README.md
-└── legacy/
-    ├── button-features.md
-    └── deepseek-extension.md
+├── README.md                          # 本文档
+├── decisions/                         # ADR：长期有效的架构决策
+│   ├── 001-统一浮层面板模式.md
+│   ├── 002-认知反馈居中浮层.md
+│   ├── 003-Organic-Liquid设计风格.md
+│   └── 004-模块化内容架构.md
+├── flows/                             # 流程/调用链：随代码迭代维护
+│   ├── panel-system/
+│   │   ├── 生命周期.md
+│   │   └── 居中浮层.md
+│   ├── platform-detection/
+│   │   └── 检测流程.md
+│   ├── cognitive-feedback/
+│   │   └── 图谱渲染.md
+│   ├── input-association/
+│   │   └── 补全流程.md
+│   ├── session-recording/
+│   │   └── 录制流程.md
+│   ├── resource/
+│   │   └── 导入流程.md
+│   ├── skill-store/
+│   │   ├── 上传流程.md
+│   │   └── 列表读取流程.md
+│   └── performance/
+│       └── Token指标流程.md
+├── reference/                         # 配置参考、接口清单
+│   ├── 平台配置参考.md
+│   └── 面板注册参考.md
+└── legacy/                            # 历史归档
+    ├── 旧版四按钮功能.md
+    ├── DeepSeek旧版接入.md
+    ├── 2026-05-02-模块化内容架构方案.md
+    ├── 2026-05-09-智能补全综合方案.md
+    ├── 2026-05-11-认知反馈图谱浮层方案.md
+    ├── 2026-05-14-可配置会话录制.md
+    ├── 2026-05-19-资源导入FTP化方案.md
+    ├── 2026-05-26-技能上传创建方案.md
+    └── 2026-05-26-技能列表读取方案.md
 ```
 
-## 现行文档
+## 功能域速查表
 
-| 文档 | 说明 |
-|------|------|
-| [design/echomem-launcher-sidebar.md](./design/echomem-launcher-sidebar.md) | 当前 `EchoMem` 单入口按钮与右侧功能导航设计 |
-| [architecture/platform-detection.md](./architecture/platform-detection.md) | 平台检测、入口注入、面板模式与新平台扩展说明 |
-| [architecture/detection-flow.mmd](./architecture/detection-flow.mmd) | 平台检测流程图，Mermaid 格式 |
-| [architecture/2026-05-11-smart-completion-implementation.md](./architecture/2026-05-11-smart-completion-implementation.md) | 智能补全功能实现总结：OpenViking 召回 + 本地算法 + 多选浮层 + 合并式插入；含 OpenViking 认证开关（authEnabled）逻辑 |
-| [architecture/2026-05-16-session-recording-implementation.md](./architecture/2026-05-16-session-recording-implementation.md) | 会话录制模块实现：DOM 提取、消息 diff、流式完成检测、OpenViking 同步，含去重与防重设计 |
-| [architecture/2026-05-20-resource-import-ftp-like-implementation.md](./architecture/2026-05-20-resource-import-ftp-like-implementation.md) | 资源导入 FTP 化改造实现总结：前端上传/浏览/新建文件夹流程，OpenViking `keep_original` 备份逻辑，HTTP 接口清单与数据流 |
-| [architecture/2026-05-26-skill-upload-implementation.md](./architecture/2026-05-26-skill-upload-implementation.md) | Skill 上传创建功能实现总结：前端校验/temp_upload/add_skill 流程，OpenViking SkillProcessor 解析落盘逻辑，含时序图 |
-| [architecture/2026-05-26-skill-list-reading-implementation.md](./architecture/2026-05-26-skill-list-reading-implementation.md) | Skill 列表与详情查看功能实现总结：fsLs/contentRead 适配，frontmatter 去除后的数据获取策略，缓存与性能优化，含时序图 |
-| [proposals/README.md](./proposals/README.md) | 后续方案草稿区的使用规则 |
-
-## 方案记录
-
-| 文档 | 说明 |
-|------|------|
-| [proposals/2026-05-02-modular-content-architecture.md](./proposals/2026-05-02-modular-content-architecture.md) | 内容脚本模块化与可扩展架构方案（已采用） |
-| [legacy/2026-05-09-smart-completion-unified.md](./legacy/2026-05-09-smart-completion-unified.md) | 智能补全综合方案（已实现，会话提取已废弃） |
-
-## 历史归档
-
-| 文档 | 说明 |
-|------|------|
-| [legacy/button-features.md](./legacy/button-features.md) | 旧版输入框下方 4 个功能按钮实现记录 |
-| [legacy/deepseek-extension.md](./legacy/deepseek-extension.md) | DeepSeek 旧版 4 按钮接入记录 |
-
-`legacy/` 中的文档只作为历史参考，不代表当前运行逻辑。当前内容脚本源码入口是 `/src/entry/content.js`，Chrome 通过 `manifest.json` 实际加载构建产物 `/dist/content.js`；修改运行行为后需要执行 `npm run build`。
-
-## 当前功能入口
-
-当前交互将输入区入口收敛为一个 `EchoMem` 按钮。点击后在右侧浮层打开功能导航首页，包含以下 5 个入口：
-
-| 入口 | 功能 |
-|------|------|
-| 资源管理 | 文件上传和资源列表 |
-| 输入联想 | 开关控制输入联想功能 |
-| 认知反馈 | 会话统计和反馈报告 |
-| skill商店 | Skill 浏览、购买、上传和管理 |
-| 效能 | 使用效率与工作表现概览 |
-
-## 文档存放约定
-
-- 当前交互、页面结构、验收标准放在 `docs/design/`。
-- 运行架构、平台检测、注入流程、扩展新平台说明放在 `docs/architecture/`。
-- 未确认或正在讨论的新方案放在 `docs/proposals/`。
-- 已被现行方案替代但仍有参考价值的设计记录放在 `docs/legacy/`。
-- Mermaid、架构图等与架构文档强相关的图表跟随放在 `docs/architecture/`。
-- 新文档加入后，需要同步更新本索引，避免文档入口散落。
+| 功能域 | decisions | flows | reference |
+|--------|-----------|-------|-----------|
+| 面板系统 | 001-统一浮层面板模式 | panel-system/生命周期、居中浮层 | 面板注册参考 |
+| 平台检测 | — | platform-detection/检测流程 | 平台配置参考 |
+| 认知反馈 | 002-认知反馈居中浮层 | cognitive-feedback/图谱渲染 | — |
+| 输入联想 | — | input-association/补全流程 | — |
+| 会话录制 | — | session-recording/录制流程 | — |
+| 资源管理 | — | resource/导入流程 | — |
+| Skill 管理 | — | skill-store/上传流程、列表读取流程 | — |
+| 效能概览 | — | performance/Token指标流程 | — |
+| 设计风格 | 003-Organic-Liquid设计风格 | — | — |
+| 模块化架构 | 004-模块化内容架构 | — | — |
 
 ## 文档维护规则
 
 ### 最小更新原则
 
-后续修改代码时，不需要每次重新梳理全部文档。只在对应事实发生变化时更新相关文档：
-
 | 变化类型 | 需要更新 |
 |----------|----------|
 | 仅修复 bug、调整样式、内部实现小改动 | 通常不需要更新文档 |
-| 用户可感知的功能、入口、交互流程变化 | 更新 `docs/design/` 中对应现行设计 |
-| 平台检测、注入方式、运行入口、数据流、目录结构变化 | 更新 `docs/architecture/` |
-| 新方案仍在讨论或验证中 | 新增或更新 `docs/proposals/` 下的方案文档 |
-| 方案已被替代但仍有参考价值 | 移入 `docs/legacy/` |
+| 用户可感知的功能、入口、交互流程变化 | 更新 `flows/` 中对应文档 |
+| 架构决策、长期设计方向变化 | 新增或更新 `decisions/` 中 ADR |
+| 配置项、接口契约变化 | 更新 `reference/` 中对应文档 |
+| 方案已被替代但仍有参考价值 | 移入 `legacy/` |
 
-### 方案生命周期
+### 双向锚点规范
 
-1. 新想法或改造方案先写到 `docs/proposals/YYYY-MM-DD-topic.md`。
-2. 方案实现和测试过程中，只维护对应 proposal，不急着改现行设计文档。
-3. 方案确认采用后，把最终稳定行为沉淀到 `docs/design/` 或 `docs/architecture/`。
-4. 原 proposal 如果仍有决策参考价值，移入 `docs/legacy/`；如果只是临时草稿，可以删除。
-5. 只有新增、移动、删除文档时，才同步更新本索引。
+代码中在关键位置添加指向文档的注释：
+
+```javascript
+// 文档：docs/flows/panel-system/生命周期.md
+// 面板生命周期：打开 → 渲染 → 关闭 → 恢复
+```
+
+文档中在开头添加指向代码的注释：
+
+```markdown
+> 相关代码：`src/core/panel-host.js`
+> 配置参考：`docs/reference/面板注册参考.md`
+```
+
+## ADR 编写规范
+
+```markdown
+# ADR-00X: 标题
+
+## 状态
+Accepted / Implemented
+
+## 背景
+为什么需要做这个决策
+
+## 决策
+最终选择了什么方案
+
+## 备选方案
+考虑过但拒绝的方案及原因
+
+## 影响
+这个决策对代码和文档的影响
+
+## 相关代码
+- `src/core/panel-host.js`
+- `docs/flows/panel-system/生命周期.md`
+```
+
+## 文件位置速查
+
+- 内容脚本源码入口：`/src/entry/content.js`
+- 内容脚本构建产物：`/dist/content.js`
+- 平台配置：`/src/platforms/`
+- 面板注册：`/src/panels/registry.js`
+- 检测系统：`/src/core/detection.js`
+- 面板承载：`/src/core/panel-host.js`
+- 路由实现：`/src/core/router.js`

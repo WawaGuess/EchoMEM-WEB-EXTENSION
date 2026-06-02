@@ -1,3 +1,4 @@
+// 文档：docs/reference/面板注册参考.md
 import { getResourceImportContent } from './resource/import.js';
 import { getInputAssociationContent } from './association/index.js';
 import { getFeedbackContent } from './feedback/index.js';

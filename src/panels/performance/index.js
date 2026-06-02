@@ -1,4 +1,5 @@
 /**
+ * 文档：docs/flows/performance/Token指标流程.md
  * 效能面板（Token 消耗概览）
  *
  * 支持骨架屏先渲染、数据异步填充，以及可选的定时轮询刷新。

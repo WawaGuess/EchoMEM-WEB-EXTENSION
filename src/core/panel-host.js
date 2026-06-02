@@ -1,3 +1,4 @@
+// 文档：docs/flows/panel-system/生命周期.md
 // 面板系统（统一使用 overlay 模式）
 
 import { getCurrentPlatform } from './detection.js';
@@ -337,6 +338,7 @@ export function getPanelBodyElement() {
 /**
  * 打开居中、大尺寸的浮动窗口（用于认知反馈图谱等全屏展示场景）
  * 不依赖 platform config，直接创建居中 overlay
+ * 文档：docs/flows/panel-system/居中浮层.md
  */
 export function openCenterOverlay(title, contentHtml, options = {}) {
   const { showBack = false, onBack = null, width, height, maxWidth, maxHeight } = options;

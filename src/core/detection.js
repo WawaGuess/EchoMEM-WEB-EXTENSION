@@ -1,3 +1,4 @@
+// 文档：docs/flows/platform-detection/检测流程.md
 // 平台检测逻辑
 
 import { PLATFORM_CONFIGS } from '../platforms/index.js';

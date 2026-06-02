@@ -1,3 +1,4 @@
+// 文档：docs/flows/session-recording/录制流程.md
 // 会话自动记录器 —— 监听聊天消息变化并同步到 OpenViking
 //
 // 本模块只负责"编排"：

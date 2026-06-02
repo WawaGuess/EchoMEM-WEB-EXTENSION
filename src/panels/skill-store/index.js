@@ -1,3 +1,4 @@
+// 文档：docs/flows/skill-store/上传流程.md
 // Skill 管理面板内容 —— 真实数据驱动
 
 import { getOpenVikingConfig } from '../../services/config.js';

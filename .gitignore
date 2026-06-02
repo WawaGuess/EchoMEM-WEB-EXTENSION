@@ -27,3 +27,4 @@ build/
 /.superpowers/
 /.claude/design-reviews/
 /design-examples/
+/.codegraph/
