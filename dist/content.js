@@ -1155,6 +1155,27 @@
         clearTimeout(timer);
       }
     }
+    // ── Usage / Token Statistics ──
+    async fetchUsage() {
+      var _a2;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+      try {
+        const headers = this._buildAuthHeaders();
+        const response = await fetch(`${this.cfg.baseUrl}/api/v1/usage`, {
+          method: "GET",
+          headers,
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.status === "error") {
+          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        }
+        return data.result || data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
   };
   function createClient(config) {
     return new OpenVikingClient(config);
@@ -40834,12 +40855,12 @@ ${block}` : block;
         </div>
       </div>
 
-      <!-- \u540E\u7AEF\u6D88\u8017 & \u8282\u7701\uFF08\u5F85\u63A5\u5165\uFF09 -->
+      <!-- \u540E\u7AEF\u6D88\u8017 & \u8282\u7701 -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; opacity: 0.6;">
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
           <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">EchoMem \u540E\u7AEF\u6D88\u8017</p>
-          <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #9ca3af;">--</p>
-          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">\u5F85\u63A5\u5165</p>
+          <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
         </div>
         <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; opacity: 0.6;">
           <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">\u9884\u8BA1\u8282\u7701 Token</p>
@@ -40886,6 +40907,13 @@ ${block}` : block;
       });
     });
   }
+  async function fetchBackendUsageData() {
+    var _a2;
+    const config = await getOpenVikingConfig();
+    const client2 = createClient(config);
+    const result = await client2.fetchUsage();
+    return ((_a2 = result.total) == null ? void 0 : _a2.total_tokens) ?? 0;
+  }
   function updatePerformanceDOM(bodyElement, data) {
     if (!bodyElement) return;
     const totalEl = bodyElement.querySelector("#perf-total");
@@ -40893,12 +40921,22 @@ ${block}` : block;
     const turnsEl = bodyElement.querySelector("#perf-turns");
     const inputEl = bodyElement.querySelector("#perf-input");
     const outputEl = bodyElement.querySelector("#perf-output");
+    const backendEl = bodyElement.querySelector("#perf-backend");
     const descEl = bodyElement.querySelector("#perf-desc");
     if (totalEl) totalEl.textContent = FMT(data.totalTokens ?? 0);
     if (sessionsEl) sessionsEl.textContent = FMT(data.totalSessions ?? 0);
     if (turnsEl) turnsEl.textContent = FMT(data.totalTurns ?? 0);
     if (inputEl) inputEl.textContent = FMT(data.totalInputTokens ?? 0);
     if (outputEl) outputEl.textContent = FMT(data.totalOutputTokens ?? 0);
+    if (backendEl) {
+      if (data.backendTokens !== void 0 && data.backendTokens !== null) {
+        backendEl.textContent = FMT(data.backendTokens);
+        backendEl.style.color = "#111827";
+      } else {
+        backendEl.textContent = "--";
+        backendEl.style.color = "#9ca3af";
+      }
+    }
     if (descEl) {
       const sinceText = data.since ? `\u81EA ${new Date(data.since).toLocaleString("zh-CN")} \u8D77\u7EDF\u8BA1` : "\u7EDF\u8BA1\u8303\u56F4\uFF1A\u5168\u90E8\u5386\u53F2\u4F1A\u8BDD";
       descEl.innerHTML = `
@@ -40915,7 +40953,17 @@ ${block}` : block;
     async function refresh() {
       if (destroyed) return;
       try {
-        const data = await fetchPerformanceData();
+        const [statsResult, usageResult] = await Promise.allSettled([
+          fetchPerformanceData(),
+          fetchBackendUsageData()
+        ]);
+        if (statsResult.status === "rejected") {
+          throw statsResult.reason;
+        }
+        const data = statsResult.value;
+        if (usageResult.status === "fulfilled") {
+          data.backendTokens = usageResult.value;
+        }
         if (!destroyed) updatePerformanceDOM(bodyElement, data);
       } catch (err) {
         console.warn("EchoMem: performance data refresh failed", err);

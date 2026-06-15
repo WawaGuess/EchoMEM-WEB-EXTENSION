@@ -27,11 +27,10 @@
 - 左卡："Input Tokens" + 数值
 - 右卡："Output Tokens" + 数值
 
-### 4. 后端消耗 & 节省占位区（双列网格，置灰）
+### 4. 后端消耗 & 节省区（双列网格）
 
-- 整体 `opacity: 0.6`
-- "EchoMem 后端消耗" + "--" + "待接入"
-- "预计节省 Token" + "--" + "待计算"
+- 左卡："EchoMem 后端消耗" + 数值（来自 OpenViking `/api/v1/usage`）+ "tokens"
+- 右卡（置灰）："预计节省 Token" + "--" + "待计算"
 
 ### 5. 说明文字区
 
@@ -77,6 +76,8 @@
 
 ## 数据获取
 
+### 主统计（用户会话 Token）
+
 通过 background script 代理请求绕过页面域 CORS 限制：
 
 ```js
@@ -108,6 +109,21 @@ if (request.action === 'fetchStatsSummary') {
 }
 ```
 
+### 后端消耗统计（OpenViking）
+
+Content Script 直接请求 OpenViking（记忆后端引擎）`/api/v1/usage` 接口，复用已有认证配置：
+
+```js
+async function fetchBackendUsageData() {
+  const config = await getOpenVikingConfig();
+  const client = createClient(config);
+  const result = await client.fetchUsage();
+  return result.total?.total_tokens ?? 0;
+}
+```
+
+两个请求通过 `Promise.allSettled` 并行发起，后端消耗获取失败不影响主统计展示。
+
 ## 数据结构
 
 ```ts
@@ -118,14 +134,13 @@ interface PerformanceData {
   totalOutputTokens: number;  // 累计 Output Tokens
   totalTokens: number;        // Token 消耗总量
   since: string | null;       // 统计起始时间
+  backendTokens?: number;     // EchoMem 后端 Token 消耗量（来自 OpenViking /api/v1/usage）
 }
 ```
 
-**待接入字段**：
-
 | 字段 | 状态 | 说明 |
 |------|------|------|
-| `backendTokens` | 待接口就绪 | EchoMem 后端 Token 消耗量 |
+| `backendTokens` | 已接入 | EchoMem 后端 Token 消耗量（OpenViking `result.total.total_tokens`） |
 | `savedTokens` | 待逻辑确定 | 预计节省 Token 量 |
 
 ## 生命周期管理
@@ -152,12 +167,17 @@ navigateToEchoMemPanel('performance')
     │
     └── perfPanelCleanup = initPerformancePanel(body, { pollInterval: 30000 })
             │
-            ├── refresh() → fetchPerformanceData()
-            │       └── chrome.runtime.sendMessage({ action: 'fetchStatsSummary' })
-            │               └── background.js fetch('http://127.0.0.1:8000/api/stats/summary')
+            ├── refresh()
+            │       ├── fetchPerformanceData()
+            │       │       └── chrome.runtime.sendMessage({ action: 'fetchStatsSummary' })
+            │       │               └── background.js fetch('http://127.0.0.1:8000/api/stats/summary')
+            │       └── fetchBackendUsageData()
+            │               ├── getOpenVikingConfig()
+            │               ├── createClient(config)
+            │               └── client.fetchUsage() → GET /api/v1/usage
             │
             ├── updatePerformanceDOM(body, data)
-            │       └── 修改 #perf-total / #perf-sessions / #perf-turns / #perf-input / #perf-output / #perf-desc
+            │       └── 修改 #perf-total / #perf-sessions / #perf-turns / #perf-input / #perf-output / #perf-backend / #perf-desc
             │
             └── setInterval(refresh, 30000)
 

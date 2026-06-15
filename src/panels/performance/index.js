@@ -9,6 +9,9 @@
  *   3. 面板关闭时调用返回的 destroy() 清理轮询定时器
  */
 
+import { getOpenVikingConfig } from '../../services/config.js';
+import { createClient } from '../../services/openviking-client.js';
+
 const FMT = (n) => n.toLocaleString('zh-CN');
 
 // ── 骨架屏 HTML（带 id，供后续异步更新） ───────────────────────────────
@@ -70,12 +73,12 @@ export function getPerformanceContent() {
         </div>
       </div>
 
-      <!-- 后端消耗 & 节省（待接入） -->
+      <!-- 后端消耗 & 节省 -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; opacity: 0.6;">
+        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
           <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">EchoMem 后端消耗</p>
-          <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #9ca3af;">--</p>
-          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">待接入</p>
+          <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('80px')}</p>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
         </div>
         <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; opacity: 0.6;">
           <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">预计节省 Token</p>
@@ -130,6 +133,16 @@ export async function fetchPerformanceData() {
   });
 }
 
+/**
+ * 从 OpenViking（记忆后端引擎）获取后端 Token 消耗统计
+ */
+async function fetchBackendUsageData() {
+  const config = await getOpenVikingConfig();
+  const client = createClient(config);
+  const result = await client.fetchUsage();
+  return result.total?.total_tokens ?? 0;
+}
+
 // ── DOM 更新 ────────────────────────────────────────────────────────────
 
 function updatePerformanceDOM(bodyElement, data) {
@@ -140,6 +153,7 @@ function updatePerformanceDOM(bodyElement, data) {
   const turnsEl    = bodyElement.querySelector('#perf-turns');
   const inputEl    = bodyElement.querySelector('#perf-input');
   const outputEl   = bodyElement.querySelector('#perf-output');
+  const backendEl  = bodyElement.querySelector('#perf-backend');
   const descEl     = bodyElement.querySelector('#perf-desc');
 
   if (totalEl)    totalEl.textContent    = FMT(data.totalTokens ?? 0);
@@ -147,6 +161,16 @@ function updatePerformanceDOM(bodyElement, data) {
   if (turnsEl)    turnsEl.textContent    = FMT(data.totalTurns ?? 0);
   if (inputEl)    inputEl.textContent    = FMT(data.totalInputTokens ?? 0);
   if (outputEl)   outputEl.textContent   = FMT(data.totalOutputTokens ?? 0);
+
+  if (backendEl) {
+    if (data.backendTokens !== undefined && data.backendTokens !== null) {
+      backendEl.textContent = FMT(data.backendTokens);
+      backendEl.style.color = '#111827';
+    } else {
+      backendEl.textContent = '--';
+      backendEl.style.color = '#9ca3af';
+    }
+  }
 
   if (descEl) {
     const sinceText = data.since
@@ -177,7 +201,20 @@ export function initPerformancePanel(bodyElement, options = {}) {
   async function refresh() {
     if (destroyed) return;
     try {
-      const data = await fetchPerformanceData();
+      const [statsResult, usageResult] = await Promise.allSettled([
+        fetchPerformanceData(),
+        fetchBackendUsageData(),
+      ]);
+
+      if (statsResult.status === 'rejected') {
+        throw statsResult.reason;
+      }
+
+      const data = statsResult.value;
+      if (usageResult.status === 'fulfilled') {
+        data.backendTokens = usageResult.value;
+      }
+
       if (!destroyed) updatePerformanceDOM(bodyElement, data);
     } catch (err) {
       console.warn('EchoMem: performance data refresh failed', err);

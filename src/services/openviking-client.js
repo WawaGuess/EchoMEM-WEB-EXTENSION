@@ -454,6 +454,31 @@ class OpenVikingClient {
       clearTimeout(timer);
     }
   }
+
+  // ── Usage / Token Statistics ──
+
+  async fetchUsage() {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
+
+    try {
+      const headers = this._buildAuthHeaders();
+
+      const response = await fetch(`${this.cfg.baseUrl}/api/v1/usage`, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.status === 'error') {
+        throw new Error(data.error?.message || `HTTP ${response.status}`);
+      }
+      return data.result || data;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }
 
 export function createClient(config) {
