@@ -732,8 +732,18 @@
     accountId: "default",
     userId: "default"
   };
+  var DEFAULT_ECHOMEM_CONFIG = {
+    baseUrl: "http://127.0.0.1:8010",
+    authKey: "",
+    agentId: ""
+  };
   var DEFAULT_COMPLETION_CONFIG = {
     phraseScoreThreshold: 0.2
+  };
+  var DEFAULT_AGENT_ID = "echoagent";
+  var PLATFORM_AGENT_IDS = {
+    higo: "echoagent",
+    deepseek: "echoagent"
   };
   async function getOpenVikingConfig() {
     try {
@@ -743,8 +753,30 @@
       return { ...DEFAULT_OPENVIKING_CONFIG };
     }
   }
-  async function setOpenVikingConfig(config) {
-    await chrome.storage.local.set({ openvikingConfig: config });
+  async function getEchoMemConfig() {
+    try {
+      const result = await chrome.storage.local.get("echomemConfig");
+      return { ...DEFAULT_ECHOMEM_CONFIG, ...result.echomemConfig || {} };
+    } catch {
+      return { ...DEFAULT_ECHOMEM_CONFIG };
+    }
+  }
+  async function setEchoMemConfig(config) {
+    await chrome.storage.local.set({ echomemConfig: config });
+  }
+  function getAgentIdForPlatform(platformId) {
+    const platformAgentId = PLATFORM_AGENT_IDS[platformId];
+    if (platformAgentId) return platformAgentId;
+    return DEFAULT_AGENT_ID;
+  }
+  async function getConfiguredAgentId(platformId) {
+    try {
+      const result = await chrome.storage.local.get("echomemConfig");
+      const cfg = result.echomemConfig || {};
+      if (cfg.agentId) return cfg.agentId;
+    } catch {
+    }
+    return getAgentIdForPlatform(platformId);
   }
   async function getCompletionConfig() {
     try {
@@ -9315,10 +9347,10 @@ ${block}` : block;
     return Math.max(0, decimalPartLen - exp);
   }
   function getPixelPrecision(dataExtent, pixelExtent) {
-    var log2 = Math.log;
+    var log3 = Math.log;
     var LN10 = Math.LN10;
-    var dataQuantity = Math.floor(log2(dataExtent[1] - dataExtent[0]) / LN10);
-    var sizeQuantity = Math.round(log2(mathAbs2(pixelExtent[1] - pixelExtent[0])) / LN10);
+    var dataQuantity = Math.floor(log3(dataExtent[1] - dataExtent[0]) / LN10);
+    var sizeQuantity = Math.round(log3(mathAbs2(pixelExtent[1] - pixelExtent[0])) / LN10);
     var precision = Math.min(Math.max(-dataQuantity + sizeQuantity, 0), 20);
     return !isFinite(precision) ? 20 : precision;
   }
@@ -42241,6 +42273,190 @@ ${block}` : block;
     }
   }
 
+  // src/services/echomem-client.js
+  var DEFAULT_CONFIG2 = {
+    baseUrl: "http://127.0.0.1:8010",
+    authKey: "",
+    timeoutMs: 5e3,
+    debug: true
+  };
+  function log2(prefix, ...args) {
+    console.log(`EchoMem client [${prefix}]`, ...args);
+  }
+  function fetchViaBackground(url, options = {}) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        {
+          action: "echoMemRequest",
+          url,
+          method: options.method || "GET",
+          headers: options.headers,
+          body: options.body,
+          timeout: options.timeout
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          if (!response || !response.success) {
+            reject(new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error")));
+            return;
+          }
+          resolve(response.data);
+        }
+      );
+    });
+  }
+  var EchoMemClient = class {
+    constructor(config = {}) {
+      this.cfg = { ...DEFAULT_CONFIG2, ...config };
+    }
+    _buildHeaders(contentType = false) {
+      const headers = {};
+      if (this.cfg.authKey) {
+        headers["X-Auth-Key"] = this.cfg.authKey;
+      }
+      if (contentType) {
+        headers["Content-Type"] = "application/json";
+      }
+      return headers;
+    }
+    async _fetchJson(url, options = {}) {
+      var _a2;
+      const data = await fetchViaBackground(url, {
+        ...options,
+        timeout: this.cfg.timeoutMs
+      });
+      if (data && data.status === "error") {
+        throw new Error(data.message || ((_a2 = data.error) == null ? void 0 : _a2.message) || "EchoMem error");
+      }
+      return data.result !== void 0 ? data.result : data;
+    }
+    async healthCheck() {
+      try {
+        const data = await fetchViaBackground(`${this.cfg.baseUrl}/health`, {
+          method: "GET",
+          timeout: this.cfg.timeoutMs
+        });
+        if (this.cfg.debug) {
+          log2("health", "ok", data);
+        }
+        return true;
+      } catch (err) {
+        if (this.cfg.debug) {
+          log2("health", "failed", err.message);
+        }
+        throw err;
+      }
+    }
+    async find(query, options = {}) {
+      const body = {
+        query,
+        agent_id: options.agentId,
+        limit: options.limit || 5,
+        include_explain: options.includeExplain || false
+      };
+      if (options.sessionId) body.session_id = options.sessionId;
+      if (this.cfg.debug) {
+        log2("find request", JSON.stringify(body));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/retrieval/search`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      if (this.cfg.debug) {
+        const items = (result == null ? void 0 : result.items) || [];
+        log2(
+          "find response",
+          `items=${items.length}`,
+          items[0] ? JSON.stringify(items[0]) : "empty",
+          (result == null ? void 0 : result.explain) ? `explain=${JSON.stringify(result.explain)}` : "no explain"
+        );
+      }
+      return result;
+    }
+    async openSession(options = {}) {
+      var _a2;
+      const body = {
+        agent_id: options.agentId
+      };
+      if (options.sessionId) body.session_id = options.sessionId;
+      if (options.runId) body.run_id = options.runId;
+      if (options.metadata) body.metadata = options.metadata;
+      if (this.cfg.debug) {
+        log2("openSession request", JSON.stringify(body));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/sessions/open`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      const normalized = {
+        ...result,
+        session_id: ((_a2 = result.scope) == null ? void 0 : _a2.session_id) || result.session_id || result.id
+      };
+      if (this.cfg.debug) {
+        log2("openSession response", `raw=${JSON.stringify(result)}`, `normalized session_id=${normalized.session_id}`);
+      }
+      return normalized;
+    }
+    async addMessage(sessionId, message) {
+      var _a2;
+      const body = {
+        role: message.role,
+        content: message.text
+      };
+      if (this.cfg.debug) {
+        log2("addMessage request", `session=${sessionId}`, JSON.stringify(body));
+      }
+      const result = await this._fetchJson(
+        `${this.cfg.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/messages`,
+        {
+          method: "POST",
+          headers: this._buildHeaders(true),
+          body: JSON.stringify(body)
+        }
+      );
+      if (this.cfg.debug) {
+        log2("addMessage response", `session=${sessionId}`, `message.id=${((_a2 = result == null ? void 0 : result.message) == null ? void 0 : _a2.id) || (result == null ? void 0 : result.id) || "unknown"}`);
+      }
+      return result;
+    }
+    async appendMessages(sessionId, messages) {
+      if (this.cfg.debug) {
+        log2("appendMessages", `session=${sessionId}`, `count=${messages.length}`);
+      }
+      const results = [];
+      for (const msg of messages) {
+        const result = await this.addMessage(sessionId, msg);
+        results.push(result);
+      }
+      return results;
+    }
+    async commitSession(sessionId) {
+      if (this.cfg.debug) {
+        log2("commitSession request", `session=${sessionId}`);
+      }
+      const result = await this._fetchJson(
+        `${this.cfg.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/commit`,
+        {
+          method: "POST",
+          headers: this._buildHeaders(true),
+          body: JSON.stringify({})
+        }
+      );
+      if (this.cfg.debug) {
+        log2("commitSession response", `session=${sessionId}`, `commit_id=${result == null ? void 0 : result.commit_id}`, `archive_id=${result == null ? void 0 : result.archive_id}`, `status=${result == null ? void 0 : result.status}`);
+      }
+      return result;
+    }
+  };
+  function createClient2(config) {
+    return new EchoMemClient(config);
+  }
+
   // src/utils/text-processor.js
   var STOP_WORDS = /* @__PURE__ */ new Set([
     // 中文停用词
@@ -42419,6 +42635,10 @@ ${block}` : block;
     if (text.length <= maxLength) return text;
     return text.slice(0, maxLength) + "...";
   }
+  function stripMetadataTags(text) {
+    if (!text) return "";
+    return text.replace(/\s*\[[^\]]+\]/g, "").trim();
+  }
   function calculateOverlap(inputWords, textWords) {
     if (!inputWords.size || !textWords.size) return 0;
     let exactMatch = 0;
@@ -42442,1097 +42662,6 @@ ${block}` : block;
     const div2 = document.createElement("div");
     div2.textContent = String(str);
     return div2.innerHTML;
-  }
-
-  // src/panels/association/suggestions.js
-  var MEM_TAG_OPEN2 = "<relevant-memories>";
-  var MEM_TAG_CLOSE2 = "</relevant-memories>";
-  var selectedIndex = -1;
-  var currentSuggestions = [];
-  var checkedKeys = /* @__PURE__ */ new Set();
-  var currentInputElement = null;
-  var keyboardBound = false;
-  var collapsed = false;
-  var suppressBlurClose = false;
-  var committedItems = /* @__PURE__ */ new Map();
-  function getItemKey(c, i) {
-    return c.sourceUri || c.insertText || `idx-${i}`;
-  }
-  function renderCompletions(inputElement, completions) {
-    currentSuggestions = completions;
-    currentInputElement = inputElement;
-    selectedIndex = completions.length > 0 ? 0 : -1;
-    checkedKeys = /* @__PURE__ */ new Set();
-    const container = getOrCreateContainer();
-    if (!completions.length) {
-      hideSuggestions();
-      return;
-    }
-    container.innerHTML = buildContainerHtml(completions);
-    container.style.display = "block";
-    positionContainer(container, inputElement);
-    bindContainerEvents(container, inputElement);
-    bindOutsideClick(container);
-  }
-  function bindOutsideClick(container) {
-    if (container._outsideClickHandler) {
-      document.removeEventListener("mousedown", container._outsideClickHandler);
-      container._outsideClickHandler = null;
-    }
-    const handler = (e2) => {
-      if (!container.contains(e2.target)) {
-        hideSuggestions();
-        document.removeEventListener("mousedown", handler);
-        container._outsideClickHandler = null;
-      }
-    };
-    setTimeout(() => {
-      document.addEventListener("mousedown", handler);
-      container._outsideClickHandler = handler;
-    }, 0);
-  }
-  function buildContainerHtml(completions) {
-    const headerHtml = `
-    <div class="echomem-suggestion-header">
-      <label class="echomem-suggestion-select-all">
-        <input type="checkbox" class="echomem-suggestion-check-all" />
-        <span>\u5168\u9009</span>
-      </label>
-      <span class="echomem-suggestion-title">\u76F8\u5173\u8BB0\u5FC6 (${completions.length})</span>
-      <button type="button" class="echomem-suggestion-toggle" title="${collapsed ? "\u5C55\u5F00" : "\u6298\u53E0"}">
-        ${collapsed ? "\u25B8" : "\u25BE"}
-      </button>
-    </div>
-  `;
-    const itemsHtml = completions.map((c, i) => {
-      const isActive = i === selectedIndex;
-      const key = getItemKey(c, i);
-      const sourceBadge = c.source === "memory" ? '<span class="echomem-source-badge memory">\u8BB0\u5FC6</span>' : '<span class="echomem-source-badge session">\u4F1A\u8BDD</span>';
-      return `
-      <div class="echomem-suggestion-item ${isActive ? "echomem-suggestion-active" : ""}"
-           data-index="${i}"
-           data-key="${escapeHtml(key)}">
-        <input type="checkbox" class="echomem-suggestion-check" tabindex="-1" />
-        <span class="suggestion-text">${escapeHtml(c.displayText || "")}</span>
-        <div class="suggestion-meta">
-          ${sourceBadge}
-          <span class="suggestion-score">${(c.score || 0).toFixed(2)}</span>
-        </div>
-      </div>
-    `;
-    }).join("");
-    const bodyHtml = `
-    <div class="echomem-suggestion-list" style="${collapsed ? "display:none;" : ""}">
-      ${itemsHtml}
-    </div>
-  `;
-    const actionsHtml = `
-    <div class="echomem-suggestion-actions" style="${collapsed ? "display:none;" : ""}">
-      <button type="button" class="echomem-btn-cancel">\u53D6\u6D88</button>
-      <button type="button" class="echomem-btn-confirm" disabled>\u786E\u5B9A (0)</button>
-    </div>
-  `;
-    return headerHtml + bodyHtml + actionsHtml;
-  }
-  function bindContainerEvents(container, inputElement) {
-    container.addEventListener("mousedown", (e2) => {
-      suppressBlurClose = true;
-      setTimeout(() => {
-        suppressBlurClose = false;
-      }, 50);
-      const target = e2.target;
-      const isInteractive = target.tagName === "INPUT" || target.tagName === "BUTTON" || target.closest("label");
-      if (!isInteractive) {
-        e2.preventDefault();
-      }
-    });
-    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
-      item.addEventListener("click", (e2) => {
-        const key = item.dataset.key;
-        const checkbox = item.querySelector(".echomem-suggestion-check");
-        if (e2.target === checkbox) {
-          if (checkbox.checked) {
-            checkedKeys.add(key);
-          } else {
-            checkedKeys.delete(key);
-          }
-        } else {
-          toggleKey(key);
-        }
-        syncUi(container);
-      });
-      item.addEventListener("mouseenter", () => {
-        selectedIndex = Number(item.dataset.index);
-        updateHighlight(container);
-      });
-    });
-    const checkAll = container.querySelector(".echomem-suggestion-check-all");
-    checkAll.addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      const allKeys = currentSuggestions.map((c, i) => getItemKey(c, i));
-      if (e2.target.checked) {
-        checkedKeys = new Set(allKeys);
-      } else {
-        checkedKeys = /* @__PURE__ */ new Set();
-      }
-      syncUi(container);
-    });
-    const toggleBtn = container.querySelector(".echomem-suggestion-toggle");
-    toggleBtn.addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      collapsed = !collapsed;
-      const list = container.querySelector(".echomem-suggestion-list");
-      const actions2 = container.querySelector(".echomem-suggestion-actions");
-      if (list) list.style.display = collapsed ? "none" : "";
-      if (actions2) actions2.style.display = collapsed ? "none" : "";
-      toggleBtn.textContent = collapsed ? "\u25B8" : "\u25BE";
-      toggleBtn.title = collapsed ? "\u5C55\u5F00" : "\u6298\u53E0";
-      positionContainer(container, inputElement);
-    });
-    container.querySelector(".echomem-btn-cancel").addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      hideSuggestions();
-    });
-    container.querySelector(".echomem-btn-confirm").addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      if (!checkedKeys.size) return;
-      const selected = [];
-      currentSuggestions.forEach((c, i) => {
-        const key = getItemKey(c, i);
-        if (checkedKeys.has(key)) {
-          selected.push({ key, item: c });
-        }
-      });
-      if (!selected.length) return;
-      composeAndInsert(currentInputElement, currentInputElement.value || "", selected);
-      hideSuggestions();
-    });
-  }
-  function toggleKey(key) {
-    if (checkedKeys.has(key)) {
-      checkedKeys.delete(key);
-    } else {
-      checkedKeys.add(key);
-    }
-  }
-  function syncUi(container) {
-    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
-      const key = item.dataset.key;
-      const checkbox = item.querySelector(".echomem-suggestion-check");
-      const checked = checkedKeys.has(key);
-      if (checkbox) checkbox.checked = checked;
-      item.classList.toggle("echomem-suggestion-checked", checked);
-    });
-    const allKeys = currentSuggestions.map((c, i) => getItemKey(c, i));
-    const allChecked = allKeys.length > 0 && allKeys.every((k) => checkedKeys.has(k));
-    const someChecked = allKeys.some((k) => checkedKeys.has(k));
-    const checkAll = container.querySelector(".echomem-suggestion-check-all");
-    if (checkAll) {
-      checkAll.checked = allChecked;
-      checkAll.indeterminate = !allChecked && someChecked;
-    }
-    const confirmBtn = container.querySelector(".echomem-btn-confirm");
-    if (confirmBtn) {
-      const n = checkedKeys.size;
-      confirmBtn.textContent = `\u786E\u5B9A (${n})`;
-      confirmBtn.disabled = n === 0;
-    }
-    updateHighlight(container);
-  }
-  function updateHighlight(container) {
-    const items = container.querySelectorAll(".echomem-suggestion-item");
-    items.forEach((item, i) => {
-      if (i === selectedIndex) {
-        item.classList.add("echomem-suggestion-active");
-      } else {
-        item.classList.remove("echomem-suggestion-active");
-      }
-    });
-  }
-  function formatItem(it) {
-    return (it.insertText || "").trim().replace(/\s+/g, " ");
-  }
-  function stripMemoryBlock2(userText) {
-    const text = userText || "";
-    const regex = new RegExp(`\\s*${MEM_TAG_OPEN2}[\\s\\S]*?${MEM_TAG_CLOSE2}\\s*`, "g");
-    const hasMatch = regex.test(text);
-    if (!hasMatch) {
-      committedItems.clear();
-      return text.replace(/\s+$/, "");
-    }
-    committedItems.clear();
-    return text.replace(regex, "").replace(/\s+$/, "");
-  }
-  function composeAndInsert(textarea, userText, selected) {
-    if (!textarea) return;
-    const basePart = stripMemoryBlock2(userText);
-    for (const { key, item } of selected) {
-      if (committedItems.has(key)) continue;
-      const body = formatItem(item);
-      if (!body) continue;
-      committedItems.set(key, body);
-    }
-    const bodies = Array.from(committedItems.values());
-    if (!bodies.length) return;
-    const lines = bodies.map((b, i) => `${i + 1}. ${b}`);
-    const prefix = basePart ? `${basePart}
-
-` : "";
-    const next = `${prefix}${MEM_TAG_OPEN2}
-${lines.join("\n")}
-${MEM_TAG_CLOSE2}`;
-    textarea.value = next;
-    try {
-      textarea.selectionStart = textarea.selectionEnd = next.length;
-    } catch (_) {
-    }
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    textarea.focus();
-  }
-  function hideSuggestions() {
-    const container = document.getElementById("echomem-suggestions");
-    if (container) {
-      container.style.display = "none";
-    }
-    selectedIndex = -1;
-    currentSuggestions = [];
-    checkedKeys = /* @__PURE__ */ new Set();
-  }
-  function isSuggestionsVisible() {
-    const container = document.getElementById("echomem-suggestions");
-    return !!(container && container.style.display !== "none");
-  }
-  function shouldSuppressBlurClose() {
-    return suppressBlurClose;
-  }
-  function bindKeyboardNavigation(textarea) {
-    if (keyboardBound) return;
-    keyboardBound = true;
-    textarea.addEventListener("keydown", (e2) => {
-      if (!isSuggestionsVisible()) return;
-      const container = document.getElementById("echomem-suggestions");
-      if (!container) return;
-      switch (e2.key) {
-        case "ArrowDown":
-          e2.preventDefault();
-          selectedIndex = Math.min(selectedIndex + 1, currentSuggestions.length - 1);
-          updateHighlight(container);
-          break;
-        case "ArrowUp":
-          e2.preventDefault();
-          selectedIndex = Math.max(selectedIndex - 1, 0);
-          updateHighlight(container);
-          break;
-        case "Enter":
-          if (checkedKeys.size > 0) {
-            e2.preventDefault();
-            const selected = [];
-            currentSuggestions.forEach((c, i) => {
-              const key = getItemKey(c, i);
-              if (checkedKeys.has(key)) {
-                selected.push({ key, item: c });
-              }
-            });
-            composeAndInsert(textarea, textarea.value || "", selected);
-            hideSuggestions();
-          }
-          break;
-        case "Escape":
-          e2.preventDefault();
-          hideSuggestions();
-          break;
-      }
-    });
-  }
-  function getOrCreateContainer() {
-    let container = document.getElementById("echomem-suggestions");
-    if (!container) {
-      container = document.createElement("div");
-      container.id = "echomem-suggestions";
-      container.className = "echomem-suggestions-container";
-      document.body.appendChild(container);
-    }
-    return container;
-  }
-  function positionContainer(container, inputElement) {
-    if (!inputElement) return;
-    const rect = inputElement.getBoundingClientRect();
-    const prevVisibility = container.style.visibility;
-    container.style.visibility = "hidden";
-    container.style.display = "block";
-    const containerHeight = Math.min(container.offsetHeight || 160, 320);
-    container.style.visibility = prevVisibility || "";
-    container.style.position = "fixed";
-    container.style.left = `${rect.left}px`;
-    container.style.top = `${rect.top - containerHeight - 8}px`;
-    container.style.width = `${rect.width}px`;
-    container.style.zIndex = "999999";
-  }
-
-  // src/core/completion-engine.js
-  var phraseScoreThreshold = 0.2;
-  async function refreshThreshold() {
-    const config = await getCompletionConfig();
-    phraseScoreThreshold = config.phraseScoreThreshold;
-  }
-  function extractKeywords(text, userInput, maxKeywords = 3) {
-    if (!text) return [];
-    const words = tokenizeAndFilter(text);
-    const userWords = new Set(tokenize(userInput));
-    const freq = {};
-    for (const w of words) {
-      freq[w] = (freq[w] || 0) + 1;
-    }
-    const scored = Object.entries(freq).map(([word, count]) => ({
-      word,
-      score: count * (userWords.has(word) ? 3 : 1)
-    }));
-    return scored.sort((a, b) => b.score - a.score).slice(0, maxKeywords).map((x) => x.word);
-  }
-  function extractPhrases(overview, userInput) {
-    if (!overview) {
-      console.log("EchoMem: extractPhrases overview is empty");
-      return [];
-    }
-    const lines = overview.split("\n");
-    const phrases = [];
-    const inputWords = new Set(tokenize(userInput));
-    console.log("EchoMem: extractPhrases inputWords", [...inputWords], "threshold", phraseScoreThreshold);
-    console.log("EchoMem: overview lines count", lines.length);
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.length < 5) continue;
-      const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
-      if (listMatch) {
-        const phrase = listMatch[1].trim();
-        const phraseWords = new Set(tokenize(phrase));
-        const score = calculatePhraseScore(inputWords, phraseWords, phrase);
-        console.log("EchoMem: list item", phrase.slice(0, 40), "score", score, "threshold", phraseScoreThreshold);
-        if (score > phraseScoreThreshold) {
-          phrases.push({ phrase, score, type: "bullet" });
-        }
-        continue;
-      }
-      const quoteMatch = trimmed.match(/^[""'](.+)[""']\s*\(/);
-      if (quoteMatch) {
-        const phrase = quoteMatch[1].trim();
-        const phraseWords = new Set(tokenize(phrase));
-        const score = calculatePhraseScore(inputWords, phraseWords, phrase);
-        console.log("EchoMem: quote", phrase.slice(0, 40), "score", score);
-        if (score > phraseScoreThreshold) {
-          phrases.push({ phrase, score, type: "quote" });
-        }
-        continue;
-      }
-      if (!trimmed.startsWith("#") && !trimmed.startsWith("-") && !trimmed.startsWith("*")) {
-        const phraseWords = new Set(tokenize(trimmed));
-        const score = calculatePhraseScore(inputWords, phraseWords, trimmed);
-        console.log("EchoMem: text line", trimmed.slice(0, 40), "score", score, "threshold", phraseScoreThreshold + 0.25);
-        if (score > phraseScoreThreshold + 0.25) {
-          phrases.push({ phrase: trimmed, score, type: "text" });
-        }
-      }
-    }
-    console.log("EchoMem: extractPhrases result", phrases.length, "phrases");
-    return phrases.sort((a, b) => b.score - a.score).slice(0, 3);
-  }
-  function calculatePhraseScore(inputWords, phraseWords, phrase) {
-    if (!inputWords.size || !phraseWords.size) return 0;
-    const overlap = calculateOverlap(inputWords, phraseWords);
-    const intersection = new Set([...inputWords].filter((x) => phraseWords.has(x))).size;
-    const union = (/* @__PURE__ */ new Set([...inputWords, ...phraseWords])).size;
-    const jaccard = union > 0 ? intersection / union : 0;
-    const lengthPenalty = Math.min(phrase.length / 150, 1);
-    return (jaccard * 0.4 + overlap / (inputWords.size * 2) * 0.6) * (1 - lengthPenalty * 0.15);
-  }
-  function buildSuggestion(userInput, memory) {
-    var _a2, _b2;
-    const inputTrimmed = userInput.trim();
-    if (((_a2 = memory == null ? void 0 : memory.phrases) == null ? void 0 : _a2.length) > 0) {
-      const bestPhrase = memory.phrases[0];
-      return {
-        type: "phrase",
-        displayText: `...${truncate(bestPhrase.phrase, 40)}`,
-        insertText: bestPhrase.phrase,
-        source: "memory",
-        sourceUri: memory.uri || "",
-        score: (memory.score || 0.5) * 0.7 + bestPhrase.score * 0.3,
-        fullText: memory.abstract || bestPhrase.phrase
-      };
-    }
-    if (((_b2 = memory == null ? void 0 : memory.keywords) == null ? void 0 : _b2.length) > 0) {
-      const continuation = memory.keywords.join("\u3001");
-      return {
-        type: "keyword",
-        displayText: `...${truncate(continuation, 40)}`,
-        insertText: continuation,
-        source: "memory",
-        sourceUri: memory.uri || "",
-        score: memory.score || 0.5,
-        fullText: memory.abstract || ""
-      };
-    }
-    return null;
-  }
-  function processMemories(userInput, memories) {
-    const suggestions = [];
-    for (const memory of memories.slice(0, 5)) {
-      const semanticScore = memory.score || 0;
-      if (semanticScore < phraseScoreThreshold) {
-        console.log("EchoMem: memory filtered out by semantic score", semanticScore, "<", phraseScoreThreshold, memory.uri);
-        continue;
-      }
-      const sourceText = memory.overview || memory.abstract || "";
-      const phrases = extractPhrases(sourceText, userInput);
-      console.log("EchoMem: memory", memory.uri, "semanticScore", semanticScore, "phrases", phrases.length);
-      const keywords = extractKeywords(memory.abstract || "", userInput, 3);
-      const enrichedMemory = { ...memory, phrases, keywords };
-      const suggestion = buildSuggestion(userInput, enrichedMemory);
-      if (suggestion) {
-        suggestions.push(suggestion);
-      } else {
-        console.log("EchoMem: no suggestion generated for", memory.uri);
-      }
-    }
-    return suggestions;
-  }
-  function rankAndDeduplicate(suggestions, maxResults = 3) {
-    suggestions.sort((a, b) => b.score - a.score);
-    const seen = /* @__PURE__ */ new Set();
-    const unique = [];
-    for (const s of suggestions) {
-      const key = s.insertText.slice(0, 50);
-      if (!seen.has(key)) {
-        seen.add(key);
-        unique.push(s);
-      }
-    }
-    return unique.slice(0, maxResults);
-  }
-  async function generateCompletions(userInput, memories, maxResults = 3) {
-    if (!userInput || !(memories == null ? void 0 : memories.length)) {
-      return [];
-    }
-    await refreshThreshold();
-    console.log("EchoMem: phraseScoreThreshold =", phraseScoreThreshold);
-    const suggestions = processMemories(userInput, memories);
-    console.log("EchoMem: raw suggestions =", suggestions.map((s) => ({ type: s.type, score: s.score, display: s.displayText })));
-    return rankAndDeduplicate(suggestions, maxResults);
-  }
-
-  // src/core/input-tracker.js
-  var client = null;
-  var debounceTimer = null;
-  var trackingPlatformConfig = null;
-  var keyboardNavBound = false;
-  async function getClient() {
-    if (!client) {
-      const config = await getOpenVikingConfig();
-      client = createClient(config);
-    }
-    return client;
-  }
-  function resetClient() {
-    client = null;
-  }
-  function startInputTracking(platformConfig) {
-    trackingPlatformConfig = platformConfig;
-    tryBindInputElement();
-  }
-  function tryBindInputElement() {
-    if (!trackingPlatformConfig) return;
-    const textarea = findInputElement2(trackingPlatformConfig);
-    if (!textarea) {
-      console.log("EchoMem: input element not found, will retry on next DOM change");
-      return;
-    }
-    if (textarea.dataset.echomemTracking) return;
-    textarea.dataset.echomemTracking = "true";
-    console.log("EchoMem: input tracking started on", textarea);
-    if (!keyboardNavBound) {
-      bindKeyboardNavigation(textarea);
-      keyboardNavBound = true;
-    }
-    textarea.addEventListener("input", (e2) => {
-      if (!getAssociationEnabled()) {
-        hideSuggestions();
-        return;
-      }
-      if (!e2.isTrusted) return;
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(async () => {
-        const text = e2.target.value.trim();
-        if (text.length >= 3) {
-          try {
-            await handleInput(textarea, text);
-          } catch (err) {
-            console.warn("EchoMem: recall failed", err);
-            hideSuggestions();
-          }
-        } else {
-          hideSuggestions();
-        }
-      }, 300);
-    });
-    textarea.addEventListener("blur", () => {
-      setTimeout(() => {
-        if (shouldSuppressBlurClose()) return;
-        const active = document.activeElement;
-        const container = document.getElementById("echomem-suggestions");
-        if (container && active && container.contains(active)) return;
-        hideSuggestions();
-      }, 200);
-    });
-  }
-  async function handleInput(textarea, userInput) {
-    let memories = [];
-    try {
-      const ovClient = await getClient();
-      console.log("EchoMem: recall triggered, query=", userInput);
-      const result = await ovClient.find(userInput, { limit: 5 });
-      memories = result.memories || [];
-      console.log("EchoMem: found", memories.length, "memories");
-      if (memories.length > 0) {
-        console.log("EchoMem: first memory keys", Object.keys(memories[0]));
-        console.log("EchoMem: first memory overview", memories[0].overview ? "present" : "missing");
-      }
-    } catch (err) {
-      console.warn("EchoMem: OpenViking recall failed", err);
-      hideSuggestions();
-      return;
-    }
-    if (!memories.length) {
-      hideSuggestions();
-      return;
-    }
-    const completions = await generateCompletions(userInput, memories, 3);
-    console.log("EchoMem: generated", completions.length, "completions");
-    if (completions.length > 0) {
-      renderCompletions(textarea, completions);
-    } else {
-      hideSuggestions();
-    }
-  }
-  function findInputElement2(platformConfig) {
-    var _a2, _b2;
-    const selector = (_b2 = (_a2 = platformConfig.launcher) == null ? void 0 : _a2.validateSelectors) == null ? void 0 : _b2.textarea;
-    if (!selector) return null;
-    return document.querySelector(selector);
-  }
-
-  // src/panels/echomem/config.js
-  function getOpenVikingConfigContent() {
-    return `
-    <div style="display: flex; flex-direction: column; gap: 14px; color: #333;">
-      <div style="padding: 10px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #667eea; font-size: 12px; color: #666;">
-        \u{1F4A1} \u6B64\u914D\u7F6E\u540C\u65F6\u5F71\u54CD\u8D44\u6E90\u7BA1\u7406\u3001\u8F93\u5165\u8054\u60F3\u7B49\u529F\u80FD
-      </div>
-
-      <div>
-        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u670D\u52A1\u5730\u5740</label>
-        <input id="cfg-base-url" type="text"
-          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-        />
-      </div>
-
-      <div>
-        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID</label>
-        <input id="cfg-agent-id" type="text"
-          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-        />
-      </div>
-
-      <div>
-        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #333; cursor: pointer;">
-          <input id="cfg-auth-enabled" type="checkbox" style="cursor: pointer;" />
-          <span>\u542F\u7528\u8BA4\u8BC1\u6A21\u5F0F\uFF08API Key / Account / User\uFF09</span>
-        </label>
-      </div>
-
-      <div id="cfg-auth-fields" style="display: none; display: flex; flex-direction: column; gap: 10px;">
-        <div>
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">API Key</label>
-          <input id="cfg-api-key" type="password"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
-        </div>
-        <div>
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Account ID</label>
-          <input id="cfg-account-id" type="text"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
-        </div>
-        <div>
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">User ID</label>
-          <input id="cfg-user-id" type="text"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
-        </div>
-      </div>
-
-      <div style="display: flex; gap: 10px; margin-top: 4px;">
-        <button id="cfg-test-btn" style="flex: 1; padding: 10px; background: #f0f7ff; color: #667eea; border: 1px solid #c7d8f5; border-radius: 6px; font-size: 13px; cursor: pointer;"
-        >\u{1F504} \u6D4B\u8BD5\u8FDE\u63A5</button>
-        <button id="cfg-save-btn" style="flex: 1; padding: 10px; background: #667eea; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;"
-        >\u{1F4BE} \u4FDD\u5B58\u914D\u7F6E</button>
-      </div>
-
-      <div id="cfg-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
-    </div>
-  `;
-  }
-  async function initConfigPanel(bodyElement) {
-    if (!bodyElement) return;
-    const baseUrlInput = bodyElement.querySelector("#cfg-base-url");
-    const agentIdInput = bodyElement.querySelector("#cfg-agent-id");
-    const authCheckbox = bodyElement.querySelector("#cfg-auth-enabled");
-    const authFields = bodyElement.querySelector("#cfg-auth-fields");
-    const apiKeyInput = bodyElement.querySelector("#cfg-api-key");
-    const accountIdInput = bodyElement.querySelector("#cfg-account-id");
-    const userIdInput = bodyElement.querySelector("#cfg-user-id");
-    const testBtn = bodyElement.querySelector("#cfg-test-btn");
-    const saveBtn = bodyElement.querySelector("#cfg-save-btn");
-    const statusEl = bodyElement.querySelector("#cfg-status");
-    function showStatus(msg, type = "info") {
-      if (!statusEl) return;
-      statusEl.style.display = "block";
-      const colors = {
-        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
-        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
-        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
-      };
-      const c = colors[type] || colors.info;
-      statusEl.style.background = c.bg;
-      statusEl.style.border = `1px solid ${c.border}`;
-      statusEl.style.color = c.text;
-      statusEl.textContent = msg;
-    }
-    try {
-      const cfg = await getOpenVikingConfig();
-      if (baseUrlInput) baseUrlInput.value = cfg.baseUrl || "";
-      if (agentIdInput) agentIdInput.value = cfg.agentId || "";
-      if (authCheckbox) authCheckbox.checked = cfg.authEnabled || false;
-      if (apiKeyInput) apiKeyInput.value = cfg.apiKey || "";
-      if (accountIdInput) accountIdInput.value = cfg.accountId || "";
-      if (userIdInput) userIdInput.value = cfg.userId || "";
-      if (authFields) authFields.style.display = cfg.authEnabled ? "flex" : "none";
-    } catch (err) {
-      console.warn("EchoMem: failed to load config", err);
-    }
-    if (authCheckbox && authFields) {
-      authCheckbox.addEventListener("change", () => {
-        authFields.style.display = authCheckbox.checked ? "flex" : "none";
-      });
-    }
-    if (testBtn) {
-      testBtn.addEventListener("click", async () => {
-        var _a2, _b2, _c2, _d2, _e, _f, _g;
-        showStatus("\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5...", "info");
-        try {
-          const config = {
-            baseUrl: ((_a2 = baseUrlInput == null ? void 0 : baseUrlInput.value) == null ? void 0 : _a2.trim()) || "http://127.0.0.1:1933",
-            agentId: ((_b2 = agentIdInput == null ? void 0 : agentIdInput.value) == null ? void 0 : _b2.trim()) || "echomem-extension",
-            authEnabled: (authCheckbox == null ? void 0 : authCheckbox.checked) || false,
-            apiKey: ((_c2 = apiKeyInput == null ? void 0 : apiKeyInput.value) == null ? void 0 : _c2.trim()) || "",
-            accountId: ((_d2 = accountIdInput == null ? void 0 : accountIdInput.value) == null ? void 0 : _d2.trim()) || "default",
-            userId: ((_e = userIdInput == null ? void 0 : userIdInput.value) == null ? void 0 : _e.trim()) || "default"
-          };
-          const client2 = createClient(config);
-          const ok = await client2.healthCheck();
-          if (ok) {
-            showStatus("\u2705 \u8FDE\u63A5\u6210\u529F", "success");
-          } else {
-            showStatus("\u274C \u8FDE\u63A5\u5931\u8D25\uFF1A\u540E\u7AEF\u8FD4\u56DE\u975E 200 \u72B6\u6001\u7801", "error");
-          }
-        } catch (err) {
-          if (err.name === "AbortError" || ((_f = err.message) == null ? void 0 : _f.includes("aborted"))) {
-            showStatus("\u274C \u8FDE\u63A5\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u662F\u5426\u6B63\u786E", "error");
-          } else if ((_g = err.message) == null ? void 0 : _g.includes("Failed to fetch")) {
-            showStatus("\u274C \u65E0\u6CD5\u8FDE\u63A5\u5230\u540E\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u662F\u5426\u542F\u52A8", "error");
-          } else {
-            showStatus(`\u274C \u8FDE\u63A5\u5931\u8D25: ${err.message}`, "error");
-          }
-        }
-      });
-    }
-    if (saveBtn) {
-      saveBtn.addEventListener("click", async () => {
-        var _a2, _b2, _c2, _d2, _e;
-        const config = {
-          baseUrl: ((_a2 = baseUrlInput == null ? void 0 : baseUrlInput.value) == null ? void 0 : _a2.trim()) || "http://127.0.0.1:1933",
-          agentId: ((_b2 = agentIdInput == null ? void 0 : agentIdInput.value) == null ? void 0 : _b2.trim()) || "echomem-extension",
-          authEnabled: (authCheckbox == null ? void 0 : authCheckbox.checked) || false,
-          apiKey: ((_c2 = apiKeyInput == null ? void 0 : apiKeyInput.value) == null ? void 0 : _c2.trim()) || "",
-          accountId: ((_d2 = accountIdInput == null ? void 0 : accountIdInput.value) == null ? void 0 : _d2.trim()) || "default",
-          userId: ((_e = userIdInput == null ? void 0 : userIdInput.value) == null ? void 0 : _e.trim()) || "default"
-        };
-        try {
-          await setOpenVikingConfig(config);
-          resetClient();
-          showStatus("\u2705 \u914D\u7F6E\u5DF2\u4FDD\u5B58", "success");
-        } catch (err) {
-          showStatus(`\u274C \u4FDD\u5B58\u5931\u8D25: ${err.message}`, "error");
-        }
-      });
-    }
-  }
-
-  // src/core/router.js
-  var perfPanelCleanup = null;
-  function cleanupPerformancePanel() {
-    if (perfPanelCleanup) {
-      perfPanelCleanup.destroy();
-      perfPanelCleanup = null;
-    }
-  }
-  var skillStoreRoutes = {
-    history: {
-      title: "\u6211\u7684 Skill",
-      render: getSkillHistoryContent
-    },
-    upload: {
-      title: "\u4E0A\u4F20 Skill",
-      render: getSkillUploadContent
-    },
-    manage: {
-      title: "\u5B89\u88C5\u7BA1\u7406",
-      render: getSkillManageContent
-    }
-  };
-  var resourceSubRoutes = {
-    import: {
-      title: "\u8D44\u6E90\u5BFC\u5165",
-      render: getResourceImportContent
-    },
-    manage: {
-      title: "\u67E5\u770B\u8D44\u6E90",
-      render: getResourceManageContent
-    }
-  };
-  function openEchoMemHomePanel() {
-    cleanupPerformancePanel();
-    setCurrentRoute({ type: "home" });
-    openCustomPanel("EchoMem", getEchoMemHomeContent());
-    const customPanel = document.querySelector(".claw-custom-panel");
-    if (customPanel) {
-      delete customPanel.dataset.clawEventsBound;
-    }
-    bindPanelNavigation();
-  }
-  async function navigateToEchoMemPanel(panelIdOrTitle) {
-    const panel = getPanelDefinition(panelIdOrTitle);
-    if (!panel) return;
-    setCurrentRoute({ type: "panel", panelId: panel.id });
-    if (panel.id === "feedback") {
-      openCenterOverlay("\u8BA4\u77E5\u56FE\u8C31", getGraphOverlayContent(), {
-        showBack: true,
-        onBack: () => {
-          closeOverlayPanel();
-          openEchoMemHomePanel();
-        }
-      });
-    } else {
-      cleanupPerformancePanel();
-      if (panel.id === "performance") {
-        openCustomPanel(panel.title, getPerformanceContent(), {
-          showBack: true,
-          onBack: openEchoMemHomePanel
-        });
-        const body = getPanelBodyElement();
-        perfPanelCleanup = initPerformancePanel(body, {
-          pollInterval: 3e4
-          // 每 30 秒轮询一次，可按需调整
-        });
-      } else {
-        openCustomPanel(panel.title, getPanelContent(panel.id), {
-          showBack: true,
-          onBack: openEchoMemHomePanel
-        });
-      }
-    }
-    bindPanelNavigation();
-    if (panel.id === "association") {
-      await loadConfigValues();
-      bindConfigUI();
-    }
-    if (panel.id === "resources") {
-      const body = getPanelBodyElement();
-      initImportPanel(body);
-    }
-  }
-  function navigateToSkillSection(sectionId) {
-    const route = skillStoreRoutes[sectionId];
-    if (!route) return;
-    setCurrentRoute({
-      type: "panel",
-      panelId: "skillStore",
-      route: sectionId
-    });
-    openCustomPanel(route.title, route.render(), {
-      showBack: true,
-      onBack: () => {
-        openCustomPanel("Skill \u7BA1\u7406", getSkillStoreHomeContent(), {
-          showBack: true,
-          onBack: openEchoMemHomePanel
-        });
-        bindPanelNavigation();
-      }
-    });
-    const body = getPanelBodyElement();
-    if (sectionId === "upload") {
-      initSkillUploadPanel(body);
-    } else if (sectionId === "history") {
-      initSkillHistoryPanel(body);
-    } else if (sectionId === "manage") {
-      initSkillManagePanel(body);
-    }
-    bindPanelControls();
-  }
-  function navigateToResourceSection(sectionId) {
-    const route = resourceSubRoutes[sectionId];
-    if (!route) return;
-    setCurrentRoute({
-      type: "panel",
-      panelId: "resources",
-      route: sectionId
-    });
-    openCustomPanel(route.title, route.render(), {
-      showBack: true,
-      onBack: () => {
-        openCustomPanel("\u8D44\u6E90\u7BA1\u7406", getResourceHomeContent(), {
-          showBack: true,
-          onBack: openEchoMemHomePanel
-        });
-        bindPanelNavigation();
-      }
-    });
-    const body = getPanelBodyElement();
-    if (sectionId === "import") {
-      initImportPanel(body);
-    } else if (sectionId === "manage") {
-      initManagePanel(body);
-    }
-  }
-  function navigateToConfigPanel() {
-    setCurrentRoute({
-      type: "panel",
-      panelId: "openvikingConfig"
-    });
-    openCustomPanel("\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E", getOpenVikingConfigContent(), {
-      showBack: true,
-      onBack: openEchoMemHomePanel
-    });
-    const body = getPanelBodyElement();
-    initConfigPanel(body);
-  }
-  async function refreshInputAssociationPanel() {
-    const contentDiv = getPanelBodyElement();
-    if (contentDiv) {
-      contentDiv.innerHTML = getInputAssociationContent();
-      bindToggleButton(handleInputAssociationToggle);
-      await loadConfigValues();
-      bindConfigUI();
-    }
-  }
-  function handleInputAssociationToggle() {
-    toggleInputAssociation();
-    refreshInputAssociationPanel();
-  }
-  function bindPanelControls() {
-    bindToggleButton(handleInputAssociationToggle);
-    bindConfigUI();
-  }
-  function bindPanelNavigation(root = document) {
-    const customPanel = root.querySelector(".claw-custom-panel");
-    if (!customPanel || customPanel.dataset.clawEventsBound) {
-      bindPanelControls();
-      return;
-    }
-    customPanel.dataset.clawEventsBound = "true";
-    customPanel.addEventListener("click", (e2) => {
-      const menuItem = e2.target.closest(".claw-echomem-menu-item");
-      if (menuItem) {
-        const panelId = menuItem.dataset.panelId || menuItem.dataset.panel;
-        if (panelId) {
-          navigateToEchoMemPanel(panelId);
-        }
-        return;
-      }
-      const card = e2.target.closest(".claw-skill-section");
-      if (card) {
-        const sectionId = card.dataset.section;
-        if (sectionId) {
-          navigateToSkillSection(sectionId);
-        }
-        return;
-      }
-      const resourceCard = e2.target.closest(".claw-resource-section");
-      if (resourceCard) {
-        const sectionId = resourceCard.dataset.resourceSection;
-        if (sectionId) {
-          navigateToResourceSection(sectionId);
-        }
-        return;
-      }
-      const configCard = e2.target.closest(".claw-config-section");
-      if (configCard) {
-        navigateToConfigPanel();
-      }
-    });
-    bindPanelControls();
-  }
-
-  // src/core/buttons.js
-  function addCustomButtons() {
-    let platform2 = getCurrentPlatform();
-    if (!platform2) {
-      const detected = detectPlatform();
-      if (detected) {
-        setCurrentPlatform(detected);
-        platform2 = detected;
-        console.log("Claw Extension: Platform detected -", platform2.config.name);
-      } else {
-        return;
-      }
-    }
-    const config = platform2.config;
-    const launcherConfig = config.launcher || config.buttonBar;
-    if (!launcherConfig) return;
-    if (document.querySelector(".claw-echomem-launcher-bar")) return;
-    const inputContainers = document.querySelectorAll(launcherConfig.containerSelector);
-    for (const container of inputContainers) {
-      if (container.dataset.clawLauncherAdded) continue;
-      let isValidContainer = true;
-      for (const [key, selector] of Object.entries(launcherConfig.validateSelectors || {})) {
-        if (!container.querySelector(selector)) {
-          isValidContainer = false;
-          break;
-        }
-      }
-      if (!isValidContainer) continue;
-      container.dataset.clawLauncherAdded = "true";
-      const launcherBar = document.createElement("div");
-      launcherBar.className = "claw-echomem-launcher-bar";
-      const launcher = document.createElement("button");
-      launcher.className = "claw-echomem-launcher";
-      launcher.textContent = launcherConfig.text || "EchoMem";
-      const style = {
-        display: "flex",
-        gap: "8px",
-        padding: "0 12px 8px",
-        background: "transparent",
-        alignItems: "center",
-        justifyContent: "flex-start",
-        ...launcherConfig.style || {}
-      };
-      if (launcherConfig.getBackgroundColor && typeof launcherConfig.getBackgroundColor === "function") {
-        try {
-          const dynamicBg = launcherConfig.getBackgroundColor();
-          if (dynamicBg) {
-            style.background = dynamicBg;
-          }
-        } catch (e2) {
-          console.log("Claw Extension: getBackgroundColor failed, using default", e2);
-        }
-      }
-      launcherBar.style.cssText = Object.entries(style).map(([key, value]) => {
-        const cssKey = key.replace(/([A-Z])/g, "-$1").toLowerCase();
-        return `${cssKey}: ${value}`;
-      }).join("; ");
-      launcher.style.cssText = `
-      height: 28px;
-      padding: 0 10px;
-      border: 1px solid rgba(0, 0, 0, 0.12);
-      border-radius: 6px;
-      background: #fff;
-      color: #1f2937;
-      font-size: 12px;
-      font-weight: 600;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      line-height: 26px;
-      cursor: pointer;
-      transition: all 0.2s;
-      white-space: nowrap;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-    `;
-      launcher.addEventListener("mouseenter", () => {
-        launcher.style.borderColor = "#2563eb";
-        launcher.style.color = "#2563eb";
-        launcher.style.boxShadow = "0 2px 6px rgba(37, 99, 235, 0.18)";
-      });
-      launcher.addEventListener("mouseleave", () => {
-        launcher.style.borderColor = "rgba(0, 0, 0, 0.12)";
-        launcher.style.color = "#1f2937";
-        launcher.style.boxShadow = "0 1px 2px rgba(0, 0, 0, 0.08)";
-      });
-      launcher.addEventListener("click", (e2) => {
-        e2.preventDefault();
-        e2.stopPropagation();
-        openEchoMemHomePanel();
-      });
-      launcherBar.appendChild(launcher);
-      if (launcherConfig.insertAfter) {
-        const insertTarget = document.querySelector(launcherConfig.insertAfter);
-        if (insertTarget && insertTarget.parentNode) {
-          insertTarget.parentNode.insertBefore(launcherBar, insertTarget.nextSibling);
-        } else {
-          container.parentNode.insertBefore(launcherBar, container);
-        }
-      } else if (launcherConfig.insertPosition === "after") {
-        container.parentNode.insertBefore(launcherBar, container.nextSibling);
-      } else if (launcherConfig.insertPosition === "append") {
-        container.appendChild(launcherBar);
-      } else {
-        container.parentNode.insertBefore(launcherBar, container);
-      }
-      console.log(`Claw Extension: EchoMem launcher added for ${config.name}`);
-      break;
-    }
-  }
-
-  // src/core/lifecycle.js
-  function createDomLifecycle({ onDomChange, delay = 120 }) {
-    let timer = null;
-    const run = () => {
-      if (timer) {
-        clearTimeout(timer);
-      }
-      timer = setTimeout(() => {
-        timer = null;
-        onDomChange();
-      }, delay);
-    };
-    const observer = new MutationObserver(run);
-    return {
-      start(root = document.body) {
-        if (!root) return;
-        observer.observe(root, {
-          childList: true,
-          subtree: true
-        });
-      },
-      stop() {
-        if (timer) {
-          clearTimeout(timer);
-          timer = null;
-        }
-        observer.disconnect();
-      },
-      flush() {
-        if (timer) {
-          clearTimeout(timer);
-          timer = null;
-        }
-        onDomChange();
-      }
-    };
-  }
-
-  // src/services/messaging.js
-  function bindRuntimeMessages() {
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      return true;
-    });
   }
 
   // src/streaming/button-svg-poll.js
@@ -44336,13 +43465,13 @@ ${MEM_TAG_CLOSE2}`;
     config: null,
     adapter: null,
     rawSessionId: null,
-    openVikingSessionId: null,
+    echoMemSessionId: null,
     lastMessages: [],
     pendingQueue: [],
     observer: null,
     debounceTimer: null,
     isRecording: false,
-    ovClient: null,
+    emClient: null,
     streamingDetector: null,
     streamingSnapshot: null
   };
@@ -44366,12 +43495,12 @@ ${MEM_TAG_CLOSE2}`;
     sentSignatures.set(fp, now);
     return messages;
   }
-  async function getOvClient() {
-    if (!recorderState.ovClient) {
-      const config = await getOpenVikingConfig();
-      recorderState.ovClient = createClient(config);
+  async function getClient() {
+    if (!recorderState.emClient) {
+      const config = await getEchoMemConfig();
+      recorderState.emClient = createClient2(config);
     }
-    return recorderState.ovClient;
+    return recorderState.emClient;
   }
   function getSessionStorageKey() {
     return `echomem_session_${recorderState.platformId}_${recorderState.rawSessionId}`;
@@ -44385,10 +43514,10 @@ ${MEM_TAG_CLOSE2}`;
       return null;
     }
   }
-  async function saveSessionMapping(openVikingSessionId) {
+  async function saveSessionMapping(echoMemSessionId) {
     try {
       const key = getSessionStorageKey();
-      await chrome.storage.local.set({ [key]: openVikingSessionId });
+      await chrome.storage.local.set({ [key]: echoMemSessionId });
     } catch (err) {
       console.warn("EchoMem: failed to save session mapping", err);
     }
@@ -44445,15 +43574,19 @@ ${MEM_TAG_CLOSE2}`;
     const messages = [...recorderState.pendingQueue];
     recorderState.pendingQueue = [];
     try {
-      if (!recorderState.openVikingSessionId) {
-        const client3 = await getOvClient();
-        const result = await client3.createSession(recorderState.rawSessionId);
-        recorderState.openVikingSessionId = result.session_id || result.id || result;
-        await saveSessionMapping(recorderState.openVikingSessionId);
-        console.log("EchoMem: session created", recorderState.openVikingSessionId);
+      if (!recorderState.echoMemSessionId) {
+        const client3 = await getClient();
+        const agentId = await getConfiguredAgentId(recorderState.platformId);
+        const result = await client3.openSession({
+          agentId,
+          sessionId: recorderState.rawSessionId
+        });
+        recorderState.echoMemSessionId = result.session_id || result.id || result;
+        await saveSessionMapping(recorderState.echoMemSessionId);
+        console.log("EchoMem: session created", recorderState.echoMemSessionId);
       }
-      const client2 = await getOvClient();
-      await client2.appendMessages(recorderState.openVikingSessionId, messages);
+      const client2 = await getClient();
+      await client2.appendMessages(recorderState.echoMemSessionId, messages);
       console.log("EchoMem: flushed pending messages", messages.length);
     } catch (err) {
       console.warn("EchoMem: failed to flush messages, re-queuing", err);
@@ -44470,10 +43603,10 @@ ${MEM_TAG_CLOSE2}`;
     console.log("EchoMem diag: posting=", messages.map((m2) => m2.role + ":" + m2.text.slice(0, 30)));
     console.log("EchoMem: detected", messages.length, "new messages");
     await flushPendingMessages();
-    if (recorderState.openVikingSessionId) {
+    if (recorderState.echoMemSessionId) {
       try {
-        const client2 = await getOvClient();
-        await client2.appendMessages(recorderState.openVikingSessionId, messages);
+        const client2 = await getClient();
+        await client2.appendMessages(recorderState.echoMemSessionId, messages);
         console.log("EchoMem: appended", messages.length, "messages");
       } catch (err) {
         console.warn("EchoMem: append failed, queueing", err);
@@ -44481,12 +43614,16 @@ ${MEM_TAG_CLOSE2}`;
       }
     } else {
       try {
-        const client2 = await getOvClient();
-        const result = await client2.createSession(recorderState.rawSessionId);
-        recorderState.openVikingSessionId = result.session_id || result.id || result;
-        await saveSessionMapping(recorderState.openVikingSessionId);
-        console.log("EchoMem: session created", recorderState.openVikingSessionId);
-        await client2.appendMessages(recorderState.openVikingSessionId, messages);
+        const client2 = await getClient();
+        const agentId = await getConfiguredAgentId(recorderState.platformId);
+        const result = await client2.openSession({
+          agentId,
+          sessionId: recorderState.rawSessionId
+        });
+        recorderState.echoMemSessionId = result.session_id || result.id || result;
+        await saveSessionMapping(recorderState.echoMemSessionId);
+        console.log("EchoMem: session created", recorderState.echoMemSessionId);
+        await client2.appendMessages(recorderState.echoMemSessionId, messages);
         console.log("EchoMem: appended", messages.length, "messages");
       } catch (err) {
         console.warn("EchoMem: create session failed, queueing", err);
@@ -44599,7 +43736,7 @@ ${MEM_TAG_CLOSE2}`;
     });
     console.log("EchoMem: MutationObserver attached to message container");
     const currentMessages = extractSessionMessages(recorderState.platformId);
-    if (recorderState.openVikingSessionId) {
+    if (recorderState.echoMemSessionId) {
       recorderState.lastMessages = currentMessages;
       console.log(
         "EchoMem: restored session baseline, skipping",
@@ -44643,7 +43780,7 @@ ${MEM_TAG_CLOSE2}`;
       recorderState.debounceTimer = null;
       disposeStreamingDetector();
       recorderState.rawSessionId = newRawSessionId;
-      recorderState.openVikingSessionId = null;
+      recorderState.echoMemSessionId = null;
       recorderState.lastMessages = [];
       recorderState.pendingQueue = [];
       recorderState.streamingSnapshot = null;
@@ -44657,7 +43794,7 @@ ${MEM_TAG_CLOSE2}`;
       console.log("EchoMem: start recording for", platformId, "session", newRawSessionId);
       const savedSessionId = await loadSessionMapping();
       if (savedSessionId) {
-        recorderState.openVikingSessionId = savedSessionId;
+        recorderState.echoMemSessionId = savedSessionId;
         console.log("EchoMem: restored session mapping", savedSessionId);
       }
     }
@@ -44678,12 +43815,1092 @@ ${MEM_TAG_CLOSE2}`;
     disposeStreamingDetector();
     recorderState.isRecording = false;
     recorderState.rawSessionId = null;
-    recorderState.openVikingSessionId = null;
+    recorderState.echoMemSessionId = null;
     recorderState.lastMessages = [];
     recorderState.pendingQueue = [];
     recorderState.streamingSnapshot = null;
     sentSignatures.clear();
     console.log("EchoMem: recording stopped");
+  }
+  function getRecordingState() {
+    return {
+      platformId: recorderState.platformId,
+      rawSessionId: recorderState.rawSessionId,
+      echoMemSessionId: recorderState.echoMemSessionId,
+      isRecording: recorderState.isRecording,
+      pendingCount: recorderState.pendingQueue.length
+    };
+  }
+
+  // src/panels/association/suggestions.js
+  var MEM_TAG_OPEN2 = "<relevant-memories>";
+  var MEM_TAG_CLOSE2 = "</relevant-memories>";
+  var selectedIndex = -1;
+  var currentSuggestions = [];
+  var checkedKeys = /* @__PURE__ */ new Set();
+  var currentInputElement = null;
+  var keyboardBound = false;
+  var collapsed = false;
+  var suppressBlurClose = false;
+  var committedItems = /* @__PURE__ */ new Map();
+  function getItemKey(c, i) {
+    return c.sourceUri || c.insertText || `idx-${i}`;
+  }
+  function renderCompletions(inputElement, completions) {
+    currentSuggestions = completions;
+    currentInputElement = inputElement;
+    selectedIndex = completions.length > 0 ? 0 : -1;
+    checkedKeys = /* @__PURE__ */ new Set();
+    const container = getOrCreateContainer();
+    if (!completions.length) {
+      hideSuggestions();
+      return;
+    }
+    container.innerHTML = buildContainerHtml(completions);
+    container.style.display = "block";
+    positionContainer(container, inputElement);
+    bindContainerEvents(container, inputElement);
+    bindOutsideClick(container);
+  }
+  function bindOutsideClick(container) {
+    if (container._outsideClickHandler) {
+      document.removeEventListener("mousedown", container._outsideClickHandler);
+      container._outsideClickHandler = null;
+    }
+    const handler = (e2) => {
+      if (!container.contains(e2.target)) {
+        hideSuggestions();
+        document.removeEventListener("mousedown", handler);
+        container._outsideClickHandler = null;
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener("mousedown", handler);
+      container._outsideClickHandler = handler;
+    }, 0);
+  }
+  function buildContainerHtml(completions) {
+    const headerHtml = `
+    <div class="echomem-suggestion-header">
+      <label class="echomem-suggestion-select-all">
+        <input type="checkbox" class="echomem-suggestion-check-all" />
+        <span>\u5168\u9009</span>
+      </label>
+      <span class="echomem-suggestion-title">\u76F8\u5173\u8BB0\u5FC6 (${completions.length})</span>
+      <button type="button" class="echomem-suggestion-toggle" title="${collapsed ? "\u5C55\u5F00" : "\u6298\u53E0"}">
+        ${collapsed ? "\u25B8" : "\u25BE"}
+      </button>
+    </div>
+  `;
+    const itemsHtml = completions.map((c, i) => {
+      const isActive = i === selectedIndex;
+      const key = getItemKey(c, i);
+      const sourceBadge = c.source === "memory" ? '<span class="echomem-source-badge memory">\u8BB0\u5FC6</span>' : '<span class="echomem-source-badge session">\u4F1A\u8BDD</span>';
+      return `
+      <div class="echomem-suggestion-item ${isActive ? "echomem-suggestion-active" : ""}"
+           data-index="${i}"
+           data-key="${escapeHtml(key)}">
+        <input type="checkbox" class="echomem-suggestion-check" tabindex="-1" />
+        <span class="suggestion-text">${escapeHtml(c.displayText || "")}</span>
+        <div class="suggestion-meta">
+          ${sourceBadge}
+          <span class="suggestion-score">${(c.score || 0).toFixed(2)}</span>
+        </div>
+      </div>
+    `;
+    }).join("");
+    const bodyHtml = `
+    <div class="echomem-suggestion-list" style="${collapsed ? "display:none;" : ""}">
+      ${itemsHtml}
+    </div>
+  `;
+    const actionsHtml = `
+    <div class="echomem-suggestion-actions" style="${collapsed ? "display:none;" : ""}">
+      <button type="button" class="echomem-btn-cancel">\u53D6\u6D88</button>
+      <button type="button" class="echomem-btn-confirm" disabled>\u786E\u5B9A (0)</button>
+    </div>
+  `;
+    return headerHtml + bodyHtml + actionsHtml;
+  }
+  function bindContainerEvents(container, inputElement) {
+    container.addEventListener("mousedown", (e2) => {
+      suppressBlurClose = true;
+      setTimeout(() => {
+        suppressBlurClose = false;
+      }, 50);
+      const target = e2.target;
+      const isInteractive = target.tagName === "INPUT" || target.tagName === "BUTTON" || target.closest("label");
+      if (!isInteractive) {
+        e2.preventDefault();
+      }
+    });
+    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
+      item.addEventListener("click", (e2) => {
+        const key = item.dataset.key;
+        const checkbox = item.querySelector(".echomem-suggestion-check");
+        if (e2.target === checkbox) {
+          if (checkbox.checked) {
+            checkedKeys.add(key);
+          } else {
+            checkedKeys.delete(key);
+          }
+        } else {
+          toggleKey(key);
+        }
+        syncUi(container);
+      });
+      item.addEventListener("mouseenter", () => {
+        selectedIndex = Number(item.dataset.index);
+        updateHighlight(container);
+      });
+    });
+    const checkAll = container.querySelector(".echomem-suggestion-check-all");
+    checkAll.addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      const allKeys = currentSuggestions.map((c, i) => getItemKey(c, i));
+      if (e2.target.checked) {
+        checkedKeys = new Set(allKeys);
+      } else {
+        checkedKeys = /* @__PURE__ */ new Set();
+      }
+      syncUi(container);
+    });
+    const toggleBtn = container.querySelector(".echomem-suggestion-toggle");
+    toggleBtn.addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      collapsed = !collapsed;
+      const list = container.querySelector(".echomem-suggestion-list");
+      const actions2 = container.querySelector(".echomem-suggestion-actions");
+      if (list) list.style.display = collapsed ? "none" : "";
+      if (actions2) actions2.style.display = collapsed ? "none" : "";
+      toggleBtn.textContent = collapsed ? "\u25B8" : "\u25BE";
+      toggleBtn.title = collapsed ? "\u5C55\u5F00" : "\u6298\u53E0";
+      positionContainer(container, inputElement);
+    });
+    container.querySelector(".echomem-btn-cancel").addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      hideSuggestions();
+    });
+    container.querySelector(".echomem-btn-confirm").addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      if (!checkedKeys.size) return;
+      const selected = [];
+      currentSuggestions.forEach((c, i) => {
+        const key = getItemKey(c, i);
+        if (checkedKeys.has(key)) {
+          selected.push({ key, item: c });
+        }
+      });
+      if (!selected.length) return;
+      composeAndInsert(currentInputElement, currentInputElement.value || "", selected);
+      hideSuggestions();
+    });
+  }
+  function toggleKey(key) {
+    if (checkedKeys.has(key)) {
+      checkedKeys.delete(key);
+    } else {
+      checkedKeys.add(key);
+    }
+  }
+  function syncUi(container) {
+    container.querySelectorAll(".echomem-suggestion-item").forEach((item) => {
+      const key = item.dataset.key;
+      const checkbox = item.querySelector(".echomem-suggestion-check");
+      const checked = checkedKeys.has(key);
+      if (checkbox) checkbox.checked = checked;
+      item.classList.toggle("echomem-suggestion-checked", checked);
+    });
+    const allKeys = currentSuggestions.map((c, i) => getItemKey(c, i));
+    const allChecked = allKeys.length > 0 && allKeys.every((k) => checkedKeys.has(k));
+    const someChecked = allKeys.some((k) => checkedKeys.has(k));
+    const checkAll = container.querySelector(".echomem-suggestion-check-all");
+    if (checkAll) {
+      checkAll.checked = allChecked;
+      checkAll.indeterminate = !allChecked && someChecked;
+    }
+    const confirmBtn = container.querySelector(".echomem-btn-confirm");
+    if (confirmBtn) {
+      const n = checkedKeys.size;
+      confirmBtn.textContent = `\u786E\u5B9A (${n})`;
+      confirmBtn.disabled = n === 0;
+    }
+    updateHighlight(container);
+  }
+  function updateHighlight(container) {
+    const items = container.querySelectorAll(".echomem-suggestion-item");
+    items.forEach((item, i) => {
+      if (i === selectedIndex) {
+        item.classList.add("echomem-suggestion-active");
+      } else {
+        item.classList.remove("echomem-suggestion-active");
+      }
+    });
+  }
+  function formatItem(it) {
+    return (it.insertText || "").trim().replace(/\s+/g, " ");
+  }
+  function stripMemoryBlock2(userText) {
+    const text = userText || "";
+    const regex = new RegExp(`\\s*${MEM_TAG_OPEN2}[\\s\\S]*?${MEM_TAG_CLOSE2}\\s*`, "g");
+    const hasMatch = regex.test(text);
+    if (!hasMatch) {
+      committedItems.clear();
+      return text.replace(/\s+$/, "");
+    }
+    committedItems.clear();
+    return text.replace(regex, "").replace(/\s+$/, "");
+  }
+  function composeAndInsert(textarea, userText, selected) {
+    if (!textarea) return;
+    const basePart = stripMemoryBlock2(userText);
+    for (const { key, item } of selected) {
+      if (committedItems.has(key)) continue;
+      const body = formatItem(item);
+      if (!body) continue;
+      committedItems.set(key, body);
+    }
+    const bodies = Array.from(committedItems.values());
+    if (!bodies.length) return;
+    const lines = bodies.map((b, i) => `${i + 1}. ${b}`);
+    const prefix = basePart ? `${basePart}
+
+` : "";
+    const next = `${prefix}${MEM_TAG_OPEN2}
+${lines.join("\n")}
+${MEM_TAG_CLOSE2}`;
+    textarea.value = next;
+    try {
+      textarea.selectionStart = textarea.selectionEnd = next.length;
+    } catch (_) {
+    }
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    textarea.focus();
+  }
+  function hideSuggestions() {
+    const container = document.getElementById("echomem-suggestions");
+    if (container) {
+      container.style.display = "none";
+    }
+    selectedIndex = -1;
+    currentSuggestions = [];
+    checkedKeys = /* @__PURE__ */ new Set();
+  }
+  function isSuggestionsVisible() {
+    const container = document.getElementById("echomem-suggestions");
+    return !!(container && container.style.display !== "none");
+  }
+  function shouldSuppressBlurClose() {
+    return suppressBlurClose;
+  }
+  function bindKeyboardNavigation(textarea) {
+    if (keyboardBound) return;
+    keyboardBound = true;
+    textarea.addEventListener("keydown", (e2) => {
+      if (!isSuggestionsVisible()) return;
+      const container = document.getElementById("echomem-suggestions");
+      if (!container) return;
+      switch (e2.key) {
+        case "ArrowDown":
+          e2.preventDefault();
+          selectedIndex = Math.min(selectedIndex + 1, currentSuggestions.length - 1);
+          updateHighlight(container);
+          break;
+        case "ArrowUp":
+          e2.preventDefault();
+          selectedIndex = Math.max(selectedIndex - 1, 0);
+          updateHighlight(container);
+          break;
+        case "Enter":
+          if (checkedKeys.size > 0) {
+            e2.preventDefault();
+            const selected = [];
+            currentSuggestions.forEach((c, i) => {
+              const key = getItemKey(c, i);
+              if (checkedKeys.has(key)) {
+                selected.push({ key, item: c });
+              }
+            });
+            composeAndInsert(textarea, textarea.value || "", selected);
+            hideSuggestions();
+          }
+          break;
+        case "Escape":
+          e2.preventDefault();
+          hideSuggestions();
+          break;
+      }
+    });
+  }
+  function getOrCreateContainer() {
+    let container = document.getElementById("echomem-suggestions");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "echomem-suggestions";
+      container.className = "echomem-suggestions-container";
+      document.body.appendChild(container);
+    }
+    return container;
+  }
+  function positionContainer(container, inputElement) {
+    if (!inputElement) return;
+    const rect = inputElement.getBoundingClientRect();
+    const prevVisibility = container.style.visibility;
+    container.style.visibility = "hidden";
+    container.style.display = "block";
+    const containerHeight = Math.min(container.offsetHeight || 160, 320);
+    container.style.visibility = prevVisibility || "";
+    container.style.position = "fixed";
+    container.style.left = `${rect.left}px`;
+    container.style.top = `${rect.top - containerHeight - 8}px`;
+    container.style.width = `${rect.width}px`;
+    container.style.zIndex = "999999";
+  }
+
+  // src/core/completion-engine.js
+  var phraseScoreThreshold = 0.2;
+  async function refreshThreshold() {
+    const config = await getCompletionConfig();
+    phraseScoreThreshold = config.phraseScoreThreshold;
+  }
+  function extractKeywords(text, userInput, maxKeywords = 3) {
+    if (!text) return [];
+    const words = tokenizeAndFilter(text);
+    const userWords = new Set(tokenize(userInput));
+    const freq = {};
+    for (const w of words) {
+      freq[w] = (freq[w] || 0) + 1;
+    }
+    const scored = Object.entries(freq).map(([word, count]) => ({
+      word,
+      score: count * (userWords.has(word) ? 3 : 1)
+    }));
+    return scored.sort((a, b) => b.score - a.score).slice(0, maxKeywords).map((x) => x.word);
+  }
+  function extractPhrases(overview, userInput) {
+    if (!overview) {
+      console.log("EchoMem: extractPhrases overview is empty");
+      return [];
+    }
+    const lines = overview.split("\n");
+    const phrases = [];
+    const inputWords = new Set(tokenize(userInput));
+    console.log("EchoMem: extractPhrases inputWords", [...inputWords], "threshold", phraseScoreThreshold);
+    console.log("EchoMem: overview lines count", lines.length);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.length < 5) continue;
+      const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
+      if (listMatch) {
+        const phrase = listMatch[1].trim();
+        const phraseWords = new Set(tokenize(phrase));
+        const score = calculatePhraseScore(inputWords, phraseWords, phrase);
+        console.log("EchoMem: list item", phrase.slice(0, 40), "score", score, "threshold", phraseScoreThreshold);
+        if (score > phraseScoreThreshold) {
+          phrases.push({ phrase, score, type: "bullet" });
+        }
+        continue;
+      }
+      const quoteMatch = trimmed.match(/^[""'](.+)[""']\s*\(/);
+      if (quoteMatch) {
+        const phrase = quoteMatch[1].trim();
+        const phraseWords = new Set(tokenize(phrase));
+        const score = calculatePhraseScore(inputWords, phraseWords, phrase);
+        console.log("EchoMem: quote", phrase.slice(0, 40), "score", score);
+        if (score > phraseScoreThreshold) {
+          phrases.push({ phrase, score, type: "quote" });
+        }
+        continue;
+      }
+      if (!trimmed.startsWith("#") && !trimmed.startsWith("-") && !trimmed.startsWith("*")) {
+        const phraseWords = new Set(tokenize(trimmed));
+        const score = calculatePhraseScore(inputWords, phraseWords, trimmed);
+        console.log("EchoMem: text line", trimmed.slice(0, 40), "score", score, "threshold", phraseScoreThreshold + 0.25);
+        if (score > phraseScoreThreshold + 0.25) {
+          phrases.push({ phrase: trimmed, score, type: "text" });
+        }
+      }
+    }
+    console.log("EchoMem: extractPhrases result", phrases.length, "phrases");
+    return phrases.sort((a, b) => b.score - a.score).slice(0, 3);
+  }
+  function calculatePhraseScore(inputWords, phraseWords, phrase) {
+    if (!inputWords.size || !phraseWords.size) return 0;
+    const overlap = calculateOverlap(inputWords, phraseWords);
+    const intersection = new Set([...inputWords].filter((x) => phraseWords.has(x))).size;
+    const union = (/* @__PURE__ */ new Set([...inputWords, ...phraseWords])).size;
+    const jaccard = union > 0 ? intersection / union : 0;
+    const lengthPenalty = Math.min(phrase.length / 150, 1);
+    return (jaccard * 0.4 + overlap / (inputWords.size * 2) * 0.6) * (1 - lengthPenalty * 0.15);
+  }
+  function buildSuggestion(userInput, memory) {
+    var _a2, _b2;
+    const inputTrimmed = userInput.trim();
+    const cleanedText = stripMetadataTags(memory.text || memory.abstract || memory.overview || "");
+    if (((_a2 = memory == null ? void 0 : memory.phrases) == null ? void 0 : _a2.length) > 0) {
+      const bestPhrase = memory.phrases[0];
+      return {
+        type: "phrase",
+        displayText: `...${truncate(bestPhrase.phrase, 60)}`,
+        insertText: bestPhrase.phrase,
+        source: "memory",
+        sourceUri: memory.uri || memory.evidence_uri || "",
+        score: (memory.score || 0.5) * 0.7 + bestPhrase.score * 0.3,
+        fullText: cleanedText || bestPhrase.phrase
+      };
+    }
+    if (cleanedText) {
+      return {
+        type: "summary",
+        displayText: `...${truncate(cleanedText, 60)}`,
+        insertText: cleanedText,
+        source: "memory",
+        sourceUri: memory.uri || memory.evidence_uri || "",
+        score: memory.score || 0.5,
+        fullText: cleanedText
+      };
+    }
+    if (((_b2 = memory == null ? void 0 : memory.keywords) == null ? void 0 : _b2.length) > 0) {
+      const continuation = memory.keywords.join("\u3001");
+      return {
+        type: "keyword",
+        displayText: `...${truncate(continuation, 60)}`,
+        insertText: continuation,
+        source: "memory",
+        sourceUri: memory.uri || memory.evidence_uri || "",
+        score: memory.score || 0.5,
+        fullText: cleanedText
+      };
+    }
+    return null;
+  }
+  function processMemories(userInput, memories) {
+    const suggestions = [];
+    for (const memory of memories.slice(0, 5)) {
+      const semanticScore = memory.score || 0;
+      if (semanticScore < phraseScoreThreshold) {
+        console.log("EchoMem: memory filtered out by semantic score", semanticScore, "<", phraseScoreThreshold, memory.uri);
+        continue;
+      }
+      const sourceText = stripMetadataTags(memory.text || memory.overview || memory.abstract || "");
+      const phrases = extractPhrases(sourceText, userInput);
+      console.log("EchoMem: memory", memory.uri || memory.evidence_uri || "no-uri", "semanticScore", semanticScore, "phrases", phrases.length);
+      const keywords = extractKeywords(sourceText, userInput, 3);
+      const enrichedMemory = { ...memory, phrases, keywords };
+      const suggestion = buildSuggestion(userInput, enrichedMemory);
+      if (suggestion) {
+        suggestions.push(suggestion);
+      } else {
+        console.log("EchoMem: no suggestion generated for", memory.uri || memory.evidence_uri || "no-uri");
+      }
+    }
+    return suggestions;
+  }
+  function rankAndDeduplicate(suggestions, maxResults = 3) {
+    suggestions.sort((a, b) => b.score - a.score);
+    const seen = /* @__PURE__ */ new Set();
+    const unique = [];
+    for (const s of suggestions) {
+      const key = s.insertText.slice(0, 50);
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(s);
+      }
+    }
+    return unique.slice(0, maxResults);
+  }
+  async function generateCompletions(userInput, memories, maxResults = 3) {
+    if (!userInput || !(memories == null ? void 0 : memories.length)) {
+      return [];
+    }
+    await refreshThreshold();
+    console.log("EchoMem: phraseScoreThreshold =", phraseScoreThreshold);
+    const suggestions = processMemories(userInput, memories);
+    console.log("EchoMem: raw suggestions =", suggestions.map((s) => ({ type: s.type, score: s.score, display: s.displayText })));
+    return rankAndDeduplicate(suggestions, maxResults);
+  }
+
+  // src/core/input-tracker.js
+  var client = null;
+  var debounceTimer = null;
+  var trackingPlatformConfig = null;
+  var keyboardNavBound = false;
+  async function getClient2() {
+    if (!client) {
+      const config = await getEchoMemConfig();
+      client = createClient2(config);
+    }
+    return client;
+  }
+  function resetClient() {
+    client = null;
+  }
+  function startInputTracking(platformConfig) {
+    trackingPlatformConfig = platformConfig;
+    tryBindInputElement();
+  }
+  function tryBindInputElement() {
+    if (!trackingPlatformConfig) return;
+    const textarea = findInputElement2(trackingPlatformConfig);
+    if (!textarea) {
+      console.log("EchoMem: input element not found, will retry on next DOM change");
+      return;
+    }
+    if (textarea.dataset.echomemTracking) return;
+    textarea.dataset.echomemTracking = "true";
+    console.log("EchoMem: input tracking started on", textarea);
+    if (!keyboardNavBound) {
+      bindKeyboardNavigation(textarea);
+      keyboardNavBound = true;
+    }
+    textarea.addEventListener("input", (e2) => {
+      if (!getAssociationEnabled()) {
+        hideSuggestions();
+        return;
+      }
+      if (!e2.isTrusted) return;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        const text = e2.target.value.trim();
+        if (text.length >= 3) {
+          try {
+            await handleInput(textarea, text);
+          } catch (err) {
+            console.warn("EchoMem: recall failed", err);
+            hideSuggestions();
+          }
+        } else {
+          hideSuggestions();
+        }
+      }, 300);
+    });
+    textarea.addEventListener("blur", () => {
+      setTimeout(() => {
+        if (shouldSuppressBlurClose()) return;
+        const active = document.activeElement;
+        const container = document.getElementById("echomem-suggestions");
+        if (container && active && container.contains(active)) return;
+        hideSuggestions();
+      }, 200);
+    });
+  }
+  async function handleInput(textarea, userInput) {
+    let memories = [];
+    try {
+      const emClient = await getClient2();
+      const agentId = await getConfiguredAgentId(trackingPlatformConfig == null ? void 0 : trackingPlatformConfig.id);
+      const { echoMemSessionId } = getRecordingState();
+      console.log("EchoMem: recall triggered, query=", userInput, "agent=", agentId, "session=", echoMemSessionId);
+      const result = await emClient.find(userInput, { agentId, limit: 5, sessionId: echoMemSessionId, includeExplain: true });
+      console.log("EchoMem: search explain", result.explain);
+      memories = result.items || [];
+      console.log("EchoMem: found", memories.length, "memories");
+      if (memories.length > 0) {
+        console.log("EchoMem: first memory keys", Object.keys(memories[0]));
+        console.log("EchoMem: first memory text preview", memories[0].text ? memories[0].text.slice(0, 100) : "missing");
+      }
+    } catch (err) {
+      console.warn("EchoMem: recall failed", err);
+      hideSuggestions();
+      return;
+    }
+    if (!memories.length) {
+      hideSuggestions();
+      return;
+    }
+    const completions = await generateCompletions(userInput, memories, 3);
+    console.log("EchoMem: generated", completions.length, "completions");
+    if (completions.length > 0) {
+      renderCompletions(textarea, completions);
+    } else {
+      hideSuggestions();
+    }
+  }
+  function findInputElement2(platformConfig) {
+    var _a2, _b2;
+    const selector = (_b2 = (_a2 = platformConfig.launcher) == null ? void 0 : _a2.validateSelectors) == null ? void 0 : _b2.textarea;
+    if (!selector) return null;
+    return document.querySelector(selector);
+  }
+
+  // src/panels/echomem/config.js
+  function getEchoMemConfigContent() {
+    return `
+    <div style="display: flex; flex-direction: column; gap: 14px; color: #333;">
+      <div style="padding: 10px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #667eea; font-size: 12px; color: #666;">
+        \u{1F4A1} \u6B64\u914D\u7F6E\u540C\u65F6\u5F71\u54CD\u8D44\u6E90\u7BA1\u7406\u3001\u8F93\u5165\u8054\u60F3\u7B49\u529F\u80FD
+      </div>
+
+      <div>
+        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u670D\u52A1\u5730\u5740</label>
+        <input id="cfg-base-url" type="text"
+          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+        />
+      </div>
+
+      <div>
+        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u8BA4\u8BC1\u5BC6\u94A5</label>
+        <input id="cfg-auth-key" type="password"
+          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+        />
+      </div>
+
+      <div>
+        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID\uFF08\u7559\u7A7A\u4F7F\u7528\u5E73\u53F0\u9ED8\u8BA4\u503C\uFF09</label>
+        <input id="cfg-agent-id" type="text"
+          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+        />
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 4px;">
+        <button id="cfg-test-btn" style="flex: 1; padding: 10px; background: #f0f7ff; color: #667eea; border: 1px solid #c7d8f5; border-radius: 6px; font-size: 13px; cursor: pointer;"
+        >\u{1F504} \u6D4B\u8BD5\u8FDE\u63A5</button>
+        <button id="cfg-save-btn" style="flex: 1; padding: 10px; background: #667eea; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;"
+        >\u{1F4BE} \u4FDD\u5B58\u914D\u7F6E</button>
+      </div>
+
+      <div id="cfg-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
+    </div>
+  `;
+  }
+  async function initConfigPanel(bodyElement) {
+    if (!bodyElement) return;
+    const baseUrlInput = bodyElement.querySelector("#cfg-base-url");
+    const authKeyInput = bodyElement.querySelector("#cfg-auth-key");
+    const agentIdInput = bodyElement.querySelector("#cfg-agent-id");
+    const testBtn = bodyElement.querySelector("#cfg-test-btn");
+    const saveBtn = bodyElement.querySelector("#cfg-save-btn");
+    const statusEl = bodyElement.querySelector("#cfg-status");
+    function normalizeBaseUrl(url) {
+      const trimmed = (url || "").trim();
+      if (!trimmed) return "http://127.0.0.1:8010";
+      return trimmed.replace(/\/$/, "");
+    }
+    function showStatus(msg, type = "info") {
+      if (!statusEl) return;
+      statusEl.style.display = "block";
+      const colors = {
+        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+      };
+      const c = colors[type] || colors.info;
+      statusEl.style.background = c.bg;
+      statusEl.style.border = `1px solid ${c.border}`;
+      statusEl.style.color = c.text;
+      statusEl.textContent = msg;
+    }
+    try {
+      const cfg = await getEchoMemConfig();
+      if (baseUrlInput) baseUrlInput.value = cfg.baseUrl || "";
+      if (authKeyInput) authKeyInput.value = cfg.authKey || "";
+      if (agentIdInput) agentIdInput.value = cfg.agentId || "";
+    } catch (err) {
+      console.warn("EchoMem: failed to load config", err);
+    }
+    if (testBtn) {
+      testBtn.addEventListener("click", async () => {
+        var _a2, _b2, _c2, _d2;
+        showStatus("\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5...", "info");
+        try {
+          const config = {
+            baseUrl: normalizeBaseUrl(baseUrlInput == null ? void 0 : baseUrlInput.value),
+            authKey: ((_a2 = authKeyInput == null ? void 0 : authKeyInput.value) == null ? void 0 : _a2.trim()) || "",
+            agentId: ((_b2 = agentIdInput == null ? void 0 : agentIdInput.value) == null ? void 0 : _b2.trim()) || ""
+          };
+          const client2 = createClient2(config);
+          const ok = await client2.healthCheck();
+          if (ok) {
+            showStatus("\u2705 \u8FDE\u63A5\u6210\u529F", "success");
+          } else {
+            showStatus("\u274C \u8FDE\u63A5\u5931\u8D25\uFF1A\u540E\u7AEF\u8FD4\u56DE\u975E 200 \u72B6\u6001\u7801", "error");
+          }
+        } catch (err) {
+          if (err.name === "AbortError" || ((_c2 = err.message) == null ? void 0 : _c2.includes("aborted"))) {
+            showStatus("\u274C \u8FDE\u63A5\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u662F\u5426\u6B63\u786E", "error");
+          } else if ((_d2 = err.message) == null ? void 0 : _d2.includes("Failed to fetch")) {
+            showStatus("\u274C \u65E0\u6CD5\u8FDE\u63A5\u5230\u540E\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u662F\u5426\u542F\u52A8", "error");
+          } else {
+            showStatus(`\u274C \u8FDE\u63A5\u5931\u8D25: ${err.message}`, "error");
+          }
+        }
+      });
+    }
+    if (saveBtn) {
+      saveBtn.addEventListener("click", async () => {
+        var _a2, _b2;
+        const config = {
+          baseUrl: normalizeBaseUrl(baseUrlInput == null ? void 0 : baseUrlInput.value),
+          authKey: ((_a2 = authKeyInput == null ? void 0 : authKeyInput.value) == null ? void 0 : _a2.trim()) || "",
+          agentId: ((_b2 = agentIdInput == null ? void 0 : agentIdInput.value) == null ? void 0 : _b2.trim()) || ""
+        };
+        try {
+          await setEchoMemConfig(config);
+          resetClient();
+          showStatus("\u2705 \u914D\u7F6E\u5DF2\u4FDD\u5B58", "success");
+        } catch (err) {
+          showStatus(`\u274C \u4FDD\u5B58\u5931\u8D25: ${err.message}`, "error");
+        }
+      });
+    }
+  }
+
+  // src/core/router.js
+  var perfPanelCleanup = null;
+  function cleanupPerformancePanel() {
+    if (perfPanelCleanup) {
+      perfPanelCleanup.destroy();
+      perfPanelCleanup = null;
+    }
+  }
+  var skillStoreRoutes = {
+    history: {
+      title: "\u6211\u7684 Skill",
+      render: getSkillHistoryContent
+    },
+    upload: {
+      title: "\u4E0A\u4F20 Skill",
+      render: getSkillUploadContent
+    },
+    manage: {
+      title: "\u5B89\u88C5\u7BA1\u7406",
+      render: getSkillManageContent
+    }
+  };
+  var resourceSubRoutes = {
+    import: {
+      title: "\u8D44\u6E90\u5BFC\u5165",
+      render: getResourceImportContent
+    },
+    manage: {
+      title: "\u67E5\u770B\u8D44\u6E90",
+      render: getResourceManageContent
+    }
+  };
+  function openEchoMemHomePanel() {
+    cleanupPerformancePanel();
+    setCurrentRoute({ type: "home" });
+    openCustomPanel("EchoMem", getEchoMemHomeContent());
+    const customPanel = document.querySelector(".claw-custom-panel");
+    if (customPanel) {
+      delete customPanel.dataset.clawEventsBound;
+    }
+    bindPanelNavigation();
+  }
+  async function navigateToEchoMemPanel(panelIdOrTitle) {
+    const panel = getPanelDefinition(panelIdOrTitle);
+    if (!panel) return;
+    setCurrentRoute({ type: "panel", panelId: panel.id });
+    if (panel.id === "feedback") {
+      openCenterOverlay("\u8BA4\u77E5\u56FE\u8C31", getGraphOverlayContent(), {
+        showBack: true,
+        onBack: () => {
+          closeOverlayPanel();
+          openEchoMemHomePanel();
+        }
+      });
+    } else {
+      cleanupPerformancePanel();
+      if (panel.id === "performance") {
+        openCustomPanel(panel.title, getPerformanceContent(), {
+          showBack: true,
+          onBack: openEchoMemHomePanel
+        });
+        const body = getPanelBodyElement();
+        perfPanelCleanup = initPerformancePanel(body, {
+          pollInterval: 3e4
+          // 每 30 秒轮询一次，可按需调整
+        });
+      } else {
+        openCustomPanel(panel.title, getPanelContent(panel.id), {
+          showBack: true,
+          onBack: openEchoMemHomePanel
+        });
+      }
+    }
+    bindPanelNavigation();
+    if (panel.id === "association") {
+      await loadConfigValues();
+      bindConfigUI();
+    }
+    if (panel.id === "resources") {
+      const body = getPanelBodyElement();
+      initImportPanel(body);
+    }
+  }
+  function navigateToSkillSection(sectionId) {
+    const route = skillStoreRoutes[sectionId];
+    if (!route) return;
+    setCurrentRoute({
+      type: "panel",
+      panelId: "skillStore",
+      route: sectionId
+    });
+    openCustomPanel(route.title, route.render(), {
+      showBack: true,
+      onBack: () => {
+        openCustomPanel("Skill \u7BA1\u7406", getSkillStoreHomeContent(), {
+          showBack: true,
+          onBack: openEchoMemHomePanel
+        });
+        bindPanelNavigation();
+      }
+    });
+    const body = getPanelBodyElement();
+    if (sectionId === "upload") {
+      initSkillUploadPanel(body);
+    } else if (sectionId === "history") {
+      initSkillHistoryPanel(body);
+    } else if (sectionId === "manage") {
+      initSkillManagePanel(body);
+    }
+    bindPanelControls();
+  }
+  function navigateToResourceSection(sectionId) {
+    const route = resourceSubRoutes[sectionId];
+    if (!route) return;
+    setCurrentRoute({
+      type: "panel",
+      panelId: "resources",
+      route: sectionId
+    });
+    openCustomPanel(route.title, route.render(), {
+      showBack: true,
+      onBack: () => {
+        openCustomPanel("\u8D44\u6E90\u7BA1\u7406", getResourceHomeContent(), {
+          showBack: true,
+          onBack: openEchoMemHomePanel
+        });
+        bindPanelNavigation();
+      }
+    });
+    const body = getPanelBodyElement();
+    if (sectionId === "import") {
+      initImportPanel(body);
+    } else if (sectionId === "manage") {
+      initManagePanel(body);
+    }
+  }
+  function navigateToConfigPanel() {
+    setCurrentRoute({
+      type: "panel",
+      panelId: "echomemConfig"
+    });
+    openCustomPanel("\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E", getEchoMemConfigContent(), {
+      showBack: true,
+      onBack: openEchoMemHomePanel
+    });
+    const body = getPanelBodyElement();
+    initConfigPanel(body);
+  }
+  async function refreshInputAssociationPanel() {
+    const contentDiv = getPanelBodyElement();
+    if (contentDiv) {
+      contentDiv.innerHTML = getInputAssociationContent();
+      bindToggleButton(handleInputAssociationToggle);
+      await loadConfigValues();
+      bindConfigUI();
+    }
+  }
+  function handleInputAssociationToggle() {
+    toggleInputAssociation();
+    refreshInputAssociationPanel();
+  }
+  function bindPanelControls() {
+    bindToggleButton(handleInputAssociationToggle);
+    bindConfigUI();
+  }
+  function bindPanelNavigation(root = document) {
+    const customPanel = root.querySelector(".claw-custom-panel");
+    if (!customPanel || customPanel.dataset.clawEventsBound) {
+      bindPanelControls();
+      return;
+    }
+    customPanel.dataset.clawEventsBound = "true";
+    customPanel.addEventListener("click", (e2) => {
+      const menuItem = e2.target.closest(".claw-echomem-menu-item");
+      if (menuItem) {
+        const panelId = menuItem.dataset.panelId || menuItem.dataset.panel;
+        if (panelId) {
+          navigateToEchoMemPanel(panelId);
+        }
+        return;
+      }
+      const card = e2.target.closest(".claw-skill-section");
+      if (card) {
+        const sectionId = card.dataset.section;
+        if (sectionId) {
+          navigateToSkillSection(sectionId);
+        }
+        return;
+      }
+      const resourceCard = e2.target.closest(".claw-resource-section");
+      if (resourceCard) {
+        const sectionId = resourceCard.dataset.resourceSection;
+        if (sectionId) {
+          navigateToResourceSection(sectionId);
+        }
+        return;
+      }
+      const configCard = e2.target.closest(".claw-config-section");
+      if (configCard) {
+        navigateToConfigPanel();
+      }
+    });
+    bindPanelControls();
+  }
+
+  // src/core/buttons.js
+  function addCustomButtons() {
+    let platform2 = getCurrentPlatform();
+    if (!platform2) {
+      const detected = detectPlatform();
+      if (detected) {
+        setCurrentPlatform(detected);
+        platform2 = detected;
+        console.log("Claw Extension: Platform detected -", platform2.config.name);
+      } else {
+        return;
+      }
+    }
+    const config = platform2.config;
+    const launcherConfig = config.launcher || config.buttonBar;
+    if (!launcherConfig) return;
+    if (document.querySelector(".claw-echomem-launcher-bar")) return;
+    const inputContainers = document.querySelectorAll(launcherConfig.containerSelector);
+    for (const container of inputContainers) {
+      if (container.dataset.clawLauncherAdded) continue;
+      let isValidContainer = true;
+      for (const [key, selector] of Object.entries(launcherConfig.validateSelectors || {})) {
+        if (!container.querySelector(selector)) {
+          isValidContainer = false;
+          break;
+        }
+      }
+      if (!isValidContainer) continue;
+      container.dataset.clawLauncherAdded = "true";
+      const launcherBar = document.createElement("div");
+      launcherBar.className = "claw-echomem-launcher-bar";
+      const launcher = document.createElement("button");
+      launcher.className = "claw-echomem-launcher";
+      launcher.textContent = launcherConfig.text || "EchoMem";
+      const style = {
+        display: "flex",
+        gap: "8px",
+        padding: "0 12px 8px",
+        background: "transparent",
+        alignItems: "center",
+        justifyContent: "flex-start",
+        ...launcherConfig.style || {}
+      };
+      if (launcherConfig.getBackgroundColor && typeof launcherConfig.getBackgroundColor === "function") {
+        try {
+          const dynamicBg = launcherConfig.getBackgroundColor();
+          if (dynamicBg) {
+            style.background = dynamicBg;
+          }
+        } catch (e2) {
+          console.log("Claw Extension: getBackgroundColor failed, using default", e2);
+        }
+      }
+      launcherBar.style.cssText = Object.entries(style).map(([key, value]) => {
+        const cssKey = key.replace(/([A-Z])/g, "-$1").toLowerCase();
+        return `${cssKey}: ${value}`;
+      }).join("; ");
+      launcher.style.cssText = `
+      height: 28px;
+      padding: 0 10px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 6px;
+      background: #fff;
+      color: #1f2937;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 26px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    `;
+      launcher.addEventListener("mouseenter", () => {
+        launcher.style.borderColor = "#2563eb";
+        launcher.style.color = "#2563eb";
+        launcher.style.boxShadow = "0 2px 6px rgba(37, 99, 235, 0.18)";
+      });
+      launcher.addEventListener("mouseleave", () => {
+        launcher.style.borderColor = "rgba(0, 0, 0, 0.12)";
+        launcher.style.color = "#1f2937";
+        launcher.style.boxShadow = "0 1px 2px rgba(0, 0, 0, 0.08)";
+      });
+      launcher.addEventListener("click", (e2) => {
+        e2.preventDefault();
+        e2.stopPropagation();
+        openEchoMemHomePanel();
+      });
+      launcherBar.appendChild(launcher);
+      if (launcherConfig.insertAfter) {
+        const insertTarget = document.querySelector(launcherConfig.insertAfter);
+        if (insertTarget && insertTarget.parentNode) {
+          insertTarget.parentNode.insertBefore(launcherBar, insertTarget.nextSibling);
+        } else {
+          container.parentNode.insertBefore(launcherBar, container);
+        }
+      } else if (launcherConfig.insertPosition === "after") {
+        container.parentNode.insertBefore(launcherBar, container.nextSibling);
+      } else if (launcherConfig.insertPosition === "append") {
+        container.appendChild(launcherBar);
+      } else {
+        container.parentNode.insertBefore(launcherBar, container);
+      }
+      console.log(`Claw Extension: EchoMem launcher added for ${config.name}`);
+      break;
+    }
+  }
+
+  // src/core/lifecycle.js
+  function createDomLifecycle({ onDomChange, delay = 120 }) {
+    let timer = null;
+    const run = () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+      timer = setTimeout(() => {
+        timer = null;
+        onDomChange();
+      }, delay);
+    };
+    const observer = new MutationObserver(run);
+    return {
+      start(root = document.body) {
+        if (!root) return;
+        observer.observe(root, {
+          childList: true,
+          subtree: true
+        });
+      },
+      stop() {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        observer.disconnect();
+      },
+      flush() {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        onDomChange();
+      }
+    };
+  }
+
+  // src/services/messaging.js
+  function bindRuntimeMessages() {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      return true;
+    });
   }
 
   // src/entry/content.js

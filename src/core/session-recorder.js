@@ -1,5 +1,5 @@
 // 文档：docs/flows/session-recording/录制流程.md
-// 会话自动记录器 —— 监听聊天消息变化并同步到 OpenViking
+// 会话自动记录器 —— 监听聊天消息变化并同步到 EchoMem
 //
 // 本模块只负责"编排"：
 //   - MutationObserver 挂载与防抖
@@ -11,8 +11,8 @@
 // 或通过 platforms.json 配置驱动。本文件**不应**出现任何平台字面量。
 
 import { extractSessionMessages } from './session-extractor.js';
-import { createClient } from '../services/openviking-client.js';
-import { getOpenVikingConfig } from '../services/config.js';
+import { createClient } from '../services/echomem-client.js';
+import { getEchoMemConfig, getConfiguredAgentId } from '../services/config.js';
 import { extractSessionId } from '../services/session-mapper.js';
 import { PLATFORM_CONFIGS, shouldRecord } from '../config/loader.js';
 import { getAdapter } from '../adapters/registry.js';
@@ -22,13 +22,13 @@ const recorderState = {
   config: null,
   adapter: null,
   rawSessionId: null,
-  openVikingSessionId: null,
+  echoMemSessionId: null,
   lastMessages: [],
   pendingQueue: [],
   observer: null,
   debounceTimer: null,
   isRecording: false,
-  ovClient: null,
+  emClient: null,
   streamingDetector: null,
   streamingSnapshot: null,
 };
@@ -57,12 +57,12 @@ function filterRecentlySent(messages) {
   return messages;
 }
 
-async function getOvClient() {
-  if (!recorderState.ovClient) {
-    const config = await getOpenVikingConfig();
-    recorderState.ovClient = createClient(config);
+async function getClient() {
+  if (!recorderState.emClient) {
+    const config = await getEchoMemConfig();
+    recorderState.emClient = createClient(config);
   }
-  return recorderState.ovClient;
+  return recorderState.emClient;
 }
 
 function getSessionStorageKey() {
@@ -79,10 +79,10 @@ async function loadSessionMapping() {
   }
 }
 
-async function saveSessionMapping(openVikingSessionId) {
+async function saveSessionMapping(echoMemSessionId) {
   try {
     const key = getSessionStorageKey();
-    await chrome.storage.local.set({ [key]: openVikingSessionId });
+    await chrome.storage.local.set({ [key]: echoMemSessionId });
   } catch (err) {
     console.warn('EchoMem: failed to save session mapping', err);
   }
@@ -161,15 +161,19 @@ async function flushPendingMessages() {
   recorderState.pendingQueue = [];
 
   try {
-    if (!recorderState.openVikingSessionId) {
-      const client = await getOvClient();
-      const result = await client.createSession(recorderState.rawSessionId);
-      recorderState.openVikingSessionId = result.session_id || result.id || result;
-      await saveSessionMapping(recorderState.openVikingSessionId);
-      console.log('EchoMem: session created', recorderState.openVikingSessionId);
+    if (!recorderState.echoMemSessionId) {
+      const client = await getClient();
+      const agentId = await getConfiguredAgentId(recorderState.platformId);
+      const result = await client.openSession({
+        agentId,
+        sessionId: recorderState.rawSessionId,
+      });
+      recorderState.echoMemSessionId = result.session_id || result.id || result;
+      await saveSessionMapping(recorderState.echoMemSessionId);
+      console.log('EchoMem: session created', recorderState.echoMemSessionId);
     }
-    const client = await getOvClient();
-    await client.appendMessages(recorderState.openVikingSessionId, messages);
+    const client = await getClient();
+    await client.appendMessages(recorderState.echoMemSessionId, messages);
     console.log('EchoMem: flushed pending messages', messages.length);
   } catch (err) {
     console.warn('EchoMem: failed to flush messages, re-queuing', err);
@@ -191,10 +195,10 @@ async function doSendMessages(messages) {
 
   await flushPendingMessages();
 
-  if (recorderState.openVikingSessionId) {
+  if (recorderState.echoMemSessionId) {
     try {
-      const client = await getOvClient();
-      await client.appendMessages(recorderState.openVikingSessionId, messages);
+      const client = await getClient();
+      await client.appendMessages(recorderState.echoMemSessionId, messages);
       console.log('EchoMem: appended', messages.length, 'messages');
     } catch (err) {
       console.warn('EchoMem: append failed, queueing', err);
@@ -202,12 +206,16 @@ async function doSendMessages(messages) {
     }
   } else {
     try {
-      const client = await getOvClient();
-      const result = await client.createSession(recorderState.rawSessionId);
-      recorderState.openVikingSessionId = result.session_id || result.id || result;
-      await saveSessionMapping(recorderState.openVikingSessionId);
-      console.log('EchoMem: session created', recorderState.openVikingSessionId);
-      await client.appendMessages(recorderState.openVikingSessionId, messages);
+      const client = await getClient();
+      const agentId = await getConfiguredAgentId(recorderState.platformId);
+      const result = await client.openSession({
+        agentId,
+        sessionId: recorderState.rawSessionId,
+      });
+      recorderState.echoMemSessionId = result.session_id || result.id || result;
+      await saveSessionMapping(recorderState.echoMemSessionId);
+      console.log('EchoMem: session created', recorderState.echoMemSessionId);
+      await client.appendMessages(recorderState.echoMemSessionId, messages);
       console.log('EchoMem: appended', messages.length, 'messages');
     } catch (err) {
       console.warn('EchoMem: create session failed, queueing', err);
@@ -351,7 +359,7 @@ function attachObserver(container) {
   // 初始提取一次现有消息
   const currentMessages = extractSessionMessages(recorderState.platformId);
 
-  if (recorderState.openVikingSessionId) {
+  if (recorderState.echoMemSessionId) {
     // 恢复的会话：设基线，避免重复发送
     recorderState.lastMessages = currentMessages;
     console.log(
@@ -403,7 +411,7 @@ export async function startRecording(platformId) {
     recorderState.debounceTimer = null;
     disposeStreamingDetector();
     recorderState.rawSessionId = newRawSessionId;
-    recorderState.openVikingSessionId = null;
+    recorderState.echoMemSessionId = null;
     recorderState.lastMessages = [];
     recorderState.pendingQueue = [];
     recorderState.streamingSnapshot = null;
@@ -421,7 +429,7 @@ export async function startRecording(platformId) {
     // 尝试恢复已有的 session 映射
     const savedSessionId = await loadSessionMapping();
     if (savedSessionId) {
-      recorderState.openVikingSessionId = savedSessionId;
+      recorderState.echoMemSessionId = savedSessionId;
       console.log('EchoMem: restored session mapping', savedSessionId);
     }
   }
@@ -446,7 +454,7 @@ export function stopRecording() {
   disposeStreamingDetector();
   recorderState.isRecording = false;
   recorderState.rawSessionId = null;
-  recorderState.openVikingSessionId = null;
+  recorderState.echoMemSessionId = null;
   recorderState.lastMessages = [];
   recorderState.pendingQueue = [];
   recorderState.streamingSnapshot = null;
@@ -458,7 +466,7 @@ export function getRecordingState() {
   return {
     platformId: recorderState.platformId,
     rawSessionId: recorderState.rawSessionId,
-    openVikingSessionId: recorderState.openVikingSessionId,
+    echoMemSessionId: recorderState.echoMemSessionId,
     isRecording: recorderState.isRecording,
     pendingCount: recorderState.pendingQueue.length,
   };
@@ -469,14 +477,14 @@ export function getRecordingState() {
  * 当前不自动调用，仅预留口子
  */
 export async function commitCurrentSession() {
-  if (!recorderState.openVikingSessionId) {
+  if (!recorderState.echoMemSessionId) {
     console.log('EchoMem: no session to commit');
     return;
   }
   try {
-    const client = await getOvClient();
-    await client.commitSession(recorderState.openVikingSessionId);
-    console.log('EchoMem: session committed', recorderState.openVikingSessionId);
+    const client = await getClient();
+    await client.commitSession(recorderState.echoMemSessionId);
+    console.log('EchoMem: session committed', recorderState.echoMemSessionId);
   } catch (err) {
     console.warn('EchoMem: session commit failed', err);
   }
@@ -488,9 +496,9 @@ export function resetRecorder() {
   recorderState.config = null;
   recorderState.adapter = null;
   recorderState.rawSessionId = null;
-  recorderState.openVikingSessionId = null;
+  recorderState.echoMemSessionId = null;
   recorderState.lastMessages = [];
   recorderState.pendingQueue = [];
-  recorderState.ovClient = null;
+  recorderState.emClient = null;
   recorderState.streamingSnapshot = null;
 }

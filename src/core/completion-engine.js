@@ -6,7 +6,8 @@ import {
   tokenizeAndFilter,
   splitSentences,
   truncate,
-  calculateOverlap
+  calculateOverlap,
+  stripMetadataTags
 } from '../utils/text-processor.js';
 import { getCompletionConfig } from '../services/config.js';
 
@@ -164,32 +165,46 @@ export function calculateRelevance(inputWords, text) {
  */
 function buildSuggestion(userInput, memory) {
   const inputTrimmed = userInput.trim();
+  const cleanedText = stripMetadataTags(memory.text || memory.abstract || memory.overview || '');
 
   // 策略 1：从 L1 提取的短语直接作为补全
   if (memory?.phrases?.length > 0) {
     const bestPhrase = memory.phrases[0];
     return {
       type: 'phrase',
-      displayText: `...${truncate(bestPhrase.phrase, 40)}`,
+      displayText: `...${truncate(bestPhrase.phrase, 60)}`,
       insertText: bestPhrase.phrase,
       source: 'memory',
-      sourceUri: memory.uri || '',
+      sourceUri: memory.uri || memory.evidence_uri || '',
       score: (memory.score || 0.5) * 0.7 + bestPhrase.score * 0.3,
-      fullText: memory.abstract || bestPhrase.phrase
+      fullText: cleanedText || bestPhrase.phrase
     };
   }
 
-  // 策略 2：关键词续写
+  // 策略 2：没有提取到短语时，用清理后的完整摘要兜底
+  if (cleanedText) {
+    return {
+      type: 'summary',
+      displayText: `...${truncate(cleanedText, 60)}`,
+      insertText: cleanedText,
+      source: 'memory',
+      sourceUri: memory.uri || memory.evidence_uri || '',
+      score: memory.score || 0.5,
+      fullText: cleanedText
+    };
+  }
+
+  // 策略 3：关键词续写（最后兜底）
   if (memory?.keywords?.length > 0) {
     const continuation = memory.keywords.join('、');
     return {
       type: 'keyword',
-      displayText: `...${truncate(continuation, 40)}`,
+      displayText: `...${truncate(continuation, 60)}`,
       insertText: continuation,
       source: 'memory',
-      sourceUri: memory.uri || '',
+      sourceUri: memory.uri || memory.evidence_uri || '',
       score: memory.score || 0.5,
-      fullText: memory.abstract || ''
+      fullText: cleanedText
     };
   }
 
@@ -214,14 +229,14 @@ function processMemories(userInput, memories) {
       continue;
     }
 
-    // 从 L1 overview 提取短语，如果没有则使用 L0 abstract
-    const sourceText = memory.overview || memory.abstract || '';
+    // 从 text 提取短语（EchoMem 返回 text；旧 OpenViking 用 overview/abstract）
+    const sourceText = stripMetadataTags(memory.text || memory.overview || memory.abstract || '');
     const phrases = extractPhrases(sourceText, userInput);
 
-    console.log('EchoMem: memory', memory.uri, 'semanticScore', semanticScore, 'phrases', phrases.length);
+    console.log('EchoMem: memory', memory.uri || memory.evidence_uri || 'no-uri', 'semanticScore', semanticScore, 'phrases', phrases.length);
 
     // 同时提取关键词作为备选
-    const keywords = extractKeywords(memory.abstract || '', userInput, 3);
+    const keywords = extractKeywords(sourceText, userInput, 3);
     const enrichedMemory = { ...memory, phrases, keywords };
 
     // 生成补全建议（可能为 null）
@@ -229,7 +244,7 @@ function processMemories(userInput, memories) {
     if (suggestion) {
       suggestions.push(suggestion);
     } else {
-      console.log('EchoMem: no suggestion generated for', memory.uri);
+      console.log('EchoMem: no suggestion generated for', memory.uri || memory.evidence_uri || 'no-uri');
     }
   }
 

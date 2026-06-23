@@ -26,7 +26,7 @@ import {
 import { initImportPanel } from '../panels/resource/import.js';
 import { initManagePanel } from '../panels/resource/manage.js';
 import {
-  getOpenVikingConfigContent,
+  getEchoMemConfigContent,
   initConfigPanel
 } from '../panels/echomem/config.js';
 import {
@@ -207,10 +207,10 @@ export function navigateToResourceSection(sectionId) {
 export function navigateToConfigPanel() {
   setCurrentRoute({
     type: 'panel',
-    panelId: 'openvikingConfig'
+    panelId: 'echomemConfig'
   });
 
-  openCustomPanel('记忆后端引擎连接配置', getOpenVikingConfigContent(), {
+  openCustomPanel('记忆后端引擎连接配置', getEchoMemConfigContent(), {
     showBack: true,
     onBack: openEchoMemHomePanel
   });

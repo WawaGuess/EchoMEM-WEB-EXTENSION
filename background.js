@@ -70,6 +70,42 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     return true;
   }
+
+  if (request.action === 'echoMemRequest') {
+    const { url, method = 'GET', headers = {}, body, timeout = 5000 } = request;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    fetch(url, {
+      method,
+      headers,
+      body,
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        clearTimeout(timer);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          sendResponse({
+            success: false,
+            status: response.status,
+            error: data.error?.message || data.message || `HTTP ${response.status}`,
+            data,
+          });
+          return;
+        }
+        sendResponse({
+          success: true,
+          status: response.status,
+          data,
+        });
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        sendResponse({ success: false, error: err.message });
+      });
+    return true;
+  }
 });
 
 // 监听标签页更新

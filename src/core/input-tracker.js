@@ -1,8 +1,10 @@
-// 输入框监听与联想触发（OpenViking 记忆召回）
+// 输入框监听与联想触发（EchoMem 记忆召回）
+// 文档：docs/flows/backend-migration/实施计划.md
 
 import { getAssociationEnabled } from './state.js';
-import { createClient } from '../services/openviking-client.js';
-import { getOpenVikingConfig } from '../services/config.js';
+import { createClient } from '../services/echomem-client.js';
+import { getEchoMemConfig, getConfiguredAgentId } from '../services/config.js';
+import { getRecordingState } from './session-recorder.js';
 import { renderCompletions, hideSuggestions, bindKeyboardNavigation, shouldSuppressBlurClose } from '../panels/association/suggestions.js';
 import { generateCompletions } from './completion-engine.js';
 
@@ -13,7 +15,7 @@ let keyboardNavBound = false;
 
 async function getClient() {
   if (!client) {
-    const config = await getOpenVikingConfig();
+    const config = await getEchoMemConfig();
     client = createClient(config);
   }
   return client;
@@ -88,23 +90,26 @@ export function tryBindInputElement() {
 }
 
 /**
- * 处理用户输入：OpenViking 记忆召回 + 补全生成
+ * 处理用户输入：EchoMem 记忆召回 + 补全生成
  */
 async function handleInput(textarea, userInput) {
-  // 1. OpenViking 历史记忆召回
+  // 1. EchoMem 历史记忆召回
   let memories = [];
   try {
-    const ovClient = await getClient();
-    console.log('EchoMem: recall triggered, query=', userInput);
-    const result = await ovClient.find(userInput, { limit: 5 });
-    memories = result.memories || [];
+    const emClient = await getClient();
+    const agentId = await getConfiguredAgentId(trackingPlatformConfig?.id);
+    const { echoMemSessionId } = getRecordingState();
+    console.log('EchoMem: recall triggered, query=', userInput, 'agent=', agentId, 'session=', echoMemSessionId);
+    const result = await emClient.find(userInput, { agentId, limit: 5, sessionId: echoMemSessionId, includeExplain: true });
+    console.log('EchoMem: search explain', result.explain);
+    memories = result.items || [];
     console.log('EchoMem: found', memories.length, 'memories');
     if (memories.length > 0) {
       console.log('EchoMem: first memory keys', Object.keys(memories[0]));
-      console.log('EchoMem: first memory overview', memories[0].overview ? 'present' : 'missing');
+      console.log('EchoMem: first memory text preview', memories[0].text ? memories[0].text.slice(0, 100) : 'missing');
     }
   } catch (err) {
-    console.warn('EchoMem: OpenViking recall failed', err);
+    console.warn('EchoMem: recall failed', err);
     hideSuggestions();
     return;
   }

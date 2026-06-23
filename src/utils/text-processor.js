@@ -89,6 +89,16 @@ export function truncate(text, maxLength = 60) {
 }
 
 /**
+ * 清理后端摘要中的元数据标记，如 `[time_expression=下个月]`、`[时间=None]`
+ * @param {string} text
+ * @returns {string}
+ */
+export function stripMetadataTags(text) {
+  if (!text) return '';
+  return text.replace(/\s*\[[^\]]+\]/g, '').trim();
+}
+
+/**
  * 计算两个词集合的 Jaccard 相似度
  * @param {Set<string>} setA
  * @param {Set<string>} setB

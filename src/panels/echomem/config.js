@@ -1,13 +1,14 @@
-// OpenViking 连接配置面板
+// 记忆后端引擎连接配置面板
+// 文档：docs/flows/backend-migration/实施计划.md
 
 import {
-  getOpenVikingConfig,
-  setOpenVikingConfig,
+  getEchoMemConfig,
+  setEchoMemConfig,
 } from '../../services/config.js';
-import { createClient } from '../../services/openviking-client.js';
+import { createClient } from '../../services/echomem-client.js';
 import { resetClient } from '../../core/input-tracker.js';
 
-export function getOpenVikingConfigContent() {
+export function getEchoMemConfigContent() {
   return `
     <div style="display: flex; flex-direction: column; gap: 14px; color: #333;">
       <div style="padding: 10px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #667eea; font-size: 12px; color: #666;">
@@ -22,38 +23,17 @@ export function getOpenVikingConfigContent() {
       </div>
 
       <div>
-        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID</label>
-        <input id="cfg-agent-id" type="text"
+        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">认证密钥</label>
+        <input id="cfg-auth-key" type="password"
           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
         />
       </div>
 
       <div>
-        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #333; cursor: pointer;">
-          <input id="cfg-auth-enabled" type="checkbox" style="cursor: pointer;" />
-          <span>启用认证模式（API Key / Account / User）</span>
-        </label>
-      </div>
-
-      <div id="cfg-auth-fields" style="display: none; display: flex; flex-direction: column; gap: 10px;">
-        <div>
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">API Key</label>
-          <input id="cfg-api-key" type="password"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
-        </div>
-        <div>
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Account ID</label>
-          <input id="cfg-account-id" type="text"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
-        </div>
-        <div>
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">User ID</label>
-          <input id="cfg-user-id" type="text"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
-        </div>
+        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID（留空使用平台默认值）</label>
+        <input id="cfg-agent-id" type="text"
+          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+        />
       </div>
 
       <div style="display: flex; gap: 10px; margin-top: 4px;">
@@ -72,15 +52,17 @@ export async function initConfigPanel(bodyElement) {
   if (!bodyElement) return;
 
   const baseUrlInput = bodyElement.querySelector('#cfg-base-url');
+  const authKeyInput = bodyElement.querySelector('#cfg-auth-key');
   const agentIdInput = bodyElement.querySelector('#cfg-agent-id');
-  const authCheckbox = bodyElement.querySelector('#cfg-auth-enabled');
-  const authFields = bodyElement.querySelector('#cfg-auth-fields');
-  const apiKeyInput = bodyElement.querySelector('#cfg-api-key');
-  const accountIdInput = bodyElement.querySelector('#cfg-account-id');
-  const userIdInput = bodyElement.querySelector('#cfg-user-id');
   const testBtn = bodyElement.querySelector('#cfg-test-btn');
   const saveBtn = bodyElement.querySelector('#cfg-save-btn');
   const statusEl = bodyElement.querySelector('#cfg-status');
+
+  function normalizeBaseUrl(url) {
+    const trimmed = (url || '').trim();
+    if (!trimmed) return 'http://127.0.0.1:8010';
+    return trimmed.replace(/\/$/, '');
+  }
 
   function showStatus(msg, type = 'info') {
     if (!statusEl) return;
@@ -99,23 +81,12 @@ export async function initConfigPanel(bodyElement) {
 
   // Load existing config
   try {
-    const cfg = await getOpenVikingConfig();
+    const cfg = await getEchoMemConfig();
     if (baseUrlInput) baseUrlInput.value = cfg.baseUrl || '';
+    if (authKeyInput) authKeyInput.value = cfg.authKey || '';
     if (agentIdInput) agentIdInput.value = cfg.agentId || '';
-    if (authCheckbox) authCheckbox.checked = cfg.authEnabled || false;
-    if (apiKeyInput) apiKeyInput.value = cfg.apiKey || '';
-    if (accountIdInput) accountIdInput.value = cfg.accountId || '';
-    if (userIdInput) userIdInput.value = cfg.userId || '';
-    if (authFields) authFields.style.display = cfg.authEnabled ? 'flex' : 'none';
   } catch (err) {
     console.warn('EchoMem: failed to load config', err);
-  }
-
-  // Auth toggle
-  if (authCheckbox && authFields) {
-    authCheckbox.addEventListener('change', () => {
-      authFields.style.display = authCheckbox.checked ? 'flex' : 'none';
-    });
   }
 
   // Test connection
@@ -124,12 +95,9 @@ export async function initConfigPanel(bodyElement) {
       showStatus('正在测试连接...', 'info');
       try {
         const config = {
-          baseUrl: baseUrlInput?.value?.trim() || 'http://127.0.0.1:1933',
-          agentId: agentIdInput?.value?.trim() || 'echomem-extension',
-          authEnabled: authCheckbox?.checked || false,
-          apiKey: apiKeyInput?.value?.trim() || '',
-          accountId: accountIdInput?.value?.trim() || 'default',
-          userId: userIdInput?.value?.trim() || 'default',
+          baseUrl: normalizeBaseUrl(baseUrlInput?.value),
+          authKey: authKeyInput?.value?.trim() || '',
+          agentId: agentIdInput?.value?.trim() || '',
         };
         const client = createClient(config);
         const ok = await client.healthCheck();
@@ -154,15 +122,12 @@ export async function initConfigPanel(bodyElement) {
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
       const config = {
-        baseUrl: baseUrlInput?.value?.trim() || 'http://127.0.0.1:1933',
-        agentId: agentIdInput?.value?.trim() || 'echomem-extension',
-        authEnabled: authCheckbox?.checked || false,
-        apiKey: apiKeyInput?.value?.trim() || '',
-        accountId: accountIdInput?.value?.trim() || 'default',
-        userId: userIdInput?.value?.trim() || 'default',
+        baseUrl: normalizeBaseUrl(baseUrlInput?.value),
+        authKey: authKeyInput?.value?.trim() || '',
+        agentId: agentIdInput?.value?.trim() || '',
       };
       try {
-        await setOpenVikingConfig(config);
+        await setEchoMemConfig(config);
         resetClient();
         showStatus('✅ 配置已保存', 'success');
       } catch (err) {
