@@ -1,14 +1,5 @@
 // 配置管理 — 记忆后端引擎连接配置持久化
 
-const DEFAULT_OPENVIKING_CONFIG = {
-  baseUrl: 'http://127.0.0.1:1933',
-  apiKey: '',
-  agentId: 'echomem-extension',
-  authEnabled: false,
-  accountId: 'default',
-  userId: 'default',
-};
-
 const DEFAULT_ECHOMEM_CONFIG = {
   baseUrl: 'http://127.0.0.1:8010',
   authKey: '',
@@ -25,19 +16,6 @@ const PLATFORM_AGENT_IDS = {
   higo: 'echoagent',
   deepseek: 'echoagent',
 };
-
-export async function getOpenVikingConfig() {
-  try {
-    const result = await chrome.storage.local.get('openvikingConfig');
-    return { ...DEFAULT_OPENVIKING_CONFIG, ...(result.openvikingConfig || {}) };
-  } catch {
-    return { ...DEFAULT_OPENVIKING_CONFIG };
-  }
-}
-
-export async function setOpenVikingConfig(config) {
-  await chrome.storage.local.set({ openvikingConfig: config });
-}
 
 export async function getEchoMemConfig() {
   try {

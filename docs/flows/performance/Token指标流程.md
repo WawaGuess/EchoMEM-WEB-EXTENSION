@@ -29,7 +29,7 @@
 
 ### 4. 后端消耗 & 节省区（双列网格）
 
-- 左卡："EchoMem 后端消耗" + 数值（来自 OpenViking `/api/v1/usage`）+ "tokens"
+- 左卡："EchoMem 后端消耗" + 数值（来自 `EchoMemClient.fetchUsage()` stub）+ "tokens"
 - 右卡（置灰）："预计节省 Token" + "--" + "待计算"
 
 ### 5. 说明文字区
@@ -109,20 +109,20 @@ if (request.action === 'fetchStatsSummary') {
 }
 ```
 
-### 后端消耗统计（OpenViking）
+### 后端消耗统计（EchoMem stub）
 
-Content Script 直接请求 OpenViking（记忆后端引擎）`/api/v1/usage` 接口，复用已有认证配置：
+二期暂时保留该卡片 UI，但后端 usage 接口尚未就绪。`EchoMemClient.fetchUsage()` 当前返回 stub：
 
 ```js
 async function fetchBackendUsageData() {
-  const config = await getOpenVikingConfig();
+  const config = await getEchoMemConfig();
   const client = createClient(config);
   const result = await client.fetchUsage();
-  return result.total?.total_tokens ?? 0;
+  return result.total?.total_tokens ?? 0;  // 当前固定返回 0
 }
 ```
 
-两个请求通过 `Promise.allSettled` 并行发起，后端消耗获取失败不影响主统计展示。
+三期将替换为真实的 EchoMem usage 接口。当前 `backendTokens` 固定为 `0`，UI 显示为 `--`。
 
 ## 数据结构
 
@@ -134,13 +134,13 @@ interface PerformanceData {
   totalOutputTokens: number;  // 累计 Output Tokens
   totalTokens: number;        // Token 消耗总量
   since: string | null;       // 统计起始时间
-  backendTokens?: number;     // EchoMem 后端 Token 消耗量（来自 OpenViking /api/v1/usage）
+  backendTokens?: number;     // EchoMem 后端 Token 消耗量（二期 stub，三期接入真实接口）
 }
 ```
 
 | 字段 | 状态 | 说明 |
 |------|------|------|
-| `backendTokens` | 已接入 | EchoMem 后端 Token 消耗量（OpenViking `result.total.total_tokens`） |
+| `backendTokens` | 二期 stub / 三期接入 | EchoMem 后端 Token 消耗量（`fetchUsage()` 当前固定返回 0） |
 | `savedTokens` | 待逻辑确定 | 预计节省 Token 量 |
 
 ## 生命周期管理
@@ -172,9 +172,9 @@ navigateToEchoMemPanel('performance')
             │       │       └── chrome.runtime.sendMessage({ action: 'fetchStatsSummary' })
             │       │               └── background.js fetch('http://127.0.0.1:8000/api/stats/summary')
             │       └── fetchBackendUsageData()
-            │               ├── getOpenVikingConfig()
+            │               ├── getEchoMemConfig()
             │               ├── createClient(config)
-            │               └── client.fetchUsage() → GET /api/v1/usage
+            │               └── client.fetchUsage() → 二期 stub，三期替换为真实 EchoMem usage 接口
             │
             ├── updatePerformanceDOM(body, data)
             │       └── 修改 #perf-total / #perf-sessions / #perf-turns / #perf-input / #perf-output / #perf-backend / #perf-desc

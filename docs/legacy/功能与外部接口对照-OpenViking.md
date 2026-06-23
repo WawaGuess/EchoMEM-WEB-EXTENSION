@@ -1,4 +1,6 @@
-# 功能与外部接口对照
+# 功能与外部接口对照（OpenViking 历史归档）
+
+> **已归档**：本文档记录迁移 OpenViking 之前的接口对照，当前项目已迁移到 EchoMem 后端。最新接口说明请参考 [`docs/reference/外部接口清单.md`](../reference/外部接口清单.md)。
 
 本文档按 EchoMem Web Extension 的功能模块分类，列出每个功能实际调用的外部网络接口。
 

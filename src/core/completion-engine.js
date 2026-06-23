@@ -215,21 +215,21 @@ function buildSuggestion(userInput, memory) {
 /**
  * 处理记忆列表，生成补全建议
  * @param {string} userInput
- * @param {Array} memories - OpenViking 返回的记忆列表
+ * @param {Array} memories - EchoMem 返回的记忆列表
  * @returns {Array}
  */
 function processMemories(userInput, memories) {
   const suggestions = [];
 
   for (const memory of memories.slice(0, 5)) {
-    // 使用 OpenViking 语义分数过滤（memory.score 已经是语义相关性）
+    // 使用 EchoMem 语义分数过滤（memory.score 已经是语义相关性）
     const semanticScore = memory.score || 0;
     if (semanticScore < phraseScoreThreshold) {
       console.log('EchoMem: memory filtered out by semantic score', semanticScore, '<', phraseScoreThreshold, memory.uri);
       continue;
     }
 
-    // 从 text 提取短语（EchoMem 返回 text；旧 OpenViking 用 overview/abstract）
+    // 从 text 提取短语（EchoMem 返回 text；兼容 overview/abstract 兜底）
     const sourceText = stripMetadataTags(memory.text || memory.overview || memory.abstract || '');
     const phrases = extractPhrases(sourceText, userInput);
 
@@ -279,7 +279,7 @@ function rankAndDeduplicate(suggestions, maxResults = 3) {
 /**
  * 主入口：生成补全建议
  * @param {string} userInput - 用户当前输入
- * @param {Array} memories - OpenViking 返回的记忆列表
+ * @param {Array} memories - EchoMem 返回的记忆列表
  * @param {number} maxResults - 最多返回几条
  * @returns {Array}
  */

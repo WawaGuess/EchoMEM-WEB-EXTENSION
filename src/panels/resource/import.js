@@ -1,21 +1,25 @@
 // 文档：docs/flows/resource/导入流程.md
-// 资源导入页面 —— 异步轮询模式，不阻塞等待后端语义提取
-// V2: 支持文件夹浏览、点击进入、返回上级
+// 资源导入页面 —— 客户端读取内容后直接调用 EchoMem /api/resources
+// V3: 移除 temp_upload 与 contentAbstract 轮询，URI 改为 echo://
 
-import { getOpenVikingConfig } from '../../services/config.js';
-import { createClient } from '../../services/openviking-client.js';
+import { getEchoMemConfig } from '../../services/config.js';
+import { createClient } from '../../services/echomem-client.js';
 import { injectContent } from '../../core/content-injector.js';
 import { openCenterOverlay, closeOverlayPanel } from '../../core/panel-host.js';
 
+function normalizeUri(uri) {
+  return uri.replace(/\/$/, '');
+}
+
 function getRootDirUri() {
-  return 'viking://resources/echomem/';
+  return 'echo://resources';
 }
 
 function getParentUri(uri) {
-  const clean = uri.replace(/\/$/, '');
+  const clean = normalizeUri(uri);
   const parts = clean.split('/');
   if (parts.length <= 3) return null;
-  return parts.slice(0, -1).join('/') + '/';
+  return parts.slice(0, -1).join('/');
 }
 
 export function getResourceImportContent() {
@@ -51,7 +55,7 @@ export function getResourceImportContent() {
       <div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <p style="font-weight: 600; font-size: 14px; margin: 0;">📂 远程文件</p>
-          <p id="claw-remote-path" style="font-size: 10px; color: #888; margin: 0; font-family: monospace;">viking://resources/echomem/</p>
+          <p id="claw-remote-path" style="font-size: 10px; color: #888; margin: 0; font-family: monospace;">echo://resources</p>
         </div>
         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
           <div id="claw-remote-back-btn" style="display: none;">
@@ -65,15 +69,6 @@ export function getResourceImportContent() {
               color: #374151;
             ">← 返回上级</button>
           </div>
-          <button id="claw-remote-mkdir" style="
-            padding: 4px 10px;
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            border-radius: 4px;
-            font-size: 12px;
-            cursor: pointer;
-            color: #1d4ed8;
-          ">+ 新建文件夹</button>
         </div>
         <div id="claw-backup-list-loading" style="text-align: center; padding: 16px; color: #888; font-size: 12px;">⏳ 正在加载...</div>
         <div id="claw-backup-list-content" style="display: none;"></div>
@@ -81,8 +76,6 @@ export function getResourceImportContent() {
     </div>
   `;
 }
-
-let activePollTimer = null;
 
 export async function initImportPanel(bodyElement) {
   if (!bodyElement) return;
@@ -96,7 +89,6 @@ export async function initImportPanel(bodyElement) {
   const pathEl = bodyElement.querySelector('#claw-remote-path');
   const backBtnContainer = bodyElement.querySelector('#claw-remote-back-btn');
   const backBtn = bodyElement.querySelector('#claw-remote-back');
-  const mkdirBtn = bodyElement.querySelector('#claw-remote-mkdir');
 
   if (!dropzone || !fileInput) return;
 
@@ -118,6 +110,32 @@ export async function initImportPanel(bodyElement) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
+  function isDirectory(entry) {
+    if (entry.kind) return entry.kind === 'directory';
+    return entry.isDir || entry.is_dir || entry.stat?.isDir || entry.stat?.is_dir || false;
+  }
+
+  function isFile(entry) {
+    if (entry.kind) return entry.kind === 'file';
+    return !isDirectory(entry);
+  }
+
+  function getEntryName(entry) {
+    return entry.name || entry.uri?.split('/').pop() || '未命名';
+  }
+
+  function getEntryUpdatedAt(entry) {
+    return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
+  }
+
+  function getEntrySize(entry) {
+    return entry.size ?? entry.stat?.size;
+  }
+
+  function isRootDir(uri) {
+    return normalizeUri(uri) === getRootDirUri();
+  }
+
   async function loadRemoteFileList(dirUri = currentDirUri) {
     if (!backupLoadingEl || !backupContentEl) return;
     backupLoadingEl.style.display = 'block';
@@ -131,20 +149,11 @@ export async function initImportPanel(bodyElement) {
     }
 
     try {
-      const client = createClient(await getOpenVikingConfig());
-
-      // Ensure directory exists
-      try {
-        await client.fsMkdir(dirUri, 'EchoMem directory');
-      } catch (mkdirErr) {
-        if (!mkdirErr.message?.toLowerCase().includes('exist')) {
-          console.warn('EchoMem: mkdir warning', mkdirErr.message);
-        }
-      }
+      const client = createClient(await getEchoMemConfig());
 
       const lsResult = await client.fsLs(dirUri, { output: 'agent', absLimit: 128, showAllHidden: true });
       let entries = Array.isArray(lsResult) ? lsResult : (lsResult?.entries || []);
-      entries = entries.filter((e) => (e.name || e.uri?.split('/').pop() || '') !== '.DS_Store');
+      entries = entries.filter((e) => getEntryName(e) !== '.DS_Store');
 
       if (entries.length === 0) {
         backupLoadingEl.style.display = 'none';
@@ -158,25 +167,13 @@ export async function initImportPanel(bodyElement) {
         return;
       }
 
-      // Stat each entry for richer info
-      const enrichedEntries = await Promise.all(
-        entries.map(async (entry) => {
-          try {
-            const stat = await client.fsStat(entry.uri);
-            return { ...entry, stat };
-          } catch {
-            return { ...entry, stat: null };
-          }
-        })
-      );
-
-      // Separate dirs and files, sort each by modTime descending
-      const dirs = enrichedEntries.filter((e) => e.isDir || e.stat?.isDir);
-      const files = enrichedEntries.filter((e) => !(e.isDir || e.stat?.isDir));
+      // Sort by modTime descending using metadata already returned by fsLs
+      const dirs = entries.filter((e) => isDirectory(e));
+      const files = entries.filter((e) => isFile(e));
 
       const sortByModTime = (a, b) => {
-        const ta = a.stat?.modTime ? new Date(a.stat.modTime).getTime() : 0;
-        const tb = b.stat?.modTime ? new Date(b.stat.modTime).getTime() : 0;
+        const ta = getEntryUpdatedAt(a) ? new Date(getEntryUpdatedAt(a)).getTime() : 0;
+        const tb = getEntryUpdatedAt(b) ? new Date(getEntryUpdatedAt(b)).getTime() : 0;
         return tb - ta;
       };
       dirs.sort(sortByModTime);
@@ -186,14 +183,27 @@ export async function initImportPanel(bodyElement) {
 
       // Render list
       const itemsHtml = allEntries.map((entry) => {
-        const name = entry.name || entry.uri?.split('/').pop() || '未命名';
-        const isDir = entry.isDir || entry.stat?.isDir;
+        const name = getEntryName(entry);
+        const isDir = isDirectory(entry);
         const icon = isDir ? '📁' : '📄';
-        const size = isDir ? '' : formatSize(entry.stat?.size);
-        const date = formatDate(entry.stat?.modTime);
+        const size = isDir ? '' : formatSize(getEntrySize(entry));
+        const date = formatDate(getEntryUpdatedAt(entry));
+        const atRoot = isRootDir(currentDirUri);
 
         if (isDir) {
-          // Folder: clickable to enter
+          const deleteBtn = atRoot
+            ? `<button class="claw-remote-btn-delete" data-resource-id="${name}" style="
+                padding: 3px 8px;
+                background: #fef2f2;
+                color: #dc2626;
+                border: 1px solid #fecaca;
+                border-radius: 4px;
+                font-size: 11px;
+                cursor: pointer;
+                white-space: nowrap;
+                margin-left: 8px;
+              ">删除</button>`
+            : '';
           return `
             <div class="claw-remote-folder" data-uri="${entry.uri}" style="
               padding: 8px 10px;
@@ -210,11 +220,12 @@ export async function initImportPanel(bodyElement) {
               <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0369a1; font-weight: 500;"
                 >${name}</span>
               <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
+              ${deleteBtn}
             </div>
           `;
         }
 
-        // File: with delete button
+        // File: view button
         return `
           <div class="claw-remote-file" data-uri="${entry.uri}" style="
             padding: 8px 10px;
@@ -231,16 +242,16 @@ export async function initImportPanel(bodyElement) {
               title="${name}">${name}</span>
             <span style="color: #6b7280; white-space: nowrap; width: 60px; text-align: right;">${size}</span>
             <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
-            <button class="claw-remote-btn-delete" data-uri="${entry.uri}" style="
+            <button class="claw-remote-btn-view" data-uri="${entry.uri}" style="
               padding: 3px 8px;
-              background: #fef2f2;
-              color: #dc2626;
-              border: 1px solid #fecaca;
+              background: #eff6ff;
+              color: #2563eb;
+              border: 1px solid #bfdbfe;
               border-radius: 4px;
               font-size: 11px;
               cursor: pointer;
               white-space: nowrap;
-            ">删除</button>
+            ">查看</button>
           </div>
         `;
       }).join('');
@@ -255,30 +266,109 @@ export async function initImportPanel(bodyElement) {
 
       // Bind folder click events
       backupContentEl.querySelectorAll('.claw-remote-folder').forEach((folder) => {
-        folder.addEventListener('click', () => {
+        folder.addEventListener('click', (e) => {
+          if (e.target.closest('.claw-remote-btn-delete')) return;
           const uri = folder.dataset.uri;
-          if (uri) loadRemoteFileList(uri + '/');
+          if (uri) loadRemoteFileList(normalizeUri(uri));
         });
       });
 
-      // Bind delete events
-      backupContentEl.querySelectorAll('.claw-remote-btn-delete').forEach((btn) => {
+      // Bind view events for files
+      backupContentEl.querySelectorAll('.claw-remote-btn-view').forEach((btn) => {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
           const uri = btn.dataset.uri;
           if (!uri) return;
-          if (!confirm(`确定删除文件「${uri.split('/').pop()}」？`)) return;
-          btn.textContent = '删除中...';
-          btn.disabled = true;
+          btn.textContent = '加载中...';
           try {
-            const client = createClient(await getOpenVikingConfig());
-            await client.fsRm(uri, false);
-            await loadRemoteFileList();
+            const client = createClient(await getEchoMemConfig());
+            const result = await client.fsRead(uri);
+            const text = typeof result === 'string' ? result : (result?.content || JSON.stringify(result, null, 2));
+            const name = uri.split('/').pop() || uri;
+            const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`;
+            openCenterOverlay(name, previewHtml, {
+              showBack: true,
+              onBack: () => closeOverlayPanel()
+            });
           } catch (err) {
-            alert(`删除失败: ${err.message}`);
-            btn.textContent = '删除';
-            btn.disabled = false;
+            alert(`查看失败: ${err.message}`);
           }
+          btn.textContent = '查看';
+        });
+      });
+
+      // Bind delete events (resource directories at root)
+      backupContentEl.querySelectorAll('.claw-remote-btn-delete').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const resourceId = btn.dataset.resourceId;
+          if (!resourceId) {
+            alert('无法删除：缺少资源 ID');
+            return;
+          }
+
+          const dialogHtml = `
+            <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="text-align: center;">
+                <p style="font-size: 24px; margin: 0; line-height: 1;">🗑️</p>
+                <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">确认删除资源</p>
+                <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">确定删除资源「<strong style="color: #111;">${resourceId}</strong>」？此操作不可恢复。</p>
+              </div>
+              <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="claw-resource-del-cancel" style="
+                  padding: 8px 20px;
+                  background: #f3f4f6;
+                  color: #374151;
+                  border: 1px solid #d1d5db;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  cursor: pointer;
+                  font-weight: 500;
+                ">取消</button>
+                <button id="claw-resource-del-ok" style="
+                  padding: 8px 20px;
+                  background: #ef5350;
+                  color: white;
+                  border: none;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  cursor: pointer;
+                  font-weight: 500;
+                ">确认删除</button>
+              </div>
+            </div>
+          `;
+
+          openCenterOverlay('删除确认', dialogHtml, {
+            width: '360px',
+            maxWidth: '360px',
+            height: '240px',
+            maxHeight: '280px'
+          });
+
+          setTimeout(() => {
+            const cancelBtn = document.getElementById('claw-resource-del-cancel');
+            const okBtn = document.getElementById('claw-resource-del-ok');
+
+            cancelBtn?.addEventListener('click', () => {
+              closeOverlayPanel();
+            });
+
+            okBtn?.addEventListener('click', async () => {
+              closeOverlayPanel();
+              btn.textContent = '删除中...';
+              btn.disabled = true;
+              try {
+                const client = createClient(await getEchoMemConfig());
+                await client.deleteResource(resourceId);
+                await loadRemoteFileList();
+              } catch (err) {
+                alert(`删除失败: ${err.message}`);
+                btn.textContent = '删除';
+                btn.disabled = false;
+              }
+            });
+          }, 50);
         });
       });
     } catch (err) {
@@ -301,107 +391,8 @@ export async function initImportPanel(bodyElement) {
     });
   }
 
-  // Bind mkdir button
-  if (mkdirBtn) {
-    mkdirBtn.addEventListener('click', () => {
-      const dialogId = 'claw-mkdir-dialog-' + Date.now();
-      const dialogHtml = `
-        <div id="${dialogId}" style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <label style="font-size: 13px; color: #374151; font-weight: 500;">文件夹名称</label>
-            <input type="text" id="claw-mkdir-input" placeholder="请输入文件夹名称" style="
-              padding: 10px 12px;
-              border: 1px solid #d1d5db;
-              border-radius: 6px;
-              font-size: 14px;
-              outline: none;
-              transition: border-color 0.2s;
-            " onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#d1d5db'">
-            <p id="claw-mkdir-error" style="font-size: 12px; color: #dc2626; margin: 0; display: none;"></p>
-          </div>
-          <div style="display: flex; gap: 10px; justify-content: flex-end;">
-            <button id="claw-mkdir-cancel" style="
-              padding: 8px 16px;
-              background: #f3f4f6;
-              color: #374151;
-              border: 1px solid #d1d5db;
-              border-radius: 6px;
-              font-size: 13px;
-              cursor: pointer;
-            ">取消</button>
-            <button id="claw-mkdir-confirm" style="
-              padding: 8px 16px;
-              background: #2563eb;
-              color: white;
-              border: none;
-              border-radius: 6px;
-              font-size: 13px;
-              cursor: pointer;
-              font-weight: 500;
-            ">确定</button>
-          </div>
-        </div>
-      `;
-
-      openCenterOverlay('新建文件夹', dialogHtml, {
-        showBack: false,
-        width: '360px',
-        maxWidth: '360px',
-        height: 'auto',
-        maxHeight: '240px'
-      });
-
-      setTimeout(() => {
-        const input = document.getElementById('claw-mkdir-input');
-        const confirmBtn = document.getElementById('claw-mkdir-confirm');
-        const cancelBtn = document.getElementById('claw-mkdir-cancel');
-        const errorEl = document.getElementById('claw-mkdir-error');
-
-        if (input) input.focus();
-
-        const doCreate = async () => {
-          const folderName = input?.value?.trim();
-          if (!folderName) {
-            if (errorEl) { errorEl.textContent = '请输入文件夹名称'; errorEl.style.display = 'block'; }
-            return;
-          }
-          if (folderName.includes('/') || folderName.includes('\\')) {
-            if (errorEl) { errorEl.textContent = '文件夹名称不能包含斜杠'; errorEl.style.display = 'block'; }
-            return;
-          }
-          if (errorEl) errorEl.style.display = 'none';
-          if (confirmBtn) { confirmBtn.textContent = '创建中...'; confirmBtn.disabled = true; }
-          try {
-            const client = createClient(await getOpenVikingConfig());
-            const targetUri = `${currentDirUri}${folderName}`;
-            await client.fsMkdir(targetUri, 'EchoMem folder');
-            closeOverlayPanel();
-            await loadRemoteFileList();
-          } catch (err) {
-            if (errorEl) { errorEl.textContent = `创建失败: ${err.message}`; errorEl.style.display = 'block'; }
-            if (confirmBtn) { confirmBtn.textContent = '确定'; confirmBtn.disabled = false; }
-          }
-        };
-
-        confirmBtn?.addEventListener('click', doCreate);
-        cancelBtn?.addEventListener('click', closeOverlayPanel);
-        input?.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') doCreate();
-          if (e.key === 'Escape') closeOverlayPanel();
-        });
-      }, 50);
-    });
-  }
-
   // Initial load
   loadRemoteFileList();
-
-  function clearActivePoll() {
-    if (activePollTimer) {
-      clearTimeout(activePollTimer);
-      activePollTimer = null;
-    }
-  }
 
   function showStatus(msg, type = 'info') {
     if (!statusEl) return;
@@ -443,98 +434,59 @@ export async function initImportPanel(bodyElement) {
     return err.message;
   }
 
-  /**
-   * 轮询资源处理状态
-   */
-  async function pollResourceStatus(resourceUri, fileName, sharedClient = null, attempt = 0, maxAttempts = 120) {
-    if (attempt >= maxAttempts) {
-      showStatus(`⏳ 「${fileName}」已提交后台处理，请到「查看资源」页面查看进度`, 'info');
-      showResult(`
-        <div style="padding: 12px; background: #f0f7ff; border: 1px solid #c7d8f5; border-radius: 8px; font-size: 13px; color: #333;">
-          <p style="margin-bottom: 6px;">📄 <strong>${fileName}</strong></p>
-          <p style="color: #667eea; margin: 0;">正在后台处理中，请稍后到「查看资源」页面查看结果</p>
-        </div>
-      `);
-      return;
-    }
+  function isTextFile(file) {
+    if (file.type?.startsWith('text/')) return true;
+    const ext = file.name.split('.').pop().toLowerCase();
+    return ['md', 'txt', 'json', 'csv'].includes(ext);
+  }
 
-    try {
-      const client = sharedClient || createClient(await getOpenVikingConfig());
-
-      const abstract = await client.contentAbstract(resourceUri);
-      const isNotReady = typeof abstract === 'string' && abstract.includes('not ready');
-      console.log('[EchoMem] poll abstract', attempt, isNotReady, abstract?.slice(0, 60));
-
-      if (!isNotReady) {
-        showStatus(`✅ 「${fileName}」处理完成`, 'success');
+  function readFileContent(file) {
+    return new Promise((resolve, reject) => {
+      if (isTextFile(file)) {
+        file.text().then((text) => resolve({
+          content: text,
+          contentType: file.type || 'text/plain',
+        })).catch(reject);
         return;
       }
 
-      showStatus(`⏳ 「${fileName}」正在处理中（第 ${attempt + 1} 次检查）...`, 'info');
-      activePollTimer = setTimeout(() => {
-        pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
-      }, 5000);
-    } catch (err) {
-      console.warn('[EchoMem] poll failed', err);
-      const msg = err.message || '';
-
-      if (msg.includes('401') || msg.includes('Unauthorized') || msg.includes('API Key')) {
-        showStatus('❌ 认证失败，请在「记忆后端引擎连接配置」中检查 API Key', 'error');
-        showResult(`
-          <div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; color: #b91c1c;">
-            <p style="margin-bottom: 6px;">❌ 认证失败</p>
-            <p style="margin: 0;">轮询过程中 API Key 验证失败，请到 EchoMem 主页的「记忆后端引擎连接配置」中检查并重新保存配置。</p>
-          </div>
-        `);
-        return;
-      }
-
-      if (msg.includes('404') || msg.includes('not found') || msg.includes('Not Found')) {
-        showStatus(`⏳ 「${fileName}」正在处理中（第 ${attempt + 1} 次检查）...`, 'info');
-        activePollTimer = setTimeout(() => {
-          pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
-        }, 5000);
-        return;
-      }
-
-      activePollTimer = setTimeout(() => {
-        pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
-      }, 5000);
-    }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result;
+        const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+        resolve({
+          content: base64,
+          contentType: file.type || 'application/octet-stream',
+          encoding: 'base64',
+        });
+      };
+      reader.onerror = () => reject(new Error('读取文件失败'));
+      reader.readAsDataURL(file);
+    });
   }
 
   async function doUpload(file) {
-    clearActivePoll();
     hideResult();
-    showStatus('正在上传...', 'info');
+    showStatus('正在读取文件...', 'info');
 
     try {
-      const config = await getOpenVikingConfig();
+      const { content, contentType, encoding } = await readFileContent(file);
+      const metadata = encoding ? { encoding, source: 'EchoMem extension' } : { source: 'EchoMem extension' };
+
+      showStatus('正在上传...', 'info');
+      const config = await getEchoMemConfig();
       const client = createClient(config);
 
-      // Step 1: temp upload
-      const uploadResult = await client.tempUpload(file);
-      const tempFileId = uploadResult?.temp_file_id;
-      if (!tempFileId) throw new Error('上传失败：未返回临时文件 ID');
-
-      // Step 2: add resource（异步，不等待处理完成）
-      showStatus('文件已上传，正在提交处理...', 'info');
-      const addResult = await client.addResource({
-        tempFileId,
-        parent: currentDirUri,
-        wait: false,
-        sourceName: file.name,
-        keepOriginal: true,
+      const result = await client.addResource({
+        content,
+        name: file.name,
+        contentType,
+        tags: [],
+        metadata,
       });
 
-      const resourceUri = addResult?.root_uri || `${currentDirUri}${file.name}`;
-      showStatus(`✅ 「${file.name}」已提交，开始轮询处理状态...`, 'success');
-
-      // 刷新当前目录列表
+      showStatus(`✅ 「${file.name}」上传成功`, 'success');
       await loadRemoteFileList();
-
-      // 开始轮询处理状态
-      pollResourceStatus(resourceUri, file.name);
     } catch (err) {
       showStatus(`❌ 上传失败: ${formatError(err)}`, 'error');
     }

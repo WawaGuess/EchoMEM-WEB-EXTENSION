@@ -2,11 +2,11 @@
 
 ## 状态
 
-Draft / Proposed
+Implemented
 
 ## 背景
 
-当前 EchoMem Web Extension 默认对接的记忆后端是 OpenViking（默认地址 `http://127.0.0.1:1933`），通过 `src/services/openviking-client.js` 封装了 17 个 HTTP 接口，覆盖记忆召回、会话录制、资源管理、Skill 商店、效能统计等功能。与此同时，项目本地还有一个独立的 EchoMem Python 后端（`.../202606/EchoMem`），其 HTTP 入口暴露了一套语义等价但 API 形态不同的接口。
+当前 EchoMem Web Extension 默认对接的记忆后端已从 OpenViking 迁移到 EchoMem 本地后端（默认地址 `http://127.0.0.1:8010`）。原 `src/services/openviking-client.js` 已删除，统一由 `src/services/echomem-client.js` 封装 EchoMem HTTP API。
 
 随着 EchoMem 后端能力逐步完善，继续维护 OpenViking 专属客户端会带来以下问题：
 
@@ -26,7 +26,8 @@ Draft / Proposed
 - **能直接映射的接口优先迁移**：会话、消息、提交、召回、只读 fs 查询等语义一致的接口，通过调整路径和字段完成替换。
 - **不再依赖通用 fs 写操作**：资源上传、Skill 上传、删除改走 EchoMem 的 `/api/resources` 和 `/api/skills` 服务接口；前端不再维护目录树，改为以资源 ID / Skill 名为核心进行操作。
 - **缺失能力明确列出**：Token/Usage 统计、`/api/stats/summary`、内容 abstract/overview 等 EchoMem 尚未暴露的能力，作为后端新增需求单独跟进。
-- **认证统一为 X-Auth-Key**：配置面板从多字段认证简化为单一 auth key，默认后端地址改为 `http://127.0.0.1:8000`。
+- **认证统一为 X-Auth-Key**：配置面板从多字段认证简化为单一 auth key，默认后端地址改为 `http://127.0.0.1:8010`。
+- **迁移已分阶段完成**：一期（核心记忆链路）、二期（资源/Skill 管理）已实施；三期（效能统计）待 EchoMem 后端新增 usage / stats 接口。
 
 ## 接口迁移对照表
 
@@ -35,7 +36,7 @@ Draft / Proposed
 | 原 OpenViking 接口 | EchoMem 接口 | 改动点 |
 |---|---|---|
 | `GET /health` | `GET /health` | 响应体从 OpenViking 格式适配为 EchoMem 的 `{"status":"ok","service":"echomem"}` |
-| `POST /api/v1/search/find` | `POST /api/retrieval/search` | 请求体字段改为 `query`、`agent_id`、`user_id`、`session_id`、`limit`、`include_explain`；消费 `result.items` 替代 `result.memories` |
+| `POST /api/v1/search/find` | `POST /api/retrieval/search` | 请求体字段改为 `query`、`agent_id`、`session_id`、`limit`、`include_explain`；**`user_id` 由 `X-Auth-Key` 推导，禁止放入请求体**；消费 `result.items` 替代 `result.memories` |
 | `POST /api/v1/sessions` | `POST /api/sessions/open` | 请求体必须增加 `agent_id`，`session_id` 保持可选 |
 | `POST /api/v1/sessions/{id}/messages` | `POST /api/sessions/{id}/messages` | 路径与字段一致，响应包装不同 |
 | `POST /api/v1/sessions/{id}/commit` | `POST /api/sessions/{id}/commit` | 路径一致，返回 `commit_id` / `archive_id` |

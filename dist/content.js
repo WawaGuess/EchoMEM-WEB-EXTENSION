@@ -724,14 +724,6 @@
   }
 
   // src/services/config.js
-  var DEFAULT_OPENVIKING_CONFIG = {
-    baseUrl: "http://127.0.0.1:1933",
-    apiKey: "",
-    agentId: "echomem-extension",
-    authEnabled: false,
-    accountId: "default",
-    userId: "default"
-  };
   var DEFAULT_ECHOMEM_CONFIG = {
     baseUrl: "http://127.0.0.1:8010",
     authKey: "",
@@ -745,14 +737,6 @@
     higo: "echoagent",
     deepseek: "echoagent"
   };
-  async function getOpenVikingConfig() {
-    try {
-      const result = await chrome.storage.local.get("openvikingConfig");
-      return { ...DEFAULT_OPENVIKING_CONFIG, ...result.openvikingConfig || {} };
-    } catch {
-      return { ...DEFAULT_OPENVIKING_CONFIG };
-    }
-  }
   async function getEchoMemConfig() {
     try {
       const result = await chrome.storage.local.get("echomemConfig");
@@ -790,130 +774,161 @@
     await chrome.storage.local.set({ completionConfig: config });
   }
 
-  // src/services/openviking-client.js
+  // src/services/echomem-client.js
   var DEFAULT_CONFIG = {
-    baseUrl: "http://127.0.0.1:1933",
-    apiKey: "",
-    agentId: "echomem-extension",
-    authEnabled: false,
-    accountId: "default",
-    userId: "default",
-    timeoutMs: 5e3
+    baseUrl: "http://127.0.0.1:8010",
+    authKey: "",
+    timeoutMs: 5e3,
+    debug: true
   };
-  var OpenVikingClient = class {
+  function log(prefix, ...args) {
+    console.log(`EchoMem client [${prefix}]`, ...args);
+  }
+  function fetchViaBackground(url, options = {}) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        {
+          action: "echoMemRequest",
+          url,
+          method: options.method || "GET",
+          headers: options.headers,
+          body: options.body,
+          timeout: options.timeout
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          if (!response || !response.success) {
+            reject(new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error")));
+            return;
+          }
+          resolve(response.data);
+        }
+      );
+    });
+  }
+  var EchoMemClient = class {
     constructor(config = {}) {
       this.cfg = { ...DEFAULT_CONFIG, ...config };
     }
-    _buildHeaders() {
-      const headers = this._buildAuthHeaders();
-      headers["Content-Type"] = "application/json";
-      return headers;
-    }
-    _buildAuthHeaders() {
+    _buildHeaders(contentType = false) {
       const headers = {};
-      if (this.cfg.agentId) {
-        headers["X-OpenViking-Agent"] = this.cfg.agentId;
+      if (this.cfg.authKey) {
+        headers["X-Auth-Key"] = this.cfg.authKey;
       }
-      if (this.cfg.authEnabled) {
-        if (this.cfg.apiKey) {
-          headers["X-API-Key"] = this.cfg.apiKey;
-        }
-        if (this.cfg.accountId) {
-          headers["X-OpenViking-Account"] = this.cfg.accountId;
-        }
-        if (this.cfg.userId) {
-          headers["X-OpenViking-User"] = this.cfg.userId;
-        }
+      if (contentType) {
+        headers["Content-Type"] = "application/json";
       }
       return headers;
     }
-    async find(query, options = {}) {
+    async _fetchJson(url, options = {}) {
       var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/search/find`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            query,
-            target_uri: options.targetUri || "viking://user/memories",
-            limit: options.limit || 5,
-            score_threshold: options.scoreThreshold || 0
-          }),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
+      const data = await fetchViaBackground(url, {
+        ...options,
+        timeout: this.cfg.timeoutMs
+      });
+      if (data && data.status === "error") {
+        throw new Error(data.message || ((_a2 = data.error) == null ? void 0 : _a2.message) || "EchoMem error");
       }
+      return data.result !== void 0 ? data.result : data;
     }
     async healthCheck() {
-      const headers = this._buildAuthHeaders();
-      const response = await fetch(`${this.cfg.baseUrl}/health`, {
-        method: "GET",
-        headers
-      });
-      return response.ok;
-    }
-    async createSession(sessionId = null) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
       try {
-        const headers = this._buildHeaders();
-        const body = {};
-        if (sessionId) {
-          body.session_id = sessionId;
-        }
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-          signal: controller.signal
+        const data = await fetchViaBackground(`${this.cfg.baseUrl}/health`, {
+          method: "GET",
+          timeout: this.cfg.timeoutMs
         });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
+        if (this.cfg.debug) {
+          log("health", "ok", data);
         }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
+        return true;
+      } catch (err) {
+        if (this.cfg.debug) {
+          log("health", "failed", err.message);
+        }
+        throw err;
       }
+    }
+    async find(query, options = {}) {
+      const body = {
+        query,
+        agent_id: options.agentId,
+        limit: options.limit || 5,
+        include_explain: options.includeExplain || false
+      };
+      if (options.sessionId) body.session_id = options.sessionId;
+      if (this.cfg.debug) {
+        log("find request", JSON.stringify(body));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/retrieval/search`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      if (this.cfg.debug) {
+        const items = (result == null ? void 0 : result.items) || [];
+        log(
+          "find response",
+          `items=${items.length}`,
+          items[0] ? JSON.stringify(items[0]) : "empty",
+          (result == null ? void 0 : result.explain) ? `explain=${JSON.stringify(result.explain)}` : "no explain"
+        );
+      }
+      return result;
+    }
+    async openSession(options = {}) {
+      var _a2;
+      const body = {
+        agent_id: options.agentId
+      };
+      if (options.sessionId) body.session_id = options.sessionId;
+      if (options.runId) body.run_id = options.runId;
+      if (options.metadata) body.metadata = options.metadata;
+      if (this.cfg.debug) {
+        log("openSession request", JSON.stringify(body));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/sessions/open`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      const normalized = {
+        ...result,
+        session_id: ((_a2 = result.scope) == null ? void 0 : _a2.session_id) || result.session_id || result.id
+      };
+      if (this.cfg.debug) {
+        log("openSession response", `raw=${JSON.stringify(result)}`, `normalized session_id=${normalized.session_id}`);
+      }
+      return normalized;
     }
     async addMessage(sessionId, message) {
       var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const response = await fetch(
-          `${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              role: message.role,
-              content: message.text
-            }),
-            signal: controller.signal
-          }
-        );
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
+      const body = {
+        role: message.role,
+        content: message.text
+      };
+      if (this.cfg.debug) {
+        log("addMessage request", `session=${sessionId}`, JSON.stringify(body));
       }
+      const result = await this._fetchJson(
+        `${this.cfg.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/messages`,
+        {
+          method: "POST",
+          headers: this._buildHeaders(true),
+          body: JSON.stringify(body)
+        }
+      );
+      if (this.cfg.debug) {
+        log("addMessage response", `session=${sessionId}`, `message.id=${((_a2 = result == null ? void 0 : result.message) == null ? void 0 : _a2.id) || (result == null ? void 0 : result.id) || "unknown"}`);
+      }
+      return result;
     }
     async appendMessages(sessionId, messages) {
+      if (this.cfg.debug) {
+        log("appendMessages", `session=${sessionId}`, `count=${messages.length}`);
+      }
       const results = [];
       for (const msg of messages) {
         const result = await this.addMessage(sessionId, msg);
@@ -922,295 +937,153 @@
       return results;
     }
     async commitSession(sessionId) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/commit`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ wait: true }),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
+      if (this.cfg.debug) {
+        log("commitSession request", `session=${sessionId}`);
       }
+      const result = await this._fetchJson(
+        `${this.cfg.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/commit`,
+        {
+          method: "POST",
+          headers: this._buildHeaders(true),
+          body: JSON.stringify({})
+        }
+      );
+      if (this.cfg.debug) {
+        log("commitSession response", `session=${sessionId}`, `commit_id=${result == null ? void 0 : result.commit_id}`, `archive_id=${result == null ? void 0 : result.archive_id}`, `status=${result == null ? void 0 : result.status}`);
+      }
+      return result;
     }
     // ── Resource Management ──
-    async tempUpload(file) {
-      var _a2;
-      const controller = new AbortController();
-      const uploadTimeoutMs = this.cfg.uploadTimeoutMs || 12e4;
-      const timer = setTimeout(() => controller.abort(), uploadTimeoutMs);
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("telemetry", "false");
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/resources/temp_upload`, {
-          method: "POST",
-          headers,
-          body: formData,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
     async addResource(options = {}) {
-      var _a2;
-      const controller = new AbortController();
-      const resourceTimeoutMs = this.cfg.resourceTimeoutMs || 3e5;
-      const timer = setTimeout(() => controller.abort(), resourceTimeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/resources`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            path: options.path || void 0,
-            temp_file_id: options.tempFileId || void 0,
-            to: options.to || void 0,
-            parent: options.parent || void 0,
-            reason: options.reason || "EchoMem extension upload",
-            instruction: options.instruction || "",
-            wait: options.wait ?? true,
-            timeout: options.timeout || void 0,
-            strict: options.strict ?? false,
-            source_name: options.sourceName || void 0,
-            keep_original: options.keepOriginal ?? false
-          }),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
+      const body = {
+        content: options.content,
+        name: options.name,
+        content_type: options.contentType,
+        tags: options.tags,
+        metadata: options.metadata
+      };
+      Object.keys(body).forEach((key) => {
+        if (body[key] === void 0) delete body[key];
+      });
+      if (this.cfg.debug) {
+        const preview = body.content ? `${String(body.content).slice(0, 100)}...(${String(body.content).length} chars)` : "empty";
+        log("addResource request", JSON.stringify({ ...body, content: preview }));
       }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/resources`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      if (this.cfg.debug) {
+        log("addResource response", `resource_id=${result == null ? void 0 : result.resource_id}`, `uri=${result == null ? void 0 : result.uri}`);
+      }
+      return result;
     }
-    async addSkill(options = {}) {
-      var _a2;
-      const controller = new AbortController();
-      const resourceTimeoutMs = this.cfg.resourceTimeoutMs || 3e5;
-      const timer = setTimeout(() => controller.abort(), resourceTimeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/skills`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            data: options.data || void 0,
-            temp_file_id: options.tempFileId || void 0,
-            wait: options.wait ?? false,
-            timeout: options.timeout || void 0
-          }),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
+    async deleteResource(resourceId) {
+      if (!resourceId) throw new Error("resourceId is required");
+      const url = `${this.cfg.baseUrl}/api/resources/${encodeURIComponent(resourceId)}`;
+      if (this.cfg.debug) {
+        log("deleteResource request", resourceId);
       }
+      const result = await this._fetchJson(url, {
+        method: "DELETE",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        log("deleteResource response", result);
+      }
+      return result;
+    }
+    // ── Skill Management ──
+    async addSkill(options = {}) {
+      const body = {
+        data: options.data,
+        name: options.name,
+        description: options.description,
+        tags: options.tags,
+        allowed_tools: options.allowedTools
+      };
+      Object.keys(body).forEach((key) => {
+        if (body[key] === void 0) delete body[key];
+      });
+      if (this.cfg.debug) {
+        log("addSkill request", options.name, JSON.stringify({ ...body, data: void 0 }));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/skills`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      if (this.cfg.debug) {
+        log("addSkill response", `name=${result == null ? void 0 : result.name}`, `uri=${result == null ? void 0 : result.uri}`);
+      }
+      return result;
+    }
+    async deleteSkill(name) {
+      if (!name) throw new Error("name is required");
+      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}`;
+      if (this.cfg.debug) {
+        log("deleteSkill request", name);
+      }
+      const result = await this._fetchJson(url, {
+        method: "DELETE",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        log("deleteSkill response", result);
+      }
+      return result;
     }
     // ── Filesystem ──
     async fsLs(uri, options = {}) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        if (options.simple) params.set("simple", "true");
-        if (options.recursive) params.set("recursive", "true");
-        if (options.output) params.set("output", options.output);
-        if (options.absLimit) params.set("abs_limit", String(options.absLimit));
-        if (options.showAllHidden) params.set("show_all_hidden", "true");
-        if (options.nodeLimit) params.set("node_limit", String(options.nodeLimit));
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/ls?${params.toString()}`, {
-          method: "GET",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
+      const params = new URLSearchParams({ uri });
+      if (options.simple) params.set("simple", "true");
+      if (options.recursive) params.set("recursive", "true");
+      if (options.output) params.set("output", options.output);
+      if (options.absLimit) params.set("abs_limit", String(options.absLimit));
+      if (options.showAllHidden) params.set("show_all_hidden", "true");
+      if (options.nodeLimit) params.set("node_limit", String(options.nodeLimit));
+      if (this.cfg.debug) {
+        log("fsLs request", uri, JSON.stringify(options));
       }
-    }
-    async fsStat(uri) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/stat?${params.toString()}`, {
-          method: "GET",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/fs/ls?${params.toString()}`, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        const entries = Array.isArray(result) ? result : (result == null ? void 0 : result.entries) || [];
+        log("fsLs response", `entries=${entries.length}`);
       }
+      return result;
     }
-    async fsMkdir(uri, description = "") {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = this._buildHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs/mkdir`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ uri, description }),
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
+    async fsRead(uri, options = {}) {
+      const params = new URLSearchParams({ uri });
+      if (options.offset !== void 0) params.set("offset", String(options.offset));
+      if (options.limit !== void 0) params.set("limit", String(options.limit));
+      if (this.cfg.debug) {
+        log("fsRead request", uri);
       }
-    }
-    async fsRm(uri, recursive = false) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        if (recursive) params.set("recursive", "true");
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/fs?${params.toString()}`, {
-          method: "DELETE",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/fs/read?${params.toString()}`, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        const preview = typeof result === "string" ? `${result.slice(0, 80)}...` : JSON.stringify(result).slice(0, 80);
+        log("fsRead response", preview);
       }
+      if (typeof result === "string") return result;
+      return (result == null ? void 0 : result.content) ?? (result == null ? void 0 : result.text) ?? "";
     }
-    // ── Content ──
-    async contentRead(uri, options = {}) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        if (options.offset !== void 0) params.set("offset", String(options.offset));
-        if (options.limit !== void 0) params.set("limit", String(options.limit));
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/read?${params.toString()}`, {
-          method: "GET",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async contentOverview(uri) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/overview?${params.toString()}`, {
-          method: "GET",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async contentAbstract(uri) {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const params = new URLSearchParams({ uri });
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/content/abstract?${params.toString()}`, {
-          method: "GET",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    // ── Usage / Token Statistics ──
+    // ── Usage / Token Statistics (stub for Phase 2) ──
     async fetchUsage() {
-      var _a2;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
-      try {
-        const headers = this._buildAuthHeaders();
-        const response = await fetch(`${this.cfg.baseUrl}/api/v1/usage`, {
-          method: "GET",
-          headers,
-          signal: controller.signal
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.status === "error") {
-          throw new Error(((_a2 = data.error) == null ? void 0 : _a2.message) || `HTTP ${response.status}`);
-        }
-        return data.result || data;
-      } finally {
-        clearTimeout(timer);
+      if (this.cfg.debug) {
+        log("fetchUsage", "stub");
       }
+      return { total: { total_tokens: 0 } };
     }
   };
   function createClient(config) {
-    return new OpenVikingClient(config);
+    return new EchoMemClient(config);
   }
 
   // src/core/content-injector.js
@@ -1260,14 +1133,17 @@ ${block}` : block;
   }
 
   // src/panels/resource/import.js
+  function normalizeUri(uri) {
+    return uri.replace(/\/$/, "");
+  }
   function getRootDirUri() {
-    return "viking://resources/echomem/";
+    return "echo://resources";
   }
   function getParentUri(uri) {
-    const clean = uri.replace(/\/$/, "");
+    const clean = normalizeUri(uri);
     const parts = clean.split("/");
     if (parts.length <= 3) return null;
-    return parts.slice(0, -1).join("/") + "/";
+    return parts.slice(0, -1).join("/");
   }
   function getResourceImportContent() {
     return `
@@ -1302,7 +1178,7 @@ ${block}` : block;
       <div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <p style="font-weight: 600; font-size: 14px; margin: 0;">\u{1F4C2} \u8FDC\u7A0B\u6587\u4EF6</p>
-          <p id="claw-remote-path" style="font-size: 10px; color: #888; margin: 0; font-family: monospace;">viking://resources/echomem/</p>
+          <p id="claw-remote-path" style="font-size: 10px; color: #888; margin: 0; font-family: monospace;">echo://resources</p>
         </div>
         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
           <div id="claw-remote-back-btn" style="display: none;">
@@ -1316,15 +1192,6 @@ ${block}` : block;
               color: #374151;
             ">\u2190 \u8FD4\u56DE\u4E0A\u7EA7</button>
           </div>
-          <button id="claw-remote-mkdir" style="
-            padding: 4px 10px;
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            border-radius: 4px;
-            font-size: 12px;
-            cursor: pointer;
-            color: #1d4ed8;
-          ">+ \u65B0\u5EFA\u6587\u4EF6\u5939</button>
         </div>
         <div id="claw-backup-list-loading" style="text-align: center; padding: 16px; color: #888; font-size: 12px;">\u23F3 \u6B63\u5728\u52A0\u8F7D...</div>
         <div id="claw-backup-list-content" style="display: none;"></div>
@@ -1332,7 +1199,6 @@ ${block}` : block;
     </div>
   `;
   }
-  var activePollTimer = null;
   async function initImportPanel(bodyElement) {
     if (!bodyElement) return;
     const dropzone = bodyElement.querySelector("#claw-resource-dropzone");
@@ -1344,7 +1210,6 @@ ${block}` : block;
     const pathEl = bodyElement.querySelector("#claw-remote-path");
     const backBtnContainer = bodyElement.querySelector("#claw-remote-back-btn");
     const backBtn = bodyElement.querySelector("#claw-remote-back");
-    const mkdirBtn = bodyElement.querySelector("#claw-remote-mkdir");
     if (!dropzone || !fileInput) return;
     let currentDirUri = getRootDirUri();
     function formatSize2(bytes) {
@@ -1359,8 +1224,30 @@ ${block}` : block;
       if (isNaN(d.getTime())) return "-";
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     }
-    async function loadRemoteFileList(dirUri = currentDirUri) {
+    function isDirectory2(entry) {
+      var _a2, _b2;
+      if (entry.kind) return entry.kind === "directory";
+      return entry.isDir || entry.is_dir || ((_a2 = entry.stat) == null ? void 0 : _a2.isDir) || ((_b2 = entry.stat) == null ? void 0 : _b2.is_dir) || false;
+    }
+    function isFile(entry) {
+      if (entry.kind) return entry.kind === "file";
+      return !isDirectory2(entry);
+    }
+    function getEntryName2(entry) {
       var _a2;
+      return entry.name || ((_a2 = entry.uri) == null ? void 0 : _a2.split("/").pop()) || "\u672A\u547D\u540D";
+    }
+    function getEntryUpdatedAt3(entry) {
+      return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
+    }
+    function getEntrySize2(entry) {
+      var _a2;
+      return entry.size ?? ((_a2 = entry.stat) == null ? void 0 : _a2.size);
+    }
+    function isRootDir(uri) {
+      return normalizeUri(uri) === getRootDirUri();
+    }
+    async function loadRemoteFileList(dirUri = currentDirUri) {
       if (!backupLoadingEl || !backupContentEl) return;
       backupLoadingEl.style.display = "block";
       backupContentEl.style.display = "none";
@@ -1370,20 +1257,10 @@ ${block}` : block;
         backBtnContainer.style.display = dirUri === getRootDirUri() ? "none" : "flex";
       }
       try {
-        const client2 = createClient(await getOpenVikingConfig());
-        try {
-          await client2.fsMkdir(dirUri, "EchoMem directory");
-        } catch (mkdirErr) {
-          if (!((_a2 = mkdirErr.message) == null ? void 0 : _a2.toLowerCase().includes("exist"))) {
-            console.warn("EchoMem: mkdir warning", mkdirErr.message);
-          }
-        }
+        const client2 = createClient(await getEchoMemConfig());
         const lsResult = await client2.fsLs(dirUri, { output: "agent", absLimit: 128, showAllHidden: true });
         let entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
-        entries = entries.filter((e2) => {
-          var _a3;
-          return (e2.name || ((_a3 = e2.uri) == null ? void 0 : _a3.split("/").pop()) || "") !== ".DS_Store";
-        });
+        entries = entries.filter((e2) => getEntryName2(e2) !== ".DS_Store");
         if (entries.length === 0) {
           backupLoadingEl.style.display = "none";
           backupContentEl.style.display = "block";
@@ -1395,41 +1272,35 @@ ${block}` : block;
         `;
           return;
         }
-        const enrichedEntries = await Promise.all(
-          entries.map(async (entry) => {
-            try {
-              const stat = await client2.fsStat(entry.uri);
-              return { ...entry, stat };
-            } catch {
-              return { ...entry, stat: null };
-            }
-          })
-        );
-        const dirs = enrichedEntries.filter((e2) => {
-          var _a3;
-          return e2.isDir || ((_a3 = e2.stat) == null ? void 0 : _a3.isDir);
-        });
-        const files = enrichedEntries.filter((e2) => {
-          var _a3;
-          return !(e2.isDir || ((_a3 = e2.stat) == null ? void 0 : _a3.isDir));
-        });
+        const dirs = entries.filter((e2) => isDirectory2(e2));
+        const files = entries.filter((e2) => isFile(e2));
         const sortByModTime = (a, b) => {
-          var _a3, _b2;
-          const ta = ((_a3 = a.stat) == null ? void 0 : _a3.modTime) ? new Date(a.stat.modTime).getTime() : 0;
-          const tb = ((_b2 = b.stat) == null ? void 0 : _b2.modTime) ? new Date(b.stat.modTime).getTime() : 0;
+          const ta = getEntryUpdatedAt3(a) ? new Date(getEntryUpdatedAt3(a)).getTime() : 0;
+          const tb = getEntryUpdatedAt3(b) ? new Date(getEntryUpdatedAt3(b)).getTime() : 0;
           return tb - ta;
         };
         dirs.sort(sortByModTime);
         files.sort(sortByModTime);
         const allEntries = [...dirs, ...files];
         const itemsHtml = allEntries.map((entry) => {
-          var _a3, _b2, _c2, _d2;
-          const name = entry.name || ((_a3 = entry.uri) == null ? void 0 : _a3.split("/").pop()) || "\u672A\u547D\u540D";
-          const isDir = entry.isDir || ((_b2 = entry.stat) == null ? void 0 : _b2.isDir);
+          const name = getEntryName2(entry);
+          const isDir = isDirectory2(entry);
           const icon = isDir ? "\u{1F4C1}" : "\u{1F4C4}";
-          const size = isDir ? "" : formatSize2((_c2 = entry.stat) == null ? void 0 : _c2.size);
-          const date = formatDate2((_d2 = entry.stat) == null ? void 0 : _d2.modTime);
+          const size = isDir ? "" : formatSize2(getEntrySize2(entry));
+          const date = formatDate2(getEntryUpdatedAt3(entry));
+          const atRoot = isRootDir(currentDirUri);
           if (isDir) {
+            const deleteBtn = atRoot ? `<button class="claw-remote-btn-delete" data-resource-id="${name}" style="
+                padding: 3px 8px;
+                background: #fef2f2;
+                color: #dc2626;
+                border: 1px solid #fecaca;
+                border-radius: 4px;
+                font-size: 11px;
+                cursor: pointer;
+                white-space: nowrap;
+                margin-left: 8px;
+              ">\u5220\u9664</button>` : "";
             return `
             <div class="claw-remote-folder" data-uri="${entry.uri}" style="
               padding: 8px 10px;
@@ -1446,6 +1317,7 @@ ${block}` : block;
               <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0369a1; font-weight: 500;"
                 >${name}</span>
               <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
+              ${deleteBtn}
             </div>
           `;
           }
@@ -1465,16 +1337,16 @@ ${block}` : block;
               title="${name}">${name}</span>
             <span style="color: #6b7280; white-space: nowrap; width: 60px; text-align: right;">${size}</span>
             <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
-            <button class="claw-remote-btn-delete" data-uri="${entry.uri}" style="
+            <button class="claw-remote-btn-view" data-uri="${entry.uri}" style="
               padding: 3px 8px;
-              background: #fef2f2;
-              color: #dc2626;
-              border: 1px solid #fecaca;
+              background: #eff6ff;
+              color: #2563eb;
+              border: 1px solid #bfdbfe;
               border-radius: 4px;
               font-size: 11px;
               cursor: pointer;
               white-space: nowrap;
-            ">\u5220\u9664</button>
+            ">\u67E5\u770B</button>
           </div>
         `;
         }).join("");
@@ -1486,28 +1358,100 @@ ${block}` : block;
         </div>
       `;
         backupContentEl.querySelectorAll(".claw-remote-folder").forEach((folder) => {
-          folder.addEventListener("click", () => {
+          folder.addEventListener("click", (e2) => {
+            if (e2.target.closest(".claw-remote-btn-delete")) return;
             const uri = folder.dataset.uri;
-            if (uri) loadRemoteFileList(uri + "/");
+            if (uri) loadRemoteFileList(normalizeUri(uri));
           });
         });
-        backupContentEl.querySelectorAll(".claw-remote-btn-delete").forEach((btn) => {
+        backupContentEl.querySelectorAll(".claw-remote-btn-view").forEach((btn) => {
           btn.addEventListener("click", async (e2) => {
             e2.stopPropagation();
             const uri = btn.dataset.uri;
             if (!uri) return;
-            if (!confirm(`\u786E\u5B9A\u5220\u9664\u6587\u4EF6\u300C${uri.split("/").pop()}\u300D\uFF1F`)) return;
-            btn.textContent = "\u5220\u9664\u4E2D...";
-            btn.disabled = true;
+            btn.textContent = "\u52A0\u8F7D\u4E2D...";
             try {
-              const client3 = createClient(await getOpenVikingConfig());
-              await client3.fsRm(uri, false);
-              await loadRemoteFileList();
+              const client3 = createClient(await getEchoMemConfig());
+              const result = await client3.fsRead(uri);
+              const text = typeof result === "string" ? result : (result == null ? void 0 : result.content) || JSON.stringify(result, null, 2);
+              const name = uri.split("/").pop() || uri;
+              const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+              openCenterOverlay(name, previewHtml, {
+                showBack: true,
+                onBack: () => closeOverlayPanel()
+              });
             } catch (err) {
-              alert(`\u5220\u9664\u5931\u8D25: ${err.message}`);
-              btn.textContent = "\u5220\u9664";
-              btn.disabled = false;
+              alert(`\u67E5\u770B\u5931\u8D25: ${err.message}`);
             }
+            btn.textContent = "\u67E5\u770B";
+          });
+        });
+        backupContentEl.querySelectorAll(".claw-remote-btn-delete").forEach((btn) => {
+          btn.addEventListener("click", (e2) => {
+            e2.stopPropagation();
+            const resourceId = btn.dataset.resourceId;
+            if (!resourceId) {
+              alert("\u65E0\u6CD5\u5220\u9664\uFF1A\u7F3A\u5C11\u8D44\u6E90 ID");
+              return;
+            }
+            const dialogHtml = `
+            <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="text-align: center;">
+                <p style="font-size: 24px; margin: 0; line-height: 1;">\u{1F5D1}\uFE0F</p>
+                <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u5220\u9664\u8D44\u6E90</p>
+                <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u786E\u5B9A\u5220\u9664\u8D44\u6E90\u300C<strong style="color: #111;">${resourceId}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
+              </div>
+              <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="claw-resource-del-cancel" style="
+                  padding: 8px 20px;
+                  background: #f3f4f6;
+                  color: #374151;
+                  border: 1px solid #d1d5db;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  cursor: pointer;
+                  font-weight: 500;
+                ">\u53D6\u6D88</button>
+                <button id="claw-resource-del-ok" style="
+                  padding: 8px 20px;
+                  background: #ef5350;
+                  color: white;
+                  border: none;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  cursor: pointer;
+                  font-weight: 500;
+                ">\u786E\u8BA4\u5220\u9664</button>
+              </div>
+            </div>
+          `;
+            openCenterOverlay("\u5220\u9664\u786E\u8BA4", dialogHtml, {
+              width: "360px",
+              maxWidth: "360px",
+              height: "240px",
+              maxHeight: "280px"
+            });
+            setTimeout(() => {
+              const cancelBtn = document.getElementById("claw-resource-del-cancel");
+              const okBtn = document.getElementById("claw-resource-del-ok");
+              cancelBtn == null ? void 0 : cancelBtn.addEventListener("click", () => {
+                closeOverlayPanel();
+              });
+              okBtn == null ? void 0 : okBtn.addEventListener("click", async () => {
+                closeOverlayPanel();
+                btn.textContent = "\u5220\u9664\u4E2D...";
+                btn.disabled = true;
+                try {
+                  const client3 = createClient(await getEchoMemConfig());
+                  await client3.deleteResource(resourceId);
+                  await loadRemoteFileList();
+                } catch (err) {
+                  alert(`\u5220\u9664\u5931\u8D25: ${err.message}`);
+                  btn.textContent = "\u5220\u9664";
+                  btn.disabled = false;
+                }
+              });
+            }, 50);
           });
         });
       } catch (err) {
@@ -1527,114 +1471,7 @@ ${block}` : block;
         if (parent) loadRemoteFileList(parent);
       });
     }
-    if (mkdirBtn) {
-      mkdirBtn.addEventListener("click", () => {
-        const dialogId = "claw-mkdir-dialog-" + Date.now();
-        const dialogHtml = `
-        <div id="${dialogId}" style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <label style="font-size: 13px; color: #374151; font-weight: 500;">\u6587\u4EF6\u5939\u540D\u79F0</label>
-            <input type="text" id="claw-mkdir-input" placeholder="\u8BF7\u8F93\u5165\u6587\u4EF6\u5939\u540D\u79F0" style="
-              padding: 10px 12px;
-              border: 1px solid #d1d5db;
-              border-radius: 6px;
-              font-size: 14px;
-              outline: none;
-              transition: border-color 0.2s;
-            " onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#d1d5db'">
-            <p id="claw-mkdir-error" style="font-size: 12px; color: #dc2626; margin: 0; display: none;"></p>
-          </div>
-          <div style="display: flex; gap: 10px; justify-content: flex-end;">
-            <button id="claw-mkdir-cancel" style="
-              padding: 8px 16px;
-              background: #f3f4f6;
-              color: #374151;
-              border: 1px solid #d1d5db;
-              border-radius: 6px;
-              font-size: 13px;
-              cursor: pointer;
-            ">\u53D6\u6D88</button>
-            <button id="claw-mkdir-confirm" style="
-              padding: 8px 16px;
-              background: #2563eb;
-              color: white;
-              border: none;
-              border-radius: 6px;
-              font-size: 13px;
-              cursor: pointer;
-              font-weight: 500;
-            ">\u786E\u5B9A</button>
-          </div>
-        </div>
-      `;
-        openCenterOverlay("\u65B0\u5EFA\u6587\u4EF6\u5939", dialogHtml, {
-          showBack: false,
-          width: "360px",
-          maxWidth: "360px",
-          height: "auto",
-          maxHeight: "240px"
-        });
-        setTimeout(() => {
-          const input = document.getElementById("claw-mkdir-input");
-          const confirmBtn = document.getElementById("claw-mkdir-confirm");
-          const cancelBtn = document.getElementById("claw-mkdir-cancel");
-          const errorEl = document.getElementById("claw-mkdir-error");
-          if (input) input.focus();
-          const doCreate = async () => {
-            var _a2;
-            const folderName = (_a2 = input == null ? void 0 : input.value) == null ? void 0 : _a2.trim();
-            if (!folderName) {
-              if (errorEl) {
-                errorEl.textContent = "\u8BF7\u8F93\u5165\u6587\u4EF6\u5939\u540D\u79F0";
-                errorEl.style.display = "block";
-              }
-              return;
-            }
-            if (folderName.includes("/") || folderName.includes("\\")) {
-              if (errorEl) {
-                errorEl.textContent = "\u6587\u4EF6\u5939\u540D\u79F0\u4E0D\u80FD\u5305\u542B\u659C\u6760";
-                errorEl.style.display = "block";
-              }
-              return;
-            }
-            if (errorEl) errorEl.style.display = "none";
-            if (confirmBtn) {
-              confirmBtn.textContent = "\u521B\u5EFA\u4E2D...";
-              confirmBtn.disabled = true;
-            }
-            try {
-              const client2 = createClient(await getOpenVikingConfig());
-              const targetUri = `${currentDirUri}${folderName}`;
-              await client2.fsMkdir(targetUri, "EchoMem folder");
-              closeOverlayPanel();
-              await loadRemoteFileList();
-            } catch (err) {
-              if (errorEl) {
-                errorEl.textContent = `\u521B\u5EFA\u5931\u8D25: ${err.message}`;
-                errorEl.style.display = "block";
-              }
-              if (confirmBtn) {
-                confirmBtn.textContent = "\u786E\u5B9A";
-                confirmBtn.disabled = false;
-              }
-            }
-          };
-          confirmBtn == null ? void 0 : confirmBtn.addEventListener("click", doCreate);
-          cancelBtn == null ? void 0 : cancelBtn.addEventListener("click", closeOverlayPanel);
-          input == null ? void 0 : input.addEventListener("keydown", (e2) => {
-            if (e2.key === "Enter") doCreate();
-            if (e2.key === "Escape") closeOverlayPanel();
-          });
-        }, 50);
-      });
-    }
     loadRemoteFileList();
-    function clearActivePoll() {
-      if (activePollTimer) {
-        clearTimeout(activePollTimer);
-        activePollTimer = null;
-      }
-    }
     function showStatus(msg, type = "info") {
       if (!statusEl) return;
       statusEl.style.display = "block";
@@ -1672,77 +1509,53 @@ ${block}` : block;
       }
       return err.message;
     }
-    async function pollResourceStatus(resourceUri, fileName, sharedClient = null, attempt = 0, maxAttempts = 120) {
-      if (attempt >= maxAttempts) {
-        showStatus(`\u23F3 \u300C${fileName}\u300D\u5DF2\u63D0\u4EA4\u540E\u53F0\u5904\u7406\uFF0C\u8BF7\u5230\u300C\u67E5\u770B\u8D44\u6E90\u300D\u9875\u9762\u67E5\u770B\u8FDB\u5EA6`, "info");
-        showResult(`
-        <div style="padding: 12px; background: #f0f7ff; border: 1px solid #c7d8f5; border-radius: 8px; font-size: 13px; color: #333;">
-          <p style="margin-bottom: 6px;">\u{1F4C4} <strong>${fileName}</strong></p>
-          <p style="color: #667eea; margin: 0;">\u6B63\u5728\u540E\u53F0\u5904\u7406\u4E2D\uFF0C\u8BF7\u7A0D\u540E\u5230\u300C\u67E5\u770B\u8D44\u6E90\u300D\u9875\u9762\u67E5\u770B\u7ED3\u679C</p>
-        </div>
-      `);
-        return;
-      }
-      try {
-        const client2 = sharedClient || createClient(await getOpenVikingConfig());
-        const abstract = await client2.contentAbstract(resourceUri);
-        const isNotReady = typeof abstract === "string" && abstract.includes("not ready");
-        console.log("[EchoMem] poll abstract", attempt, isNotReady, abstract == null ? void 0 : abstract.slice(0, 60));
-        if (!isNotReady) {
-          showStatus(`\u2705 \u300C${fileName}\u300D\u5904\u7406\u5B8C\u6210`, "success");
+    function isTextFile(file) {
+      var _a2;
+      if ((_a2 = file.type) == null ? void 0 : _a2.startsWith("text/")) return true;
+      const ext = file.name.split(".").pop().toLowerCase();
+      return ["md", "txt", "json", "csv"].includes(ext);
+    }
+    function readFileContent(file) {
+      return new Promise((resolve, reject) => {
+        if (isTextFile(file)) {
+          file.text().then((text) => resolve({
+            content: text,
+            contentType: file.type || "text/plain"
+          })).catch(reject);
           return;
         }
-        showStatus(`\u23F3 \u300C${fileName}\u300D\u6B63\u5728\u5904\u7406\u4E2D\uFF08\u7B2C ${attempt + 1} \u6B21\u68C0\u67E5\uFF09...`, "info");
-        activePollTimer = setTimeout(() => {
-          pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
-        }, 5e3);
-      } catch (err) {
-        console.warn("[EchoMem] poll failed", err);
-        const msg = err.message || "";
-        if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("API Key")) {
-          showStatus("\u274C \u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728\u300C\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key", "error");
-          showResult(`
-          <div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; color: #b91c1c;">
-            <p style="margin-bottom: 6px;">\u274C \u8BA4\u8BC1\u5931\u8D25</p>
-            <p style="margin: 0;">\u8F6E\u8BE2\u8FC7\u7A0B\u4E2D API Key \u9A8C\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5230 EchoMem \u4E3B\u9875\u7684\u300C\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5\u5E76\u91CD\u65B0\u4FDD\u5B58\u914D\u7F6E\u3002</p>
-          </div>
-        `);
-          return;
-        }
-        if (msg.includes("404") || msg.includes("not found") || msg.includes("Not Found")) {
-          showStatus(`\u23F3 \u300C${fileName}\u300D\u6B63\u5728\u5904\u7406\u4E2D\uFF08\u7B2C ${attempt + 1} \u6B21\u68C0\u67E5\uFF09...`, "info");
-          activePollTimer = setTimeout(() => {
-            pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
-          }, 5e3);
-          return;
-        }
-        activePollTimer = setTimeout(() => {
-          pollResourceStatus(resourceUri, fileName, sharedClient, attempt + 1, maxAttempts);
-        }, 5e3);
-      }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result;
+          const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+          resolve({
+            content: base64,
+            contentType: file.type || "application/octet-stream",
+            encoding: "base64"
+          });
+        };
+        reader.onerror = () => reject(new Error("\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25"));
+        reader.readAsDataURL(file);
+      });
     }
     async function doUpload(file) {
-      clearActivePoll();
       hideResult();
-      showStatus("\u6B63\u5728\u4E0A\u4F20...", "info");
+      showStatus("\u6B63\u5728\u8BFB\u53D6\u6587\u4EF6...", "info");
       try {
-        const config = await getOpenVikingConfig();
+        const { content, contentType, encoding } = await readFileContent(file);
+        const metadata = encoding ? { encoding, source: "EchoMem extension" } : { source: "EchoMem extension" };
+        showStatus("\u6B63\u5728\u4E0A\u4F20...", "info");
+        const config = await getEchoMemConfig();
         const client2 = createClient(config);
-        const uploadResult = await client2.tempUpload(file);
-        const tempFileId = uploadResult == null ? void 0 : uploadResult.temp_file_id;
-        if (!tempFileId) throw new Error("\u4E0A\u4F20\u5931\u8D25\uFF1A\u672A\u8FD4\u56DE\u4E34\u65F6\u6587\u4EF6 ID");
-        showStatus("\u6587\u4EF6\u5DF2\u4E0A\u4F20\uFF0C\u6B63\u5728\u63D0\u4EA4\u5904\u7406...", "info");
-        const addResult = await client2.addResource({
-          tempFileId,
-          parent: currentDirUri,
-          wait: false,
-          sourceName: file.name,
-          keepOriginal: true
+        const result = await client2.addResource({
+          content,
+          name: file.name,
+          contentType,
+          tags: [],
+          metadata
         });
-        const resourceUri = (addResult == null ? void 0 : addResult.root_uri) || `${currentDirUri}${file.name}`;
-        showStatus(`\u2705 \u300C${file.name}\u300D\u5DF2\u63D0\u4EA4\uFF0C\u5F00\u59CB\u8F6E\u8BE2\u5904\u7406\u72B6\u6001...`, "success");
+        showStatus(`\u2705 \u300C${file.name}\u300D\u4E0A\u4F20\u6210\u529F`, "success");
         await loadRemoteFileList();
-        pollResourceStatus(resourceUri, file.name);
       } catch (err) {
         showStatus(`\u274C \u4E0A\u4F20\u5931\u8D25: ${formatError(err)}`, "error");
       }
@@ -9557,7 +9370,7 @@ ${block}` : block;
       console[type](ECHARTS_PREFIX + str);
     }
   }
-  function log(str, onlyOnce) {
+  function log2(str, onlyOnce) {
     outputLog("log", str, onlyOnce);
   }
   function warn(str, onlyOnce) {
@@ -20808,7 +20621,7 @@ ${block}` : block;
           var pipeIndexStr = pipeIndex != null ? " === pipe index: " + pipeIndex : "";
           return ["=== dataset index: " + infoForPrint.datasetIndex + pipeIndexStr + " ===", "- transform result data:", makePrintable(extSource.data), "- transform result dimensions:", makePrintable(extSource.dimensions)].join("\n");
         }).join("\n");
-        log(printStrArr);
+        log2(printStrArr);
       }
     }
     return map(resultList, function(result, resultIndex) {
@@ -28450,9 +28263,9 @@ ${block}` : block;
   function getCoordSysInfoBySeries(seriesModel) {
     var coordSysName = seriesModel.get("coordinateSystem");
     var result = new CoordSysInfo(coordSysName);
-    var fetch2 = fetchers[coordSysName];
-    if (fetch2) {
-      fetch2(seriesModel, result, result.axisMap, result.categoryAxisMap);
+    var fetch = fetchers[coordSysName];
+    if (fetch) {
+      fetch(seriesModel, result, result.axisMap, result.categoryAxisMap);
       return result;
     }
   }
@@ -40941,7 +40754,7 @@ ${block}` : block;
   }
   async function fetchBackendUsageData() {
     var _a2;
-    const config = await getOpenVikingConfig();
+    const config = await getEchoMemConfig();
     const client2 = createClient(config);
     const result = await client2.fetchUsage();
     return ((_a2 = result.total) == null ? void 0 : _a2.total_tokens) ?? 0;
@@ -41072,7 +40885,15 @@ ${block}` : block;
   }
 
   // src/panels/skill-store/index.js
-  var SKILL_ROOT_URI = "viking://agent/skills";
+  var SKILL_ROOT_URI = "echo://skills";
+  function isDirectory(entry) {
+    var _a2, _b2;
+    if (entry.kind) return entry.kind === "directory";
+    return entry.isDir || entry.is_dir || ((_a2 = entry.stat) == null ? void 0 : _a2.isDir) || ((_b2 = entry.stat) == null ? void 0 : _b2.is_dir) || false;
+  }
+  function getEntryUpdatedAt(entry) {
+    return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
+  }
   function getSkillStoreHomeContent() {
     const sections = [
       { id: "history", title: "\u{1F4DC} \u6211\u7684 Skill", desc: "\u67E5\u770B\u548C\u7BA1\u7406\u4F60\u4F7F\u7528\u8FC7\u7684 Skill", color: "#667eea" },
@@ -41184,8 +41005,8 @@ ${block}` : block;
       >
         <p style="font-size: 32px; margin-bottom: 8px;">\u{1F4E4}</p>
         <p style="font-size: 14px; color: #333; font-weight: 500; margin-bottom: 4px;">\u70B9\u51FB\u6216\u62D6\u62FD\u4E0A\u4F20 Skill \u6587\u4EF6</p>
-        <p style="font-size: 12px; color: #888;">\u652F\u6301 .md / .txt\uFF08\u5185\u5BB9\u987B\u7B26\u5408 SKILL.md \u683C\u5F0F\uFF09/ .zip\uFF0C\u5355\u4E2A\u6587\u4EF6\u4E0D\u8D85\u8FC7 10MB</p>
-        <input type="file" id="claw-skill-file-input" accept=".md,.txt,.zip" style="display: none;" />
+        <p style="font-size: 12px; color: #888;">\u652F\u6301 .md / .txt\uFF08\u5185\u5BB9\u987B\u7B26\u5408 SKILL.md \u683C\u5F0F\uFF09\uFF0C\u5355\u4E2A\u6587\u4EF6\u4E0D\u8D85\u8FC7 10MB</p>
+        <input type="file" id="claw-skill-file-input" accept=".md,.txt" style="display: none;" />
       </div>
 
       <!-- \u72B6\u6001\u63D0\u793A -->
@@ -41195,8 +41016,9 @@ ${block}` : block;
       <div style="padding: 12px; background: #f8f9fa; border-radius: 8px;">
         <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 13px;">\u{1F4CB} \u4E0A\u4F20\u987B\u77E5</p>
         <ul style="font-size: 12px; color: #666; padding-left: 18px; line-height: 1.8; margin: 0;">
-          <li>SKILL.md \u5FC5\u987B\u4EE5 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">---</code> \u5F00\u5934\uFF0Cfrontmatter \u4E2D\u5FC5\u987B\u5305\u542B <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">name</code> \u5B57\u6BB5</li>
-          <li>zip \u6839\u76EE\u5F55\u4E0B\u5FC5\u987B\u76F4\u63A5\u5305\u542B SKILL.md\uFF0C\u4E0D\u80FD\u5957\u5728\u5B50\u6587\u4EF6\u5939\u91CC</li>
+          <li>SKILL.md \u5FC5\u987B\u4EE5 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">---</code> \u5F00\u5934</li>
+          <li>Skill \u540D\u79F0\u4F18\u5148\u53D6 frontmatter \u4E2D\u7684 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">name</code>\uFF1B\u672A\u586B\u5199\u65F6\u53D6\u6587\u4EF6\u540D\uFF08\u53BB\u6389 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">.md</code> / <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">.txt</code>\uFF09</li>
+          <li>Skill \u540D\u79F0\u4EC5\u652F\u6301\u5B57\u6BCD\u3001\u6570\u5B57\u3001\u4E0B\u5212\u7EBF\u3001\u77ED\u6A2A\u7EBF\uFF08\u6B63\u5219 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">^[w-]+$</code>\uFF09</li>
           <li>\u5982\u5B58\u5728\u540C\u540D Skill\uFF0C\u5C06\u76F4\u63A5\u8986\u76D6</li>
           <li>\u524D\u7AEF\u6821\u9A8C\u4EC5\u4F9B\u53C2\u8003\uFF0C\u6700\u7EC8\u683C\u5F0F\u4EE5\u670D\u52A1\u7AEF\u89E3\u6790\u4E3A\u51C6</li>
           <li>\u4E0A\u4F20\u6210\u529F\u540E\u53EF\u5728\u300C\u6211\u7684 Skill\u300D\u4E2D\u67E5\u770B</li>
@@ -41238,6 +41060,16 @@ ${block}` : block;
       }
       return err.message;
     }
+    function normalizeSkillName(name, fileName) {
+      let raw = "";
+      if (typeof name === "string" && name.trim()) {
+        raw = name.trim();
+      } else {
+        raw = fileName.replace(/\.(md|txt)$/i, "");
+      }
+      raw = raw.replace(/\.(md|txt)$/i, "").trim();
+      return raw;
+    }
     async function validateFile(file) {
       const MAX_SIZE = 10 * 1024 * 1024;
       if (file.size > MAX_SIZE) {
@@ -41250,26 +41082,31 @@ ${block}` : block;
           throw new Error("SKILL.md \u5FC5\u987B\u4EE5 --- \u5F00\u5934");
         }
         const { frontmatter } = parseSkillMd(text);
-        if (!frontmatter.name) {
+        const skillName = normalizeSkillName(frontmatter.name, file.name);
+        if (!skillName) {
           throw new Error("frontmatter \u4E2D\u5FC5\u987B\u5305\u542B name \u5B57\u6BB5");
         }
       }
       return true;
     }
-    async function executeUpload(file, skillName) {
+    async function executeUpload(file, skillName, skillText) {
       showStatus("\u6B63\u5728\u4E0A\u4F20...", "info");
       try {
-        const config = await getOpenVikingConfig();
+        const config = await getEchoMemConfig();
         const client2 = createClient(config);
-        const uploadResult = await client2.tempUpload(file);
-        const tempFileId = uploadResult == null ? void 0 : uploadResult.temp_file_id;
-        if (!tempFileId) throw new Error("\u4E0A\u4F20\u5931\u8D25\uFF1A\u672A\u8FD4\u56DE\u4E34\u65F6\u6587\u4EF6 ID");
-        showStatus("\u6587\u4EF6\u5DF2\u4E0A\u4F20\uFF0C\u6B63\u5728\u521B\u5EFA Skill...", "info");
+        const { frontmatter } = parseSkillMd(skillText);
+        const description = frontmatter.description || "";
+        const tags = frontmatter.tags || [];
+        const allowedTools = frontmatter.allowed_tools || [];
+        const finalName = normalizeSkillName(frontmatter.name, file.name);
         const skillResult = await client2.addSkill({
-          tempFileId,
-          wait: false
+          data: skillText,
+          name: finalName || skillName,
+          description,
+          tags,
+          allowedTools
         });
-        showStatus(`\u2705 Skill\u300C${skillResult.name || skillName}\u300D\u4E0A\u4F20\u6210\u529F`, "success");
+        showStatus(`\u2705 Skill\u300C${skillResult.name || finalName || skillName}\u300D\u4E0A\u4F20\u6210\u529F`, "success");
       } catch (err) {
         showStatus(`\u274C \u4E0A\u4F20\u5931\u8D25: ${formatError(err)}`, "error");
       }
@@ -41283,16 +41120,24 @@ ${block}` : block;
         return;
       }
       const ext = file.name.split(".").pop().toLowerCase();
-      let skillName = file.name;
+      let skillName = "";
+      let skillText = "";
       if (ext === "md" || ext === "txt") {
         try {
-          const text = await file.text();
-          const { frontmatter } = parseSkillMd(text);
-          skillName = frontmatter.name || file.name;
+          skillText = await file.text();
+          const { frontmatter } = parseSkillMd(skillText);
+          skillName = normalizeSkillName(frontmatter.name, file.name);
         } catch {
         }
+      } else {
+        showStatus("\u274C \u5F53\u524D\u7248\u672C\u4EC5\u652F\u6301 .md / .txt \u683C\u5F0F Skill", "error");
+        return;
       }
-      const safeName = skillName.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      if (!skillText) {
+        showStatus("\u274C \u65E0\u6CD5\u8BFB\u53D6 Skill \u5185\u5BB9", "error");
+        return;
+      }
+      const safeName = skillName.replace(/\u0026/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
       const dialogId = "claw-skill-confirm-" + Date.now();
       const dialogHtml = `
       <div id="${dialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
@@ -41340,7 +41185,7 @@ ${block}` : block;
         });
         okBtn == null ? void 0 : okBtn.addEventListener("click", () => {
           closeOverlayPanel();
-          executeUpload(file, skillName);
+          executeUpload(file, skillName, skillText);
         });
       }, 50);
     }
@@ -41438,7 +41283,7 @@ ${block}` : block;
         const author = skill.author || "";
         const metaParts = [version3, author, formatDate2(skill.modifiedAt)].filter(Boolean);
         const meta = metaParts.join(" \xB7 ") || "-";
-        const deleteBtnHtml = options.showDelete ? `<button class="claw-skill-btn-delete" data-uri="${skill.uri}" data-name="${skill.name}" style="
+        const deleteBtnHtml = options.showDelete ? `<button class="claw-skill-btn-delete" data-name="${skill.name}" style="
             padding: 4px 10px;
             background: #fef2f2;
             color: #dc2626;
@@ -41501,13 +41346,11 @@ ${block}` : block;
         contentEl.querySelectorAll(".claw-skill-btn-delete").forEach((btn) => {
           btn.addEventListener("click", async (e2) => {
             e2.stopPropagation();
-            const uri = btn.dataset.uri;
             const name = btn.dataset.name;
-            if (!uri) return;
-            const safeDelName = (name || uri).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-            const delDialogId = "claw-skill-del-confirm-" + Date.now();
+            if (!name) return;
+            const safeDelName = name.replace(/\u0026/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
             const delDialogHtml = `
-            <div id="${delDialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
               <div style="text-align: center;">
                 <p style="font-size: 24px; margin: 0; line-height: 1;">\u{1F5D1}\uFE0F</p>
                 <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u5220\u9664 Skill</p>
@@ -41554,9 +41397,9 @@ ${block}` : block;
                 btn.textContent = "\u5220\u9664\u4E2D...";
                 btn.disabled = true;
                 try {
-                  const config = await getOpenVikingConfig();
+                  const config = await getEchoMemConfig();
                   const client2 = createClient(config);
-                  await client2.fsRm(uri, true);
+                  await client2.deleteSkill(name);
                   showToast(`\u2705 Skill\u300C${name || "\u672A\u547D\u540D"}\u300D\u5DF2\u5220\u9664`, "success");
                   skillCache = null;
                   await loadSkills();
@@ -41571,13 +41414,39 @@ ${block}` : block;
           });
         });
       }
+      contentEl.querySelectorAll(".claw-skill-btn-view-full").forEach((btn) => {
+        btn.addEventListener("click", (e2) => {
+          e2.stopPropagation();
+          const name = btn.dataset.name;
+          const skill = allSkills.find((s) => s.name === name);
+          if (!skill) return;
+          const text = skill.fullContent || skill.rawContent || "\u65E0\u5185\u5BB9";
+          const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+          openCenterOverlay(skill.name, previewHtml, {
+            showBack: true,
+            onBack: () => closeOverlayPanel()
+          });
+        });
+      });
     }
     function renderDetail(skill) {
-      const descHtml = skill.description ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">${skill.description.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : "";
-      const bodyPreview = skill.rawContent ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; max-height: 200px; overflow-y: auto; padding: 8px; background: #f3f4f6; border-radius: 6px; white-space: pre-wrap; word-break: break-word;">${skill.rawContent.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : "";
+      const descHtml = skill.description ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">${skill.description.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : `<div style="font-size: 12px; color: #9ca3af; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #f3f4f6; border-radius: 6px;">\u6682\u65E0\u63CF\u8FF0</div>`;
+      const previewText = skill.rawContent || skill.fullContent || "";
+      const bodyPreview = previewText ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; max-height: 200px; overflow-y: auto; padding: 8px; background: #f3f4f6; border-radius: 6px; white-space: pre-wrap; word-break: break-word;">${previewText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : `<div style="font-size: 12px; color: #9ca3af; padding: 8px; background: #f3f4f6; border-radius: 6px;">\u6682\u65E0\u6B63\u6587</div>`;
       return `
       ${descHtml}
       ${bodyPreview}
+      <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+        <button class="claw-skill-btn-view-full" data-name="${skill.name}" style="
+          padding: 5px 10px;
+          background: #eff6ff;
+          color: #2563eb;
+          border: 1px solid #bfdbfe;
+          border-radius: 5px;
+          font-size: 12px;
+          cursor: pointer;
+        ">\u67E5\u770B\u5B8C\u6574\u5185\u5BB9</button>
+      </div>
       <div style="margin-top: 8px;">
         <span style="font-size: 11px; color: #9ca3af; font-family: monospace; word-break: break-all;">${skill.uri}</span>
       </div>
@@ -41595,7 +41464,6 @@ ${block}` : block;
       renderSkills(filteredSkills);
     }
     async function loadSkills() {
-      var _a2;
       if (skillCache) {
         allSkills = skillCache;
         filteredSkills = allSkills;
@@ -41607,15 +41475,8 @@ ${block}` : block;
       loadingEl.style.display = "block";
       contentEl.style.display = "none";
       try {
-        const config = await getOpenVikingConfig();
+        const config = await getEchoMemConfig();
         const client2 = createClient(config);
-        try {
-          await client2.fsMkdir(SKILL_ROOT_URI, "Agent skills");
-        } catch (mkdirErr) {
-          if (!((_a2 = mkdirErr.message) == null ? void 0 : _a2.toLowerCase().includes("exist"))) {
-            console.warn("EchoMem: mkdir warning", mkdirErr.message);
-          }
-        }
         const lsResult = await client2.fsLs(SKILL_ROOT_URI, {
           output: "agent",
           absLimit: 128,
@@ -41623,10 +41484,7 @@ ${block}` : block;
         });
         console.log("[EchoMem:skill] fsLs result:", lsResult);
         let entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
-        entries = entries.filter((e2) => {
-          var _a3;
-          return e2.isDir || ((_a3 = e2.stat) == null ? void 0 : _a3.isDir);
-        });
+        entries = entries.filter((e2) => isDirectory(e2));
         console.log("[EchoMem:skill] filtered entries:", entries);
         if (entries.length === 0) {
           allSkills = [];
@@ -41643,18 +41501,21 @@ ${block}` : block;
               const baseUri = entry.uri.replace(/\/$/, "");
               const skillUri = `${baseUri}/SKILL.md`;
               console.log("[EchoMem:skill] reading:", skillUri, "dirName:", dirName);
-              const readResult = await client2.contentRead(skillUri);
+              const readResult = await client2.fsRead(skillUri);
               console.log("[EchoMem:skill] readResult type:", typeof readResult, "preview:", String(readResult).slice(0, 60));
               const content = typeof readResult === "string" ? readResult : (readResult == null ? void 0 : readResult.content) || "";
               const { frontmatter, body } = parseSkillMd(content);
               console.log("[EchoMem:skill] parsed frontmatter:", JSON.stringify(frontmatter));
               return {
-                name: dirName,
+                name: frontmatter.name || dirName,
                 dirName,
-                description: entry.abstract || "",
+                description: frontmatter.description || entry.abstract || "",
                 uri: baseUri,
-                rawContent: content.slice(0, 1e3),
-                modifiedAt: entry.modTime || entry.mtime || entry.modifiedAt
+                rawContent: body.slice(0, 1e3),
+                fullContent: content,
+                modifiedAt: getEntryUpdatedAt(entry) || entry.mtime || entry.modifiedAt,
+                version: frontmatter.version,
+                author: frontmatter.author
               };
             } catch (err) {
               console.warn(`Failed to read skill ${dirName}:`, err);
@@ -41860,7 +41721,7 @@ ${block}` : block;
     `;
     }).join("");
     const configCard = `
-    <div class="claw-config-section" data-config="openviking" style="${CARD_STYLE} margin-top: 8px;" ${buildHoverEvents(configStyle)}>
+    <div class="claw-config-section" data-config="echomem" style="${CARD_STYLE} margin-top: 8px;" ${buildHoverEvents(configStyle)}>
       ${buildCardBody("\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E", "\u914D\u7F6E\u540E\u7AEF\u5730\u5740\u3001API Key \u548C\u8BA4\u8BC1\u4FE1\u606F", configStyle)}
     </div>
   `;
@@ -41924,20 +41785,31 @@ ${block}` : block;
   }
 
   // src/panels/resource/manage.js
-  function getPlatformKey() {
-    const platform2 = getCurrentPlatform();
-    return (platform2 == null ? void 0 : platform2.key) || "unknown";
-  }
-  function getCurrentMonthDir() {
-    const now = /* @__PURE__ */ new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    return `${year}-${month}`;
-  }
   function getResourceDirUri() {
-    const platform2 = getPlatformKey();
-    const month = getCurrentMonthDir();
-    return `viking://resources/${platform2}/${month}`;
+    return "echo://resources";
+  }
+  function formatSize(bytes) {
+    if (!bytes || bytes < 0) return "-";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  function formatDate(ts) {
+    if (!ts) return "-";
+    const d = typeof ts === "string" ? new Date(ts) : new Date(ts * 1e3);
+    if (isNaN(d.getTime())) return "-";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  function getResourceIdFromUri(uri) {
+    if (!uri) return "";
+    return uri.replace(/\/$/, "").split("/").pop() || "";
+  }
+  function getEntryUpdatedAt2(entry) {
+    return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
+  }
+  function getEntrySize(entry) {
+    var _a2;
+    return entry.size ?? ((_a2 = entry.stat) == null ? void 0 : _a2.size);
   }
   function getResourceManageContent() {
     return `
@@ -41967,20 +41839,7 @@ ${block}` : block;
     </div>
   `;
   }
-  function formatSize(bytes) {
-    if (!bytes || bytes < 0) return "-";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-  function formatDate(ts) {
-    if (!ts) return "-";
-    const d = typeof ts === "string" ? new Date(ts) : new Date(ts * 1e3);
-    if (isNaN(d.getTime())) return "-";
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }
   async function initManagePanel(bodyElement) {
-    var _a2;
     if (!bodyElement) return;
     const loadingEl = bodyElement.querySelector("#claw-resource-list-loading");
     const contentEl = bodyElement.querySelector("#claw-resource-list-content");
@@ -42030,16 +41889,9 @@ ${block}` : block;
       }, 4e3);
     }
     try {
-      const config = await getOpenVikingConfig();
+      const config = await getEchoMemConfig();
       const client2 = createClient(config);
       const dirUri = getResourceDirUri();
-      try {
-        await client2.fsMkdir(dirUri, `Resources for ${getPlatformKey()}`);
-      } catch (mkdirErr) {
-        if (!((_a2 = mkdirErr.message) == null ? void 0 : _a2.toLowerCase().includes("exist"))) {
-          console.warn("EchoMem: mkdir warning", mkdirErr.message);
-        }
-      }
       const lsResult = await client2.fsLs(dirUri, { output: "agent", absLimit: 128 });
       console.log("[EchoMem:manage] lsResult type:", typeof lsResult, "isArray:", Array.isArray(lsResult), "raw:", lsResult);
       const entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
@@ -42057,33 +41909,21 @@ ${block}` : block;
       `;
         return;
       }
-      const enrichedEntries = await Promise.all(
-        entries.map(async (entry) => {
-          try {
-            const stat = await client2.fsStat(entry.uri);
-            return { ...entry, stat };
-          } catch {
-            return { ...entry, stat: null };
-          }
-        })
-      );
-      enrichedEntries.sort((a, b) => {
-        var _a3, _b2;
-        const ta = ((_a3 = a.stat) == null ? void 0 : _a3.modTime) ? new Date(a.stat.modTime).getTime() : 0;
-        const tb = ((_b2 = b.stat) == null ? void 0 : _b2.modTime) ? new Date(b.stat.modTime).getTime() : 0;
+      entries.sort((a, b) => {
+        const ta = getEntryUpdatedAt2(a) ? new Date(getEntryUpdatedAt2(a)).getTime() : 0;
+        const tb = getEntryUpdatedAt2(b) ? new Date(getEntryUpdatedAt2(b)).getTime() : 0;
         return tb - ta;
       });
-      const itemsHtml = enrichedEntries.map((entry) => {
-        var _a3, _b2, _c2;
-        const name = entry.name || ((_a3 = entry.uri) == null ? void 0 : _a3.split("/").pop()) || "\u672A\u547D\u540D";
-        const size = formatSize((_b2 = entry.stat) == null ? void 0 : _b2.size);
-        const date = formatDate((_c2 = entry.stat) == null ? void 0 : _c2.modTime);
+      const itemsHtml = entries.map((entry) => {
+        var _a2;
+        const name = entry.name || ((_a2 = entry.uri) == null ? void 0 : _a2.split("/").pop()) || "\u672A\u547D\u540D";
+        const size = formatSize(getEntrySize(entry));
+        const date = formatDate(getEntryUpdatedAt2(entry));
         const abstractText = entry.abstract || "";
-        const isReady = abstractText && !abstractText.includes("not ready");
-        const statusText = isReady ? "\u2705 \u5DF2\u5904\u7406" : "\u23F3 \u5904\u7406\u4E2D";
-        const statusColor = isReady ? "#15803d" : "#d97706";
+        const resourceId = getResourceIdFromUri(entry.uri);
+        const contentUri = entry.uri ? `${entry.uri.replace(/\/$/, "")}/content` : "";
         return `
-        <div class="claw-resource-item" data-uri="${entry.uri}" style="
+        <div class="claw-resource-item" data-uri="${entry.uri}" data-resource-id="${resourceId}" style="
           padding: 12px;
           background: #f9fafb;
           border: 1px solid #e5e7eb;
@@ -42106,15 +41946,15 @@ ${block}` : block;
               border-radius: 999px;
               font-size: 11px;
               font-weight: 500;
-              background: ${statusColor}15;
-              color: ${statusColor};
+              background: #15803d15;
+              color: #15803d;
               white-space: nowrap;
               margin-left: 8px;
-            ">${statusText}</span>
+            ">\u5DF2\u5904\u7406</span>
           </div>
-          ${isReady ? `<p style="font-size: 12px; color: #4b5563; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${abstractText}</p>` : ""}
+          ${abstractText ? `<p style="font-size: 12px; color: #4b5563; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${abstractText}</p>` : ""}
           <div class="claw-resource-actions" style="display: flex; gap: 6px; margin-top: 4px;">
-            <button class="claw-resource-btn-view" data-uri="${entry.uri}" style="
+            <button class="claw-resource-btn-view" data-uri="${contentUri}" style="
               padding: 5px 10px;
               background: #eff6ff;
               color: #2563eb;
@@ -42123,7 +41963,7 @@ ${block}` : block;
               font-size: 12px;
               cursor: pointer;
             ">\u67E5\u770B\u5185\u5BB9</button>
-            <button class="claw-resource-btn-insert" data-uri="${entry.uri}" style="
+            <button class="claw-resource-btn-insert" data-uri="${contentUri}" style="
               padding: 5px 10px;
               background: #f0fdf4;
               color: #15803d;
@@ -42132,7 +41972,7 @@ ${block}` : block;
               font-size: 12px;
               cursor: pointer;
             ">\u63D2\u5165\u5BF9\u8BDD</button>
-            <button class="claw-resource-btn-delete" data-uri="${entry.uri}" style="
+            <button class="claw-resource-btn-delete" data-resource-id="${resourceId}" style="
               padding: 5px 10px;
               background: #fef2f2;
               color: #dc2626;
@@ -42143,27 +41983,6 @@ ${block}` : block;
               margin-left: auto;
             ">\u5220\u9664</button>
           </div>
-          <div class="claw-resource-confirm" style="display: none; gap: 6px; margin-top: 4px;">
-            <span style="font-size: 12px; color: #dc2626; margin-right: auto; align-self: center;">\u786E\u5B9A\u5220\u9664\u6B64\u8D44\u6E90\uFF1F</span>
-            <button class="claw-resource-btn-confirm-delete" data-uri="${entry.uri}" style="
-              padding: 5px 10px;
-              background: #dc2626;
-              color: #fff;
-              border: none;
-              border-radius: 5px;
-              font-size: 12px;
-              cursor: pointer;
-            ">\u786E\u8BA4\u5220\u9664</button>
-            <button class="claw-resource-btn-cancel" style="
-              padding: 5px 10px;
-              background: white;
-              color: #374151;
-              border: 1px solid #d1d5db;
-              border-radius: 5px;
-              font-size: 12px;
-              cursor: pointer;
-            ">\u53D6\u6D88</button>
-          </div>
         </div>
       `;
       }).join("");
@@ -42173,7 +41992,7 @@ ${block}` : block;
       contentEl.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <p style="font-size: 12px; color: #6b7280;">\u5F53\u524D\u76EE\u5F55: <span style="font-family: monospace;">${dirUri}</span></p>
-        <p style="font-size: 12px; color: #6b7280;">\u5171 ${enrichedEntries.length} \u4E2A\u8D44\u6E90</p>
+        <p style="font-size: 12px; color: #6b7280;">\u5171 ${entries.length} \u4E2A\u8D44\u6E90</p>
       </div>
       <div style="display: flex; flex-direction: column; gap: 8px;">
         ${itemsHtml}
@@ -42185,9 +42004,9 @@ ${block}` : block;
           if (!uri) return;
           btn.textContent = "\u52A0\u8F7D\u4E2D...";
           try {
-            const client3 = createClient(await getOpenVikingConfig());
-            const result = await client3.contentOverview(uri);
-            const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+            const client3 = createClient(await getEchoMemConfig());
+            const result = await client3.fsRead(uri);
+            const text = typeof result === "string" ? result : (result == null ? void 0 : result.content) || JSON.stringify(result, null, 2);
             const name = uri.split("/").pop() || uri;
             const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
             openCenterOverlay(name, previewHtml, {
@@ -42206,9 +42025,9 @@ ${block}` : block;
           if (!uri) return;
           btn.textContent = "\u63D2\u5165\u4E2D...";
           try {
-            const client3 = createClient(await getOpenVikingConfig());
-            const result = await client3.contentOverview(uri);
-            const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+            const client3 = createClient(await getEchoMemConfig());
+            const result = await client3.fsRead(uri);
+            const text = typeof result === "string" ? result : (result == null ? void 0 : result.content) || JSON.stringify(result, null, 2);
             injectContent(text, { replace: false });
           } catch (err) {
             alert(`\u274C \u63D2\u5165\u5931\u8D25: ${err.message}`);
@@ -42218,45 +42037,67 @@ ${block}` : block;
       });
       contentEl.querySelectorAll(".claw-resource-btn-delete").forEach((btn) => {
         btn.addEventListener("click", () => {
-          const item = btn.closest(".claw-resource-item");
-          if (!item) return;
-          const actions2 = item.querySelector(".claw-resource-actions");
-          const confirmBox = item.querySelector(".claw-resource-confirm");
-          if (actions2) actions2.style.display = "none";
-          if (confirmBox) confirmBox.style.display = "flex";
-        });
-      });
-      contentEl.querySelectorAll(".claw-resource-btn-confirm-delete").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const uri = btn.dataset.uri;
-          if (!uri) return;
-          const item = btn.closest(".claw-resource-item");
-          btn.textContent = "\u5220\u9664\u4E2D...";
-          try {
-            const client3 = createClient(await getOpenVikingConfig());
-            await client3.fsRm(uri, true);
-            showToast("\u2705 \u8D44\u6E90\u5DF2\u5220\u9664", "success");
-            await initManagePanel(bodyElement);
-          } catch (err) {
-            showToast(`\u274C \u5220\u9664\u5931\u8D25: ${err.message}`, "error");
-            btn.textContent = "\u786E\u8BA4\u5220\u9664";
-            if (item) {
-              const actions2 = item.querySelector(".claw-resource-actions");
-              const confirmBox = item.querySelector(".claw-resource-confirm");
-              if (actions2) actions2.style.display = "flex";
-              if (confirmBox) confirmBox.style.display = "none";
-            }
-          }
-        });
-      });
-      contentEl.querySelectorAll(".claw-resource-btn-cancel").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const item = btn.closest(".claw-resource-item");
-          if (!item) return;
-          const actions2 = item.querySelector(".claw-resource-actions");
-          const confirmBox = item.querySelector(".claw-resource-confirm");
-          if (actions2) actions2.style.display = "flex";
-          if (confirmBox) confirmBox.style.display = "none";
+          const resourceId = btn.dataset.resourceId;
+          if (!resourceId) return;
+          const dialogHtml = `
+          <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="text-align: center;">
+              <p style="font-size: 24px; margin: 0; line-height: 1;">\u{1F5D1}\uFE0F</p>
+              <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u5220\u9664\u8D44\u6E90</p>
+              <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u786E\u5B9A\u5220\u9664\u8D44\u6E90\u300C<strong style="color: #111;">${resourceId}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+              <button id="claw-resource-manage-del-cancel" style="
+                padding: 8px 20px;
+                background: #f3f4f6;
+                color: #374151;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                font-size: 13px;
+                cursor: pointer;
+                font-weight: 500;
+              ">\u53D6\u6D88</button>
+              <button id="claw-resource-manage-del-ok" style="
+                padding: 8px 20px;
+                background: #ef5350;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 13px;
+                cursor: pointer;
+                font-weight: 500;
+              ">\u786E\u8BA4\u5220\u9664</button>
+            </div>
+          </div>
+        `;
+          openCenterOverlay("\u5220\u9664\u786E\u8BA4", dialogHtml, {
+            width: "360px",
+            maxWidth: "360px",
+            height: "240px",
+            maxHeight: "280px"
+          });
+          setTimeout(() => {
+            const cancelBtn = document.getElementById("claw-resource-manage-del-cancel");
+            const okBtn = document.getElementById("claw-resource-manage-del-ok");
+            cancelBtn == null ? void 0 : cancelBtn.addEventListener("click", () => {
+              closeOverlayPanel();
+            });
+            okBtn == null ? void 0 : okBtn.addEventListener("click", async () => {
+              closeOverlayPanel();
+              btn.textContent = "\u5220\u9664\u4E2D...";
+              btn.disabled = true;
+              try {
+                const client3 = createClient(await getEchoMemConfig());
+                await client3.deleteResource(resourceId);
+                showToast("\u2705 \u8D44\u6E90\u5DF2\u5220\u9664", "success");
+                await initManagePanel(bodyElement);
+              } catch (err) {
+                showToast(`\u274C \u5220\u9664\u5931\u8D25: ${err.message}`, "error");
+                btn.textContent = "\u5220\u9664";
+                btn.disabled = false;
+              }
+            });
+          }, 50);
         });
       });
     } catch (err) {
@@ -42271,190 +42112,6 @@ ${block}` : block;
       </div>
     `;
     }
-  }
-
-  // src/services/echomem-client.js
-  var DEFAULT_CONFIG2 = {
-    baseUrl: "http://127.0.0.1:8010",
-    authKey: "",
-    timeoutMs: 5e3,
-    debug: true
-  };
-  function log2(prefix, ...args) {
-    console.log(`EchoMem client [${prefix}]`, ...args);
-  }
-  function fetchViaBackground(url, options = {}) {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage(
-        {
-          action: "echoMemRequest",
-          url,
-          method: options.method || "GET",
-          headers: options.headers,
-          body: options.body,
-          timeout: options.timeout
-        },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-            return;
-          }
-          if (!response || !response.success) {
-            reject(new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error")));
-            return;
-          }
-          resolve(response.data);
-        }
-      );
-    });
-  }
-  var EchoMemClient = class {
-    constructor(config = {}) {
-      this.cfg = { ...DEFAULT_CONFIG2, ...config };
-    }
-    _buildHeaders(contentType = false) {
-      const headers = {};
-      if (this.cfg.authKey) {
-        headers["X-Auth-Key"] = this.cfg.authKey;
-      }
-      if (contentType) {
-        headers["Content-Type"] = "application/json";
-      }
-      return headers;
-    }
-    async _fetchJson(url, options = {}) {
-      var _a2;
-      const data = await fetchViaBackground(url, {
-        ...options,
-        timeout: this.cfg.timeoutMs
-      });
-      if (data && data.status === "error") {
-        throw new Error(data.message || ((_a2 = data.error) == null ? void 0 : _a2.message) || "EchoMem error");
-      }
-      return data.result !== void 0 ? data.result : data;
-    }
-    async healthCheck() {
-      try {
-        const data = await fetchViaBackground(`${this.cfg.baseUrl}/health`, {
-          method: "GET",
-          timeout: this.cfg.timeoutMs
-        });
-        if (this.cfg.debug) {
-          log2("health", "ok", data);
-        }
-        return true;
-      } catch (err) {
-        if (this.cfg.debug) {
-          log2("health", "failed", err.message);
-        }
-        throw err;
-      }
-    }
-    async find(query, options = {}) {
-      const body = {
-        query,
-        agent_id: options.agentId,
-        limit: options.limit || 5,
-        include_explain: options.includeExplain || false
-      };
-      if (options.sessionId) body.session_id = options.sessionId;
-      if (this.cfg.debug) {
-        log2("find request", JSON.stringify(body));
-      }
-      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/retrieval/search`, {
-        method: "POST",
-        headers: this._buildHeaders(true),
-        body: JSON.stringify(body)
-      });
-      if (this.cfg.debug) {
-        const items = (result == null ? void 0 : result.items) || [];
-        log2(
-          "find response",
-          `items=${items.length}`,
-          items[0] ? JSON.stringify(items[0]) : "empty",
-          (result == null ? void 0 : result.explain) ? `explain=${JSON.stringify(result.explain)}` : "no explain"
-        );
-      }
-      return result;
-    }
-    async openSession(options = {}) {
-      var _a2;
-      const body = {
-        agent_id: options.agentId
-      };
-      if (options.sessionId) body.session_id = options.sessionId;
-      if (options.runId) body.run_id = options.runId;
-      if (options.metadata) body.metadata = options.metadata;
-      if (this.cfg.debug) {
-        log2("openSession request", JSON.stringify(body));
-      }
-      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/sessions/open`, {
-        method: "POST",
-        headers: this._buildHeaders(true),
-        body: JSON.stringify(body)
-      });
-      const normalized = {
-        ...result,
-        session_id: ((_a2 = result.scope) == null ? void 0 : _a2.session_id) || result.session_id || result.id
-      };
-      if (this.cfg.debug) {
-        log2("openSession response", `raw=${JSON.stringify(result)}`, `normalized session_id=${normalized.session_id}`);
-      }
-      return normalized;
-    }
-    async addMessage(sessionId, message) {
-      var _a2;
-      const body = {
-        role: message.role,
-        content: message.text
-      };
-      if (this.cfg.debug) {
-        log2("addMessage request", `session=${sessionId}`, JSON.stringify(body));
-      }
-      const result = await this._fetchJson(
-        `${this.cfg.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/messages`,
-        {
-          method: "POST",
-          headers: this._buildHeaders(true),
-          body: JSON.stringify(body)
-        }
-      );
-      if (this.cfg.debug) {
-        log2("addMessage response", `session=${sessionId}`, `message.id=${((_a2 = result == null ? void 0 : result.message) == null ? void 0 : _a2.id) || (result == null ? void 0 : result.id) || "unknown"}`);
-      }
-      return result;
-    }
-    async appendMessages(sessionId, messages) {
-      if (this.cfg.debug) {
-        log2("appendMessages", `session=${sessionId}`, `count=${messages.length}`);
-      }
-      const results = [];
-      for (const msg of messages) {
-        const result = await this.addMessage(sessionId, msg);
-        results.push(result);
-      }
-      return results;
-    }
-    async commitSession(sessionId) {
-      if (this.cfg.debug) {
-        log2("commitSession request", `session=${sessionId}`);
-      }
-      const result = await this._fetchJson(
-        `${this.cfg.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/commit`,
-        {
-          method: "POST",
-          headers: this._buildHeaders(true),
-          body: JSON.stringify({})
-        }
-      );
-      if (this.cfg.debug) {
-        log2("commitSession response", `session=${sessionId}`, `commit_id=${result == null ? void 0 : result.commit_id}`, `archive_id=${result == null ? void 0 : result.archive_id}`, `status=${result == null ? void 0 : result.status}`);
-      }
-      return result;
-    }
-  };
-  function createClient2(config) {
-    return new EchoMemClient(config);
   }
 
   // src/utils/text-processor.js
@@ -43498,7 +43155,7 @@ ${block}` : block;
   async function getClient() {
     if (!recorderState.emClient) {
       const config = await getEchoMemConfig();
-      recorderState.emClient = createClient2(config);
+      recorderState.emClient = createClient(config);
     }
     return recorderState.emClient;
   }
@@ -44328,7 +43985,7 @@ ${MEM_TAG_CLOSE2}`;
   async function getClient2() {
     if (!client) {
       const config = await getEchoMemConfig();
-      client = createClient2(config);
+      client = createClient(config);
     }
     return client;
   }
@@ -44508,7 +44165,7 @@ ${MEM_TAG_CLOSE2}`;
             authKey: ((_a2 = authKeyInput == null ? void 0 : authKeyInput.value) == null ? void 0 : _a2.trim()) || "",
             agentId: ((_b2 = agentIdInput == null ? void 0 : agentIdInput.value) == null ? void 0 : _b2.trim()) || ""
           };
-          const client2 = createClient2(config);
+          const client2 = createClient(config);
           const ok = await client2.healthCheck();
           if (ok) {
             showStatus("\u2705 \u8FDE\u63A5\u6210\u529F", "success");

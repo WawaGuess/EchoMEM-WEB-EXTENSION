@@ -209,6 +209,175 @@ class EchoMemClient {
 
     return result;
   }
+
+  // ── Resource Management ──
+
+  async addResource(options = {}) {
+    const body = {
+      content: options.content,
+      name: options.name,
+      content_type: options.contentType,
+      tags: options.tags,
+      metadata: options.metadata,
+    };
+    Object.keys(body).forEach((key) => {
+      if (body[key] === undefined) delete body[key];
+    });
+
+    if (this.cfg.debug) {
+      const preview = body.content
+        ? `${String(body.content).slice(0, 100)}...(${String(body.content).length} chars)`
+        : 'empty';
+      log('addResource request', JSON.stringify({ ...body, content: preview }));
+    }
+
+    const result = await this._fetchJson(`${this.cfg.baseUrl}/api/resources`, {
+      method: 'POST',
+      headers: this._buildHeaders(true),
+      body: JSON.stringify(body),
+    });
+
+    if (this.cfg.debug) {
+      log('addResource response', `resource_id=${result?.resource_id}`, `uri=${result?.uri}`);
+    }
+
+    return result;
+  }
+
+  async deleteResource(resourceId) {
+    if (!resourceId) throw new Error('resourceId is required');
+    const url = `${this.cfg.baseUrl}/api/resources/${encodeURIComponent(resourceId)}`;
+
+    if (this.cfg.debug) {
+      log('deleteResource request', resourceId);
+    }
+
+    const result = await this._fetchJson(url, {
+      method: 'DELETE',
+      headers: this._buildHeaders(false),
+    });
+
+    if (this.cfg.debug) {
+      log('deleteResource response', result);
+    }
+
+    return result;
+  }
+
+  // ── Skill Management ──
+
+  async addSkill(options = {}) {
+    const body = {
+      data: options.data,
+      name: options.name,
+      description: options.description,
+      tags: options.tags,
+      allowed_tools: options.allowedTools,
+    };
+    Object.keys(body).forEach((key) => {
+      if (body[key] === undefined) delete body[key];
+    });
+
+    if (this.cfg.debug) {
+      log('addSkill request', options.name, JSON.stringify({ ...body, data: undefined }));
+    }
+
+    const result = await this._fetchJson(`${this.cfg.baseUrl}/api/skills`, {
+      method: 'POST',
+      headers: this._buildHeaders(true),
+      body: JSON.stringify(body),
+    });
+
+    if (this.cfg.debug) {
+      log('addSkill response', `name=${result?.name}`, `uri=${result?.uri}`);
+    }
+
+    return result;
+  }
+
+  async deleteSkill(name) {
+    if (!name) throw new Error('name is required');
+    const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}`;
+
+    if (this.cfg.debug) {
+      log('deleteSkill request', name);
+    }
+
+    const result = await this._fetchJson(url, {
+      method: 'DELETE',
+      headers: this._buildHeaders(false),
+    });
+
+    if (this.cfg.debug) {
+      log('deleteSkill response', result);
+    }
+
+    return result;
+  }
+
+  // ── Filesystem ──
+
+  async fsLs(uri, options = {}) {
+    const params = new URLSearchParams({ uri });
+    if (options.simple) params.set('simple', 'true');
+    if (options.recursive) params.set('recursive', 'true');
+    if (options.output) params.set('output', options.output);
+    if (options.absLimit) params.set('abs_limit', String(options.absLimit));
+    if (options.showAllHidden) params.set('show_all_hidden', 'true');
+    if (options.nodeLimit) params.set('node_limit', String(options.nodeLimit));
+
+    if (this.cfg.debug) {
+      log('fsLs request', uri, JSON.stringify(options));
+    }
+
+    const result = await this._fetchJson(`${this.cfg.baseUrl}/fs/ls?${params.toString()}`, {
+      method: 'GET',
+      headers: this._buildHeaders(false),
+    });
+
+    if (this.cfg.debug) {
+      const entries = Array.isArray(result) ? result : (result?.entries || []);
+      log('fsLs response', `entries=${entries.length}`);
+    }
+
+    return result;
+  }
+
+  async fsRead(uri, options = {}) {
+    const params = new URLSearchParams({ uri });
+    if (options.offset !== undefined) params.set('offset', String(options.offset));
+    if (options.limit !== undefined) params.set('limit', String(options.limit));
+
+    if (this.cfg.debug) {
+      log('fsRead request', uri);
+    }
+
+    const result = await this._fetchJson(`${this.cfg.baseUrl}/fs/read?${params.toString()}`, {
+      method: 'GET',
+      headers: this._buildHeaders(false),
+    });
+
+    if (this.cfg.debug) {
+      const preview = typeof result === 'string'
+        ? `${result.slice(0, 80)}...`
+        : JSON.stringify(result).slice(0, 80);
+      log('fsRead response', preview);
+    }
+
+    // 后端返回 { text: '...' }，也可能直接返回字符串或 { content: '...' }
+    if (typeof result === 'string') return result;
+    return result?.content ?? result?.text ?? '';
+  }
+
+  // ── Usage / Token Statistics (stub for Phase 2) ──
+
+  async fetchUsage() {
+    if (this.cfg.debug) {
+      log('fetchUsage', 'stub');
+    }
+    // Phase 3 will implement the real EchoMem usage endpoint.
+    return { total: { total_tokens: 0 } };
+  }
 }
 
 export function createClient(config) {

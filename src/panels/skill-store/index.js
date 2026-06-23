@@ -1,12 +1,21 @@
 // 文档：docs/flows/skill-store/上传流程.md
 // Skill 管理面板内容 —— 真实数据驱动
 
-import { getOpenVikingConfig } from '../../services/config.js';
-import { createClient } from '../../services/openviking-client.js';
+import { getEchoMemConfig } from '../../services/config.js';
+import { createClient } from '../../services/echomem-client.js';
 import { parseSkillMd, getEntryName } from '../../utils/skill-parser.js';
 import { openCenterOverlay, closeOverlayPanel } from '../../core/panel-host.js';
 
-const SKILL_ROOT_URI = 'viking://agent/skills';
+const SKILL_ROOT_URI = 'echo://skills';
+
+function isDirectory(entry) {
+  if (entry.kind) return entry.kind === 'directory';
+  return entry.isDir || entry.is_dir || entry.stat?.isDir || entry.stat?.is_dir || false;
+}
+
+function getEntryUpdatedAt(entry) {
+  return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
+}
 
 // ═══════════════════════════════════════════════════════════
 //  HTML 生成
@@ -129,8 +138,8 @@ export function getSkillUploadContent() {
       >
         <p style="font-size: 32px; margin-bottom: 8px;">📤</p>
         <p style="font-size: 14px; color: #333; font-weight: 500; margin-bottom: 4px;">点击或拖拽上传 Skill 文件</p>
-        <p style="font-size: 12px; color: #888;">支持 .md / .txt（内容须符合 SKILL.md 格式）/ .zip，单个文件不超过 10MB</p>
-        <input type="file" id="claw-skill-file-input" accept=".md,.txt,.zip" style="display: none;" />
+        <p style="font-size: 12px; color: #888;">支持 .md / .txt（内容须符合 SKILL.md 格式），单个文件不超过 10MB</p>
+        <input type="file" id="claw-skill-file-input" accept=".md,.txt" style="display: none;" />
       </div>
 
       <!-- 状态提示 -->
@@ -140,8 +149,9 @@ export function getSkillUploadContent() {
       <div style="padding: 12px; background: #f8f9fa; border-radius: 8px;">
         <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 13px;">📋 上传须知</p>
         <ul style="font-size: 12px; color: #666; padding-left: 18px; line-height: 1.8; margin: 0;">
-          <li>SKILL.md 必须以 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">---</code> 开头，frontmatter 中必须包含 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">name</code> 字段</li>
-          <li>zip 根目录下必须直接包含 SKILL.md，不能套在子文件夹里</li>
+          <li>SKILL.md 必须以 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">---</code> 开头</li>
+          <li>Skill 名称优先取 frontmatter 中的 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">name</code>；未填写时取文件名（去掉 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">.md</code> / <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">.txt</code>）</li>
+          <li>Skill 名称仅支持字母、数字、下划线、短横线（正则 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">^[\w\-]+$</code>）</li>
           <li>如存在同名 Skill，将直接覆盖</li>
           <li>前端校验仅供参考，最终格式以服务端解析为准</li>
           <li>上传成功后可在「我的 Skill」中查看</li>
@@ -192,6 +202,17 @@ export async function initSkillUploadPanel(bodyElement) {
     return err.message;
   }
 
+  function normalizeSkillName(name, fileName) {
+    let raw = '';
+    if (typeof name === 'string' && name.trim()) {
+      raw = name.trim();
+    } else {
+      raw = fileName.replace(/\.(md|txt)$/i, '');
+    }
+    raw = raw.replace(/\.(md|txt)$/i, '').trim();
+    return raw;
+  }
+
   async function validateFile(file) {
     const MAX_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
@@ -205,7 +226,8 @@ export async function initSkillUploadPanel(bodyElement) {
         throw new Error('SKILL.md 必须以 --- 开头');
       }
       const { frontmatter } = parseSkillMd(text);
-      if (!frontmatter.name) {
+      const skillName = normalizeSkillName(frontmatter.name, file.name);
+      if (!skillName) {
         throw new Error('frontmatter 中必须包含 name 字段');
       }
     }
@@ -213,26 +235,28 @@ export async function initSkillUploadPanel(bodyElement) {
     return true;
   }
 
-  async function executeUpload(file, skillName) {
+  async function executeUpload(file, skillName, skillText) {
     showStatus('正在上传...', 'info');
 
     try {
-      const config = await getOpenVikingConfig();
+      const config = await getEchoMemConfig();
       const client = createClient(config);
 
-      // Step 1: temp upload
-      const uploadResult = await client.tempUpload(file);
-      const tempFileId = uploadResult?.temp_file_id;
-      if (!tempFileId) throw new Error('上传失败：未返回临时文件 ID');
+      const { frontmatter } = parseSkillMd(skillText);
+      const description = frontmatter.description || '';
+      const tags = frontmatter.tags || [];
+      const allowedTools = frontmatter.allowed_tools || [];
+      const finalName = normalizeSkillName(frontmatter.name, file.name);
 
-      // Step 2: add skill
-      showStatus('文件已上传，正在创建 Skill...', 'info');
       const skillResult = await client.addSkill({
-        tempFileId,
-        wait: false,
+        data: skillText,
+        name: finalName || skillName,
+        description,
+        tags,
+        allowedTools,
       });
 
-      showStatus(`✅ Skill「${skillResult.name || skillName}」上传成功`, 'success');
+      showStatus(`✅ Skill「${skillResult.name || finalName || skillName}」上传成功`, 'success');
     } catch (err) {
       showStatus(`❌ 上传失败: ${formatError(err)}`, 'error');
     }
@@ -248,19 +272,28 @@ export async function initSkillUploadPanel(bodyElement) {
       return;
     }
 
-    // 提取 skillName
+    // 提取 skillName 与文本内容
     const ext = file.name.split('.').pop().toLowerCase();
-    let skillName = file.name;
+    let skillName = '';
+    let skillText = '';
     if (ext === 'md' || ext === 'txt') {
       try {
-        const text = await file.text();
-        const { frontmatter } = parseSkillMd(text);
-        skillName = frontmatter.name || file.name;
+        skillText = await file.text();
+        const { frontmatter } = parseSkillMd(skillText);
+        skillName = normalizeSkillName(frontmatter.name, file.name);
       } catch { /* ignore */ }
+    } else {
+      showStatus('❌ 当前版本仅支持 .md / .txt 格式 Skill', 'error');
+      return;
+    }
+
+    if (!skillText) {
+      showStatus('❌ 无法读取 Skill 内容', 'error');
+      return;
     }
 
     // 使用居中浮层替代原生 confirm
-    const safeName = skillName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const safeName = skillName.replace(/\u0026/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const dialogId = 'claw-skill-confirm-' + Date.now();
     const dialogHtml = `
       <div id="${dialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
@@ -312,7 +345,7 @@ export async function initSkillUploadPanel(bodyElement) {
 
       okBtn?.addEventListener('click', () => {
         closeOverlayPanel();
-        executeUpload(file, skillName);
+        executeUpload(file, skillName, skillText);
       });
     }, 50);
   }
@@ -431,7 +464,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
       const meta = metaParts.join(' · ') || '-';
 
       const deleteBtnHtml = options.showDelete
-        ? `<button class="claw-skill-btn-delete" data-uri="${skill.uri}" data-name="${skill.name}" style="
+        ? `<button class="claw-skill-btn-delete" data-name="${skill.name}" style="
             padding: 4px 10px;
             background: #fef2f2;
             color: #dc2626;
@@ -506,14 +539,11 @@ async function initSkillListPanel(bodyElement, options = {}) {
       contentEl.querySelectorAll('.claw-skill-btn-delete').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          const uri = btn.dataset.uri;
           const name = btn.dataset.name;
-          if (!uri) return;
-          // 使用居中浮层替代原生 confirm
-          const safeDelName = (name || uri).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-          const delDialogId = 'claw-skill-del-confirm-' + Date.now();
+          if (!name) return;
+          const safeDelName = name.replace(/\u0026/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
           const delDialogHtml = `
-            <div id="${delDialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
               <div style="text-align: center;">
                 <p style="font-size: 24px; margin: 0; line-height: 1;">🗑️</p>
                 <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">确认删除 Skill</p>
@@ -564,9 +594,9 @@ async function initSkillListPanel(bodyElement, options = {}) {
               btn.textContent = '删除中...';
               btn.disabled = true;
               try {
-                const config = await getOpenVikingConfig();
+                const config = await getEchoMemConfig();
                 const client = createClient(config);
-                await client.fsRm(uri, true);
+                await client.deleteSkill(name);
                 showToast(`✅ Skill「${name || '未命名'}」已删除`, 'success');
                 skillCache = null;
                 await loadSkills();
@@ -581,20 +611,48 @@ async function initSkillListPanel(bodyElement, options = {}) {
         });
       });
     }
+
+    // Bind view full content buttons
+    contentEl.querySelectorAll('.claw-skill-btn-view-full').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const name = btn.dataset.name;
+        const skill = allSkills.find(s => s.name === name);
+        if (!skill) return;
+        const text = skill.fullContent || skill.rawContent || '无内容';
+        const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`;
+        openCenterOverlay(skill.name, previewHtml, {
+          showBack: true,
+          onBack: () => closeOverlayPanel()
+        });
+      });
+    });
   }
 
   function renderDetail(skill) {
     const descHtml = skill.description
       ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">${skill.description.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
-      : '';
+      : `<div style="font-size: 12px; color: #9ca3af; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #f3f4f6; border-radius: 6px;">暂无描述</div>`;
 
-    const bodyPreview = skill.rawContent
-      ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; max-height: 200px; overflow-y: auto; padding: 8px; background: #f3f4f6; border-radius: 6px; white-space: pre-wrap; word-break: break-word;">${skill.rawContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
-      : '';
+    const previewText = skill.rawContent || skill.fullContent || '';
+    const bodyPreview = previewText
+      ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; max-height: 200px; overflow-y: auto; padding: 8px; background: #f3f4f6; border-radius: 6px; white-space: pre-wrap; word-break: break-word;">${previewText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
+      : `<div style="font-size: 12px; color: #9ca3af; padding: 8px; background: #f3f4f6; border-radius: 6px;">暂无正文</div>`;
 
     return `
       ${descHtml}
       ${bodyPreview}
+      <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+        <button class="claw-skill-btn-view-full" data-name="${skill.name}" style="
+          padding: 5px 10px;
+          background: #eff6ff;
+          color: #2563eb;
+          border: 1px solid #bfdbfe;
+          border-radius: 5px;
+          font-size: 12px;
+          cursor: pointer;
+        ">查看完整内容</button>
+      </div>
       <div style="margin-top: 8px;">
         <span style="font-size: 11px; color: #9ca3af; font-family: monospace; word-break: break-all;">${skill.uri}</span>
       </div>
@@ -628,17 +686,8 @@ async function initSkillListPanel(bodyElement, options = {}) {
     contentEl.style.display = 'none';
 
     try {
-      const config = await getOpenVikingConfig();
+      const config = await getEchoMemConfig();
       const client = createClient(config);
-
-      // Ensure directory exists (ignore exists error)
-      try {
-        await client.fsMkdir(SKILL_ROOT_URI, 'Agent skills');
-      } catch (mkdirErr) {
-        if (!mkdirErr.message?.toLowerCase().includes('exist')) {
-          console.warn('EchoMem: mkdir warning', mkdirErr.message);
-        }
-      }
 
       const lsResult = await client.fsLs(SKILL_ROOT_URI, {
         output: 'agent',
@@ -648,7 +697,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
       console.log('[EchoMem:skill] fsLs result:', lsResult);
 
       let entries = Array.isArray(lsResult) ? lsResult : (lsResult?.entries || []);
-      entries = entries.filter(e => e.isDir || e.stat?.isDir);
+      entries = entries.filter(e => isDirectory(e));
       console.log('[EchoMem:skill] filtered entries:', entries);
 
       if (entries.length === 0) {
@@ -668,7 +717,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
             const baseUri = entry.uri.replace(/\/$/, '');
             const skillUri = `${baseUri}/SKILL.md`;
             console.log('[EchoMem:skill] reading:', skillUri, 'dirName:', dirName);
-            const readResult = await client.contentRead(skillUri);
+            const readResult = await client.fsRead(skillUri);
             console.log('[EchoMem:skill] readResult type:', typeof readResult, 'preview:', String(readResult).slice(0, 60));
             const content = typeof readResult === 'string'
               ? readResult
@@ -677,12 +726,15 @@ async function initSkillListPanel(bodyElement, options = {}) {
             console.log('[EchoMem:skill] parsed frontmatter:', JSON.stringify(frontmatter));
 
             return {
-              name: dirName,
+              name: frontmatter.name || dirName,
               dirName,
-              description: entry.abstract || '',
+              description: frontmatter.description || entry.abstract || '',
               uri: baseUri,
-              rawContent: content.slice(0, 1000),
-              modifiedAt: entry.modTime || entry.mtime || entry.modifiedAt,
+              rawContent: body.slice(0, 1000),
+              fullContent: content,
+              modifiedAt: getEntryUpdatedAt(entry) || entry.mtime || entry.modifiedAt,
+              version: frontmatter.version,
+              author: frontmatter.author,
             };
           } catch (err) {
             console.warn(`Failed to read skill ${dirName}:`, err);

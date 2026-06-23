@@ -9,8 +9,8 @@
  *   3. 面板关闭时调用返回的 destroy() 清理轮询定时器
  */
 
-import { getOpenVikingConfig } from '../../services/config.js';
-import { createClient } from '../../services/openviking-client.js';
+import { getEchoMemConfig } from '../../services/config.js';
+import { createClient } from '../../services/echomem-client.js';
 
 const FMT = (n) => n.toLocaleString('zh-CN');
 
@@ -134,10 +134,10 @@ export async function fetchPerformanceData() {
 }
 
 /**
- * 从 OpenViking（记忆后端引擎）获取后端 Token 消耗统计
+ * 从 EchoMem（记忆后端引擎）获取后端 Token 消耗统计
  */
 async function fetchBackendUsageData() {
-  const config = await getOpenVikingConfig();
+  const config = await getEchoMemConfig();
   const client = createClient(config);
   const result = await client.fetchUsage();
   return result.total?.total_tokens ?? 0;

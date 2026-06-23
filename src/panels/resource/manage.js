@@ -1,7 +1,7 @@
 // 资源管理列表页面
 
-import { getOpenVikingConfig } from '../../services/config.js';
-import { createClient } from '../../services/openviking-client.js';
+import { getEchoMemConfig } from '../../services/config.js';
+import { createClient } from '../../services/echomem-client.js';
 import { getCurrentPlatform } from '../../core/detection.js';
 import { injectContent } from '../../core/content-injector.js';
 import { openCenterOverlay, closeOverlayPanel } from '../../core/panel-host.js';
@@ -19,9 +19,35 @@ function getCurrentMonthDir() {
 }
 
 function getResourceDirUri() {
-  const platform = getPlatformKey();
-  const month = getCurrentMonthDir();
-  return `viking://resources/${platform}/${month}`;
+  return 'echo://resources';
+}
+
+function formatSize(bytes) {
+  if (!bytes || bytes < 0) return '-';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(ts) {
+  if (!ts) return '-';
+  // ISO 8601 string (e.g. "2026-05-18T11:08:51Z") or unix timestamp
+  const d = typeof ts === 'string' ? new Date(ts) : new Date(ts * 1000);
+  if (isNaN(d.getTime())) return '-';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getResourceIdFromUri(uri) {
+  if (!uri) return '';
+  return uri.replace(/\/$/, '').split('/').pop() || '';
+}
+
+function getEntryUpdatedAt(entry) {
+  return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
+}
+
+function getEntrySize(entry) {
+  return entry.size ?? entry.stat?.size;
 }
 
 export function getResourceManageContent() {
@@ -51,21 +77,6 @@ export function getResourceManageContent() {
       <div id="claw-resource-list-content" style="display: none;"></div>
     </div>
   `;
-}
-
-function formatSize(bytes) {
-  if (!bytes || bytes < 0) return '-';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDate(ts) {
-  if (!ts) return '-';
-  // ISO 8601 string (e.g. "2026-05-18T11:08:51Z") or unix timestamp
-  const d = typeof ts === 'string' ? new Date(ts) : new Date(ts * 1000);
-  if (isNaN(d.getTime())) return '-';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export async function initManagePanel(bodyElement) {
@@ -125,24 +136,13 @@ export async function initManagePanel(bodyElement) {
   }
 
   try {
-    const config = await getOpenVikingConfig();
+    const config = await getEchoMemConfig();
     const client = createClient(config);
     const dirUri = getResourceDirUri();
 
-    // Step 1: ensure directory exists
-    try {
-      await client.fsMkdir(dirUri, `Resources for ${getPlatformKey()}`);
-    } catch (mkdirErr) {
-      // ignore "already exists" or similar errors
-      if (!mkdirErr.message?.toLowerCase().includes('exist')) {
-        console.warn('EchoMem: mkdir warning', mkdirErr.message);
-      }
-    }
-
-    // Step 2: list directory
+    // List directory
     const lsResult = await client.fsLs(dirUri, { output: 'agent', absLimit: 128 });
     console.log('[EchoMem:manage] lsResult type:', typeof lsResult, 'isArray:', Array.isArray(lsResult), 'raw:', lsResult);
-    // BUG FIX: lsResult?.entries on array returns Array.prototype.entries method (truthy)
     const entries = Array.isArray(lsResult) ? lsResult : (lsResult?.entries || []);
     console.log('[EchoMem:manage] entries count:', entries.length, 'type:', typeof entries);
 
@@ -160,37 +160,24 @@ export async function initManagePanel(bodyElement) {
       return;
     }
 
-    // Step 3: stat each entry for richer info
-    const enrichedEntries = await Promise.all(
-      entries.map(async (entry) => {
-        try {
-          const stat = await client.fsStat(entry.uri);
-          return { ...entry, stat };
-        } catch {
-          return { ...entry, stat: null };
-        }
-      })
-    );
-
     // Sort by modTime descending (newest first)
-    enrichedEntries.sort((a, b) => {
-      const ta = a.stat?.modTime ? new Date(a.stat.modTime).getTime() : 0;
-      const tb = b.stat?.modTime ? new Date(b.stat.modTime).getTime() : 0;
+    entries.sort((a, b) => {
+      const ta = getEntryUpdatedAt(a) ? new Date(getEntryUpdatedAt(a)).getTime() : 0;
+      const tb = getEntryUpdatedAt(b) ? new Date(getEntryUpdatedAt(b)).getTime() : 0;
       return tb - ta;
     });
 
     // Render list
-    const itemsHtml = enrichedEntries.map((entry) => {
+    const itemsHtml = entries.map((entry) => {
       const name = entry.name || entry.uri?.split('/').pop() || '未命名';
-      const size = formatSize(entry.stat?.size);
-      const date = formatDate(entry.stat?.modTime);
+      const size = formatSize(getEntrySize(entry));
+      const date = formatDate(getEntryUpdatedAt(entry));
       const abstractText = entry.abstract || '';
-      const isReady = abstractText && !abstractText.includes('not ready');
-      const statusText = isReady ? '✅ 已处理' : '⏳ 处理中';
-      const statusColor = isReady ? '#15803d' : '#d97706';
+      const resourceId = getResourceIdFromUri(entry.uri);
+      const contentUri = entry.uri ? `${entry.uri.replace(/\/$/, '')}/content` : '';
 
       return `
-        <div class="claw-resource-item" data-uri="${entry.uri}" style="
+        <div class="claw-resource-item" data-uri="${entry.uri}" data-resource-id="${resourceId}" style="
           padding: 12px;
           background: #f9fafb;
           border: 1px solid #e5e7eb;
@@ -213,15 +200,15 @@ export async function initManagePanel(bodyElement) {
               border-radius: 999px;
               font-size: 11px;
               font-weight: 500;
-              background: ${statusColor}15;
-              color: ${statusColor};
+              background: #15803d15;
+              color: #15803d;
               white-space: nowrap;
               margin-left: 8px;
-            ">${statusText}</span>
+            ">已处理</span>
           </div>
-          ${isReady ? `<p style="font-size: 12px; color: #4b5563; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${abstractText}</p>` : ''}
+          ${abstractText ? `<p style="font-size: 12px; color: #4b5563; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${abstractText}</p>` : ''}
           <div class="claw-resource-actions" style="display: flex; gap: 6px; margin-top: 4px;">
-            <button class="claw-resource-btn-view" data-uri="${entry.uri}" style="
+            <button class="claw-resource-btn-view" data-uri="${contentUri}" style="
               padding: 5px 10px;
               background: #eff6ff;
               color: #2563eb;
@@ -230,7 +217,7 @@ export async function initManagePanel(bodyElement) {
               font-size: 12px;
               cursor: pointer;
             ">查看内容</button>
-            <button class="claw-resource-btn-insert" data-uri="${entry.uri}" style="
+            <button class="claw-resource-btn-insert" data-uri="${contentUri}" style="
               padding: 5px 10px;
               background: #f0fdf4;
               color: #15803d;
@@ -239,7 +226,7 @@ export async function initManagePanel(bodyElement) {
               font-size: 12px;
               cursor: pointer;
             ">插入对话</button>
-            <button class="claw-resource-btn-delete" data-uri="${entry.uri}" style="
+            <button class="claw-resource-btn-delete" data-resource-id="${resourceId}" style="
               padding: 5px 10px;
               background: #fef2f2;
               color: #dc2626;
@@ -249,27 +236,6 @@ export async function initManagePanel(bodyElement) {
               cursor: pointer;
               margin-left: auto;
             ">删除</button>
-          </div>
-          <div class="claw-resource-confirm" style="display: none; gap: 6px; margin-top: 4px;">
-            <span style="font-size: 12px; color: #dc2626; margin-right: auto; align-self: center;">确定删除此资源？</span>
-            <button class="claw-resource-btn-confirm-delete" data-uri="${entry.uri}" style="
-              padding: 5px 10px;
-              background: #dc2626;
-              color: #fff;
-              border: none;
-              border-radius: 5px;
-              font-size: 12px;
-              cursor: pointer;
-            ">确认删除</button>
-            <button class="claw-resource-btn-cancel" style="
-              padding: 5px 10px;
-              background: white;
-              color: #374151;
-              border: 1px solid #d1d5db;
-              border-radius: 5px;
-              font-size: 12px;
-              cursor: pointer;
-            ">取消</button>
           </div>
         </div>
       `;
@@ -281,7 +247,7 @@ export async function initManagePanel(bodyElement) {
     contentEl.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <p style="font-size: 12px; color: #6b7280;">当前目录: <span style="font-family: monospace;">${dirUri}</span></p>
-        <p style="font-size: 12px; color: #6b7280;">共 ${enrichedEntries.length} 个资源</p>
+        <p style="font-size: 12px; color: #6b7280;">共 ${entries.length} 个资源</p>
       </div>
       <div style="display: flex; flex-direction: column; gap: 8px;">
         ${itemsHtml}
@@ -295,9 +261,9 @@ export async function initManagePanel(bodyElement) {
         if (!uri) return;
         btn.textContent = '加载中...';
         try {
-          const client = createClient(await getOpenVikingConfig());
-          const result = await client.contentOverview(uri);
-          const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+          const client = createClient(await getEchoMemConfig());
+          const result = await client.fsRead(uri);
+          const text = typeof result === 'string' ? result : (result?.content || JSON.stringify(result, null, 2));
           const name = uri.split('/').pop() || uri;
           const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`;
           openCenterOverlay(name, previewHtml, {
@@ -317,9 +283,9 @@ export async function initManagePanel(bodyElement) {
         if (!uri) return;
         btn.textContent = '插入中...';
         try {
-          const client = createClient(await getOpenVikingConfig());
-          const result = await client.contentOverview(uri);
-          const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+          const client = createClient(await getEchoMemConfig());
+          const result = await client.fsRead(uri);
+          const text = typeof result === 'string' ? result : (result?.content || JSON.stringify(result, null, 2));
           injectContent(text, { replace: false });
         } catch (err) {
           alert(`❌ 插入失败: ${err.message}`);
@@ -328,53 +294,75 @@ export async function initManagePanel(bodyElement) {
       });
     });
 
-    // Delete button: switch to inline confirm mode
+    // Delete button: open overlay confirmation
     contentEl.querySelectorAll('.claw-resource-btn-delete').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const item = btn.closest('.claw-resource-item');
-        if (!item) return;
-        const actions = item.querySelector('.claw-resource-actions');
-        const confirmBox = item.querySelector('.claw-resource-confirm');
-        if (actions) actions.style.display = 'none';
-        if (confirmBox) confirmBox.style.display = 'flex';
-      });
-    });
+        const resourceId = btn.dataset.resourceId;
+        if (!resourceId) return;
 
-    // Confirm delete
-    contentEl.querySelectorAll('.claw-resource-btn-confirm-delete').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const uri = btn.dataset.uri;
-        if (!uri) return;
-        const item = btn.closest('.claw-resource-item');
-        btn.textContent = '删除中...';
-        try {
-          const client = createClient(await getOpenVikingConfig());
-          await client.fsRm(uri, true);
-          showToast('✅ 资源已删除', 'success');
-          // Refresh list
-          await initManagePanel(bodyElement);
-        } catch (err) {
-          showToast(`❌ 删除失败: ${err.message}`, 'error');
-          btn.textContent = '确认删除';
-          if (item) {
-            const actions = item.querySelector('.claw-resource-actions');
-            const confirmBox = item.querySelector('.claw-resource-confirm');
-            if (actions) actions.style.display = 'flex';
-            if (confirmBox) confirmBox.style.display = 'none';
-          }
-        }
-      });
-    });
+        const dialogHtml = `
+          <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="text-align: center;">
+              <p style="font-size: 24px; margin: 0; line-height: 1;">🗑️</p>
+              <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">确认删除资源</p>
+              <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">确定删除资源「<strong style="color: #111;">${resourceId}</strong>」？此操作不可恢复。</p>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+              <button id="claw-resource-manage-del-cancel" style="
+                padding: 8px 20px;
+                background: #f3f4f6;
+                color: #374151;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                font-size: 13px;
+                cursor: pointer;
+                font-weight: 500;
+              ">取消</button>
+              <button id="claw-resource-manage-del-ok" style="
+                padding: 8px 20px;
+                background: #ef5350;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 13px;
+                cursor: pointer;
+                font-weight: 500;
+              ">确认删除</button>
+            </div>
+          </div>
+        `;
 
-    // Cancel delete
-    contentEl.querySelectorAll('.claw-resource-btn-cancel').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const item = btn.closest('.claw-resource-item');
-        if (!item) return;
-        const actions = item.querySelector('.claw-resource-actions');
-        const confirmBox = item.querySelector('.claw-resource-confirm');
-        if (actions) actions.style.display = 'flex';
-        if (confirmBox) confirmBox.style.display = 'none';
+        openCenterOverlay('删除确认', dialogHtml, {
+          width: '360px',
+          maxWidth: '360px',
+          height: '240px',
+          maxHeight: '280px'
+        });
+
+        setTimeout(() => {
+          const cancelBtn = document.getElementById('claw-resource-manage-del-cancel');
+          const okBtn = document.getElementById('claw-resource-manage-del-ok');
+
+          cancelBtn?.addEventListener('click', () => {
+            closeOverlayPanel();
+          });
+
+          okBtn?.addEventListener('click', async () => {
+            closeOverlayPanel();
+            btn.textContent = '删除中...';
+            btn.disabled = true;
+            try {
+              const client = createClient(await getEchoMemConfig());
+              await client.deleteResource(resourceId);
+              showToast('✅ 资源已删除', 'success');
+              await initManagePanel(bodyElement);
+            } catch (err) {
+              showToast(`❌ 删除失败: ${err.message}`, 'error');
+              btn.textContent = '删除';
+              btn.disabled = false;
+            }
+          });
+        }, 50);
       });
     });
   } catch (err) {
