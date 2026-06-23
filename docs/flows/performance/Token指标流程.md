@@ -29,7 +29,7 @@
 
 ### 4. 后端消耗 & 节省区（双列网格）
 
-- 左卡："EchoMem 后端消耗" + 数值（来自 `EchoMemClient.fetchUsage()` stub）+ "tokens"
+- 左卡："EchoMem 后端消耗" + 数值（来自 `EchoMemClient.fetchUsage()`，实际请求 `GET /metrics`）+ "tokens"
 - 右卡（置灰）："预计节省 Token" + "--" + "待计算"
 
 ### 5. 说明文字区
@@ -109,20 +109,25 @@ if (request.action === 'fetchStatsSummary') {
 }
 ```
 
-### 后端消耗统计（EchoMem stub）
+### 后端消耗统计（EchoMem /metrics）
 
-二期暂时保留该卡片 UI，但后端 usage 接口尚未就绪。`EchoMemClient.fetchUsage()` 当前返回 stub：
+三期已接入真实数据。`EchoMemClient.fetchUsage()` 调用后端 `GET /metrics`，解析 Prometheus text 格式，汇总以下 4 个 counter：
+
+- `echomem_router_llm_input_tokens_total`
+- `echomem_router_llm_output_tokens_total`
+- `echomem_engine_llm_input_tokens_total`
+- `echomem_engine_llm_output_tokens_total`
 
 ```js
 async function fetchBackendUsageData() {
   const config = await getEchoMemConfig();
   const client = createClient(config);
   const result = await client.fetchUsage();
-  return result.total?.total_tokens ?? 0;  // 当前固定返回 0
+  return result.total?.total_tokens ?? 0;
 }
 ```
 
-三期将替换为真实的 EchoMem usage 接口。当前 `backendTokens` 固定为 `0`，UI 显示为 `--`。
+统计口径：EchoMem 后端所有 LLM 调用的 input + output token 总量。`/metrics` 端点无需认证，background script 代理会同时返回 JSON `data` 与原始 `text`，解析器从 `text` 中提取指标。
 
 ## 数据结构
 
@@ -134,13 +139,13 @@ interface PerformanceData {
   totalOutputTokens: number;  // 累计 Output Tokens
   totalTokens: number;        // Token 消耗总量
   since: string | null;       // 统计起始时间
-  backendTokens?: number;     // EchoMem 后端 Token 消耗量（二期 stub，三期接入真实接口）
+  backendTokens?: number;     // EchoMem 后端 Token 消耗量（来自 GET /metrics）
 }
 ```
 
 | 字段 | 状态 | 说明 |
 |------|------|------|
-| `backendTokens` | 二期 stub / 三期接入 | EchoMem 后端 Token 消耗量（`fetchUsage()` 当前固定返回 0） |
+| `backendTokens` | 三期已实现 | EchoMem 后端 Token 消耗量，汇总 router + engine 的 LLM input/output tokens |
 | `savedTokens` | 待逻辑确定 | 预计节省 Token 量 |
 
 ## 生命周期管理
@@ -168,13 +173,15 @@ navigateToEchoMemPanel('performance')
     └── perfPanelCleanup = initPerformancePanel(body, { pollInterval: 30000 })
             │
             ├── refresh()
-            │       ├── fetchPerformanceData()
+            │       ├── fetchPerformanceData()  ── 失败时回退为全 0，不阻断后续更新
             │       │       └── chrome.runtime.sendMessage({ action: 'fetchStatsSummary' })
             │       │               └── background.js fetch('http://127.0.0.1:8000/api/stats/summary')
             │       └── fetchBackendUsageData()
             │               ├── getEchoMemConfig()
             │               ├── createClient(config)
-            │               └── client.fetchUsage() → 二期 stub，三期替换为真实 EchoMem usage 接口
+            │               └── client.fetchUsage()
+            │                       ├── client.fetchMetrics() → GET /metrics
+            │                       └── _sumTokenCounters() → 4 个 LLM token counter 求和
             │
             ├── updatePerformanceDOM(body, data)
             │       └── 修改 #perf-total / #perf-sessions / #perf-turns / #perf-input / #perf-output / #perf-backend / #perf-desc
@@ -194,6 +201,7 @@ openEchoMemHomePanel()
 ## 错误处理
 
 - **接口异常**：`try/catch` 捕获后，在说明文字区显示"数据加载失败，请稍后重试"
+- **部分接口失败**：`fetchPerformanceData`（会话统计）失败时回退为全 0，不阻塞 `fetchBackendUsageData`（后端消耗）的展示；反之亦然。失败原因单独打印到 console.warn。
 - **DOM 已销毁**：轮询回调中检查 `destroyed` 标志，防止面板关闭后仍操作 DOM
 
 ## 关键实现决策
@@ -202,3 +210,4 @@ openEchoMemHomePanel()
 2. **不传入数据到 `getPerformanceContent()`**：保持生成和更新职责分离
 3. **`destroyed` 标志**：防止 `await` 异步间隙中面板被关闭后仍操作 DOM
 4. **轮询间隔 30 秒**：写死在 `router.js`，可按需改为配置化读取
+5. **`/metrics` 纯文本响应处理**：`background.js` 的 `echoMemRequest` 同时返回 JSON `data` 与原始 `text`，`echomem-client.js` 从 `text` 解析 Prometheus 指标，避免引入额外依赖

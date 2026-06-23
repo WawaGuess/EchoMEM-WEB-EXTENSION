@@ -804,7 +804,7 @@
             reject(new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error")));
             return;
           }
-          resolve(response.data);
+          resolve(response);
         }
       );
     });
@@ -825,10 +825,11 @@
     }
     async _fetchJson(url, options = {}) {
       var _a2;
-      const data = await fetchViaBackground(url, {
+      const response = await fetchViaBackground(url, {
         ...options,
         timeout: this.cfg.timeoutMs
       });
+      const data = response.data ?? response.text;
       if (data && data.status === "error") {
         throw new Error(data.message || ((_a2 = data.error) == null ? void 0 : _a2.message) || "EchoMem error");
       }
@@ -836,10 +837,11 @@
     }
     async healthCheck() {
       try {
-        const data = await fetchViaBackground(`${this.cfg.baseUrl}/health`, {
+        const response = await fetchViaBackground(`${this.cfg.baseUrl}/health`, {
           method: "GET",
           timeout: this.cfg.timeoutMs
         });
+        const data = response.data ?? response.text;
         if (this.cfg.debug) {
           log("health", "ok", data);
         }
@@ -1074,12 +1076,54 @@
       if (typeof result === "string") return result;
       return (result == null ? void 0 : result.content) ?? (result == null ? void 0 : result.text) ?? "";
     }
-    // ── Usage / Token Statistics (stub for Phase 2) ──
-    async fetchUsage() {
+    // ── Metrics / Token Statistics ──
+    async fetchMetrics() {
+      const url = `${this.cfg.baseUrl}/metrics`;
       if (this.cfg.debug) {
-        log("fetchUsage", "stub");
+        log("fetchMetrics request", url);
       }
-      return { total: { total_tokens: 0 } };
+      const response = await fetchViaBackground(url, {
+        method: "GET",
+        timeout: this.cfg.timeoutMs
+      });
+      const text = response.text ?? "";
+      if (this.cfg.debug) {
+        log("fetchMetrics response", `${String(text).length} chars`);
+      }
+      return text;
+    }
+    async fetchUsage() {
+      const metricsText = await this.fetchMetrics();
+      const totalTokens = this._sumTokenCounters(metricsText, [
+        "echomem_router_llm_input_tokens_total",
+        "echomem_router_llm_output_tokens_total",
+        "echomem_engine_llm_input_tokens_total",
+        "echomem_engine_llm_output_tokens_total"
+      ]);
+      if (this.cfg.debug) {
+        log("fetchUsage", `total_tokens=${totalTokens}`);
+      }
+      return { total: { total_tokens: totalTokens } };
+    }
+    _sumTokenCounters(metricsText, counterNames) {
+      if (typeof metricsText !== "string" || metricsText.length === 0) {
+        return 0;
+      }
+      const names = new Set(counterNames);
+      let total = 0;
+      for (const line of metricsText.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const match = trimmed.match(/^([^{\s]+)(?:\{[^}]*\})?\s+(\S+)$/);
+        if (!match) continue;
+        const [, name, valueStr] = match;
+        if (!names.has(name)) continue;
+        const value = parseFloat(valueStr);
+        if (!Number.isNaN(value)) {
+          total += value;
+        }
+      }
+      return Math.round(total);
     }
   };
   function createClient(config) {
@@ -40802,14 +40846,24 @@ ${block}` : block;
           fetchPerformanceData(),
           fetchBackendUsageData()
         ]);
-        if (statsResult.status === "rejected") {
-          throw statsResult.reason;
-        }
-        const data = statsResult.value;
+        const data = statsResult.status === "fulfilled" ? statsResult.value : {
+          totalSessions: 0,
+          totalTurns: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalTokens: 0,
+          since: null
+        };
         if (usageResult.status === "fulfilled") {
           data.backendTokens = usageResult.value;
         }
         if (!destroyed) updatePerformanceDOM(bodyElement, data);
+        if (statsResult.status === "rejected") {
+          console.warn("EchoMem: session stats fetch failed", statsResult.reason);
+        }
+        if (usageResult.status === "rejected") {
+          console.warn("EchoMem: backend usage fetch failed", usageResult.reason);
+        }
       } catch (err) {
         console.warn("EchoMem: performance data refresh failed", err);
         const descEl = bodyElement == null ? void 0 : bodyElement.querySelector("#perf-desc");

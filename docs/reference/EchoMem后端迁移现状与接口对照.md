@@ -13,7 +13,7 @@
 |---|---|---|
 | 一期 | 核心记忆链路（健康检查、记忆召回、会话创建/消息/提交）迁移到 EchoMem | 已完成 |
 | 二期 | 资源管理、Skill 商店迁移到 EchoMem 服务接口 | 已完成 |
-| 三期 | 效能统计面板接入 EchoMem 后端的 usage / stats 接口 | 依赖后端新增接口 |
+| 三期 | 效能统计面板接入 EchoMem 后端 | 后端 Token 消耗（`GET /metrics`）已完成；用户会话统计待后续迁移 |
 
 ## 2. 可直接切换的接口（低改动）
 
@@ -29,6 +29,7 @@
 | `GET /api/v1/fs/ls?uri=` | `GET /fs/ls?uri=` | 列出目录 | 返回包装为 `{status, result: {uri, entries}}`，`entries` 字段为 `uri/name/kind/size/updated_at` |
 | `GET /api/v1/fs/stat?uri=` | `GET /fs/stat?uri=` | 获取资源状态 | 同上 |
 | `GET /api/v1/content/read?uri=` | `GET /fs/read?uri=` | 读取内容 | 返回 `{status, result: {uri, text}}`，不再嵌套 `content` |
+| `GET /api/v1/usage` | `GET /metrics` | 后端 Token 消耗统计 | 改为解析 Prometheus text 格式，汇总 `echomem_router_llm_input/output_tokens_total` 与 `echomem_engine_llm_input/output_tokens_total` |
 
 ## 3. 需要改造的功能（中到高改动）
 
@@ -50,7 +51,6 @@
 
 | 功能 | 原接口 | 需要 EchoMem 后端提供的能力 | 影响面板 |
 |---|---|---|---|
-| 后端 Token 消耗统计 | `GET /api/v1/usage` | 新增 usage 统计接口，返回总 Token、Input/Output Token 等 | 效能概览 |
 | 用户会话 Token 汇总 | `GET /api/stats/summary`（原 Background 直接调用） | 新增用户会话级统计接口，返回 `total_sessions`、`total_turns`、`total_input_tokens`、`total_output_tokens`、`total_tokens`、`since` | 效能概览 |
 | 通用文件系统写操作 | `POST /api/v1/fs/mkdir`、`DELETE /api/v1/fs?uri=` | 如需保留目录树写操作，需 EchoMem 暴露 fs 写接口；或提供资源/Skill 的 `list/update/delete` 服务接口替代前端目录管理 | 资源管理、Skill 商店 |
 
@@ -58,41 +58,36 @@
 
 按优先级排序：
 
-1. **Usage 统计接口**
-   - 建议路径：`GET /api/v1/usage` 或 `GET /api/usage`
-   - 用途：替代原 `GET /api/v1/usage`，返回后端 Token 消耗
-   - 期望响应字段：`total.total_tokens`、`total.input_tokens`、`total.output_tokens` 等
-
-2. **用户会话统计接口**
+1. **用户会话统计接口**
    - 建议路径：`GET /api/stats/summary`
    - 用途：替代 Background 中直接调用的 `http://127.0.0.1:8010/api/stats/summary`
    - 期望响应字段：`total_sessions`、`total_turns`、`total_input_tokens`、`total_output_tokens`、`total_tokens`、`since`
 
-3. **资源/Skill 列表接口（可选，用于替代 `/fs/ls` 方案）**
+2. **资源/Skill 列表接口（可选，用于替代 `/fs/ls` 方案）**
    - 建议路径：`GET /api/resources`、`GET /api/skills`
    - 用途：让前端不再依赖 `/fs/ls` 读取目录结构，直接获取资源/Skill 列表
    - 优势：避免前端假设后端文件系统布局
 
-4. **通用文件系统写接口（可选）**
+3. **通用文件系统写接口（可选）**
    - 建议路径：`POST /fs/mkdir`、`DELETE /fs?uri=`
    - 用途：如需保留前端目录树写操作能力
    - 风险：与 EchoMem 当前设计冲突，可能引入权限边界问题
 
 ## 6. 功能切换状态总览
 
-| 功能模块 | 一期是否切换 | 二期是否切换 | 依赖后端新增接口 |
-|---|---|---|---|
-| 输入联想 | 是 | — | 否 |
-| 会话录制 | 是 | — | 否 |
-| 健康检查 | 是 | — | 否 |
-| 资源上传 | — | 是 | 否 |
-| 资源列表 | — | 是 | 否 |
-| 资源删除 | — | 是 | 否 |
-| Skill 上传 | — | 是 | 否 |
-| Skill 列表 | — | 是 | 否 |
-| Skill 删除 | — | 是 | 否 |
-| 后端 Token 统计 | — | — | 是（三期） |
-| 用户会话统计 | — | — | 是（三期） |
+| 功能模块 | 一期是否切换 | 二期是否切换 | 三期是否切换 | 依赖后端新增接口 |
+|---|---|---|---|---|
+| 输入联想 | 是 | — | — | 否 |
+| 会话录制 | 是 | — | — | 否 |
+| 健康检查 | 是 | — | — | 否 |
+| 资源上传 | — | 是 | — | 否 |
+| 资源列表 | — | 是 | — | 否 |
+| 资源删除 | — | 是 | — | 否 |
+| Skill 上传 | — | 是 | — | 否 |
+| Skill 列表 | — | 是 | — | 否 |
+| Skill 删除 | — | 是 | — | 否 |
+| 后端 Token 统计 | — | — | 是（通过 `GET /metrics`） | 否 |
+| 用户会话统计 | — | — | 否 | 是 |
 
 ## 7. 相关代码锚点
 

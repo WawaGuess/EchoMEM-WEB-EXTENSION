@@ -206,16 +206,29 @@ export function initPerformancePanel(bodyElement, options = {}) {
         fetchBackendUsageData(),
       ]);
 
-      if (statsResult.status === 'rejected') {
-        throw statsResult.reason;
-      }
+      const data = statsResult.status === 'fulfilled'
+        ? statsResult.value
+        : {
+            totalSessions: 0,
+            totalTurns: 0,
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            totalTokens: 0,
+            since: null,
+          };
 
-      const data = statsResult.value;
       if (usageResult.status === 'fulfilled') {
         data.backendTokens = usageResult.value;
       }
 
       if (!destroyed) updatePerformanceDOM(bodyElement, data);
+
+      if (statsResult.status === 'rejected') {
+        console.warn('EchoMem: session stats fetch failed', statsResult.reason);
+      }
+      if (usageResult.status === 'rejected') {
+        console.warn('EchoMem: backend usage fetch failed', usageResult.reason);
+      }
     } catch (err) {
       console.warn('EchoMem: performance data refresh failed', err);
       const descEl = bodyElement?.querySelector('#perf-desc');

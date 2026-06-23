@@ -84,13 +84,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     })
       .then(async (response) => {
         clearTimeout(timer);
-        const data = await response.json().catch(() => ({}));
+        const text = await response.text().catch(() => '');
+        let data = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          data = {};
+        }
         if (!response.ok) {
           sendResponse({
             success: false,
             status: response.status,
             error: data.error?.message || data.message || `HTTP ${response.status}`,
             data,
+            text,
           });
           return;
         }
@@ -98,6 +105,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           success: true,
           status: response.status,
           data,
+          text,
         });
       })
       .catch((err) => {

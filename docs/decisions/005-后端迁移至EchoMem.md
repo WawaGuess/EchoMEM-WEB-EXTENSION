@@ -25,9 +25,9 @@ Implemented
 
 - **能直接映射的接口优先迁移**：会话、消息、提交、召回、只读 fs 查询等语义一致的接口，通过调整路径和字段完成替换。
 - **不再依赖通用 fs 写操作**：资源上传、Skill 上传、删除改走 EchoMem 的 `/api/resources` 和 `/api/skills` 服务接口；前端不再维护目录树，改为以资源 ID / Skill 名为核心进行操作。
-- **缺失能力明确列出**：Token/Usage 统计、`/api/stats/summary`、内容 abstract/overview 等 EchoMem 尚未暴露的能力，作为后端新增需求单独跟进。
+- **缺失能力明确列出**：`/api/stats/summary`、内容 abstract/overview 等 EchoMem 尚未暴露的能力，作为后端新增需求单独跟进；后端 Token 消耗统计已通过解析现有 `GET /metrics` 端点实现，用户会话 Token 汇总仍待后续迁移。
 - **认证统一为 X-Auth-Key**：配置面板从多字段认证简化为单一 auth key，默认后端地址改为 `http://127.0.0.1:8010`。
-- **迁移已分阶段完成**：一期（核心记忆链路）、二期（资源/Skill 管理）已实施；三期（效能统计）待 EchoMem 后端新增 usage / stats 接口。
+- **迁移分阶段完成**：一期（核心记忆链路）、二期（资源/Skill 管理）已实施；三期（效能统计）中后端 Token 消耗已接入，用户会话统计待后续完成。
 
 ## 接口迁移对照表
 
@@ -55,8 +55,8 @@ Implemented
 | `DELETE /api/v1/fs?uri=` | **无通用 fs 删除接口** | 资源删除改用 `DELETE /api/resources/{resource_id}`；Skill 删除改用 `DELETE /api/skills/{name}` |
 | `GET /api/v1/content/overview` | **无对应接口** | 移除或改为调用 `GET /fs/read?uri=` 读取完整内容后前端提取摘要 |
 | `GET /api/v1/content/abstract` | **无对应接口** | 移除轮询逻辑，资源提交后由后端异步处理，前端不再轮询 abstract |
-| `GET /api/v1/usage` | **无对应接口** | 需 EchoMem 后端新增 usage 统计接口，或从 `/metrics` 解析 |
-| `GET http://127.0.0.1:8000/api/stats/summary` | **非 EchoMem 接口** | 需 EchoMem 后端新增 `/api/stats/summary` 或统一合并到 usage 接口 |
+| `GET /api/v1/usage` | **无对应接口** | 改为解析 EchoMem 现有 `GET /metrics` Prometheus 指标，汇总 router + engine 的 LLM input/output tokens |
+| `GET http://127.0.0.1:8000/api/stats/summary` | **非 EchoMem 接口** | 需 EchoMem 后端新增 `/api/stats/summary` 或统一合并到 usage 接口；本期保留原端口 8000 调用 |
 
 ## 前端改造范围
 
@@ -87,14 +87,15 @@ Implemented
    - 会话映射缓存 key 从 `echomem_session_{platform}_{rawSessionId}` 保留，但值存储 EchoMem `session_id`
 
 6. **改造 `src/panels/performance/index.js` 与 `background.js`**
-   - 保留 `fetchStatsSummary` 代理模式，但目标地址改为 EchoMem 新增的统计接口
-   - `fetchBackendUsageData` 待 EchoMem 后端提供 usage 接口后再接入
+   - `fetchBackendUsageData` 改为调用 `EchoMemClient.fetchUsage()`，内部解析 `GET /metrics` 获取后端 Token 消耗
+   - `fetchStatsSummary` 代理模式暂时保留，目标地址仍为端口 8000 的原统计接口，待 EchoMem 后端提供对应能力后再迁移
 
 ## 后端需新增能力
 
-- `GET /api/v1/usage` 或 `/api/usage`：返回 Token 消耗统计
 - `GET /api/stats/summary`：返回用户会话级 Token 汇总（或合并到 usage）
 - 如需保留内容摘要展示，可考虑 `GET /fs/read` 已满足读取，abstract 提取可放在前端或新增 `/resources/{id}/abstract`
+
+> 后端 Token 消耗统计已通过 `GET /metrics` 实现，无需新增专用 usage 接口。
 
 ## 备选方案
 
@@ -109,7 +110,7 @@ Implemented
 1. `src/services/openviking-client.js` 将被 `echomem-client.js` 替代。
 2. 配置存储格式变化，旧版 `openvikingConfig` 需要兼容或引导用户重新配置。
 3. 资源管理和 Skill 商店的交互模型从“目录树操作”变为“资源/Skill 服务操作”。
-4. 效能概览的统计能力依赖 EchoMem 后端新增接口，迁移初期可暂时隐藏后端 Token 统计。
+4. 效能概览的后端 Token 统计通过解析 `GET /metrics` 实现，不再依赖后端新增 usage 接口；用户会话统计仍依赖 EchoMem 后端新增 `/api/stats/summary` 能力。
 5. 文档同步更新：`docs/reference/外部接口清单.md` 需替换为 EchoMem 接口说明。
 
 ## 相关代码

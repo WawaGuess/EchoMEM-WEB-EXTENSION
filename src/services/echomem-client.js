@@ -34,7 +34,8 @@ function fetchViaBackground(url, options = {}) {
           reject(new Error(response?.error || (response?.status ? `HTTP ${response.status}` : 'Unknown background error')));
           return;
         }
-        resolve(response.data);
+        // Return full response so callers can choose JSON data or raw text.
+        resolve(response);
       }
     );
   });
@@ -57,10 +58,12 @@ class EchoMemClient {
   }
 
   async _fetchJson(url, options = {}) {
-    const data = await fetchViaBackground(url, {
+    const response = await fetchViaBackground(url, {
       ...options,
       timeout: this.cfg.timeoutMs,
     });
+
+    const data = response.data ?? response.text;
 
     if (data && data.status === 'error') {
       throw new Error(data.message || data.error?.message || 'EchoMem error');
@@ -71,10 +74,11 @@ class EchoMemClient {
 
   async healthCheck() {
     try {
-      const data = await fetchViaBackground(`${this.cfg.baseUrl}/health`, {
+      const response = await fetchViaBackground(`${this.cfg.baseUrl}/health`, {
         method: 'GET',
         timeout: this.cfg.timeoutMs,
       });
+      const data = response.data ?? response.text;
       if (this.cfg.debug) {
         log('health', 'ok', data);
       }
@@ -369,14 +373,70 @@ class EchoMemClient {
     return result?.content ?? result?.text ?? '';
   }
 
-  // ── Usage / Token Statistics (stub for Phase 2) ──
+  // ── Metrics / Token Statistics ──
+
+  async fetchMetrics() {
+    const url = `${this.cfg.baseUrl}/metrics`;
+
+    if (this.cfg.debug) {
+      log('fetchMetrics request', url);
+    }
+
+    const response = await fetchViaBackground(url, {
+      method: 'GET',
+      timeout: this.cfg.timeoutMs,
+    });
+    const text = response.text ?? '';
+
+    if (this.cfg.debug) {
+      log('fetchMetrics response', `${String(text).length} chars`);
+    }
+
+    return text;
+  }
 
   async fetchUsage() {
+    const metricsText = await this.fetchMetrics();
+    const totalTokens = this._sumTokenCounters(metricsText, [
+      'echomem_router_llm_input_tokens_total',
+      'echomem_router_llm_output_tokens_total',
+      'echomem_engine_llm_input_tokens_total',
+      'echomem_engine_llm_output_tokens_total',
+    ]);
+
     if (this.cfg.debug) {
-      log('fetchUsage', 'stub');
+      log('fetchUsage', `total_tokens=${totalTokens}`);
     }
-    // Phase 3 will implement the real EchoMem usage endpoint.
-    return { total: { total_tokens: 0 } };
+
+    return { total: { total_tokens: totalTokens } };
+  }
+
+  _sumTokenCounters(metricsText, counterNames) {
+    if (typeof metricsText !== 'string' || metricsText.length === 0) {
+      return 0;
+    }
+
+    const names = new Set(counterNames);
+    let total = 0;
+
+    for (const line of metricsText.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+
+      // Prometheus text format: metric_name{label="value"} number
+      const match = trimmed.match(/^([^{\s]+)(?:\{[^}]*\})?\s+(\S+)$/);
+      if (!match) continue;
+
+      const [, name, valueStr] = match;
+      if (!names.has(name)) continue;
+
+      const value = parseFloat(valueStr);
+      if (!Number.isNaN(value)) {
+        total += value;
+      }
+    }
+
+    return Math.round(total);
   }
 }
 
