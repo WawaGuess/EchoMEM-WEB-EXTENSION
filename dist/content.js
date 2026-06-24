@@ -729,6 +729,11 @@
     authKey: "",
     agentId: ""
   };
+  var DEFAULT_OPENVIEW_CONFIG = {
+    baseUrl: "http://127.0.0.1:31020",
+    username: "",
+    password: ""
+  };
   var DEFAULT_COMPLETION_CONFIG = {
     phraseScoreThreshold: 0.2
   };
@@ -747,6 +752,17 @@
   }
   async function setEchoMemConfig(config) {
     await chrome.storage.local.set({ echomemConfig: config });
+  }
+  async function getOpenViewConfig() {
+    try {
+      const result = await chrome.storage.local.get("openviewConfig");
+      return { ...DEFAULT_OPENVIEW_CONFIG, ...result.openviewConfig || {} };
+    } catch {
+      return { ...DEFAULT_OPENVIEW_CONFIG };
+    }
+  }
+  async function setOpenViewConfig(config) {
+    await chrome.storage.local.set({ openviewConfig: config });
   }
   function getAgentIdForPlatform(platformId) {
     const platformAgentId = PLATFORM_AGENT_IDS[platformId];
@@ -28307,9 +28323,9 @@ ${block}` : block;
   function getCoordSysInfoBySeries(seriesModel) {
     var coordSysName = seriesModel.get("coordinateSystem");
     var result = new CoordSysInfo(coordSysName);
-    var fetch = fetchers[coordSysName];
-    if (fetch) {
-      fetch(seriesModel, result, result.axisMap, result.categoryAxisMap);
+    var fetch2 = fetchers[coordSysName];
+    if (fetch2) {
+      fetch2(seriesModel, result, result.axisMap, result.categoryAxisMap);
       return result;
     }
   }
@@ -40688,6 +40704,11 @@ ${block}` : block;
 
   // src/panels/performance/index.js
   var FMT = (n) => n.toLocaleString("zh-CN");
+  function isHigoPlatform() {
+    var _a2;
+    const platform2 = getCurrentPlatform();
+    return ((_a2 = platform2 == null ? void 0 : platform2.config) == null ? void 0 : _a2.id) === "higo" || (platform2 == null ? void 0 : platform2.key) === "higo";
+  }
   function skeletonValue(width = "60px") {
     return `<span class="perf-skeleton" style="
     display: inline-block;
@@ -40698,14 +40719,8 @@ ${block}` : block;
   "></span>`;
   }
   function getPerformanceContent() {
-    return `
-    <style>
-      @keyframes perf-skeleton-pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.4; }
-      }
-    </style>
-    <div id="perf-root" style="color: #374151; display: flex; flex-direction: column; gap: 12px;">
+    const showSessionStats = isHigoPlatform();
+    const totalSection = showSessionStats ? `
       <!-- \u6838\u5FC3\u6307\u6807\uFF1A\u603B Token \u6D88\u8017 -->
       <div style="
         padding: 18px 16px;
@@ -40717,7 +40732,8 @@ ${block}` : block;
         <div style="font-size: 12px; color: #2563eb; font-weight: 500; margin-bottom: 6px;">\u603B Token \u6D88\u8017</div>
         <div id="perf-total" style="font-size: 32px; font-weight: 800; color: #1d4ed8; line-height: 1;">${skeletonValue("100px")}</div>
       </div>
-
+  ` : "";
+    const sessionStatsSection = showSessionStats ? `
       <!-- \u4F1A\u8BDD\u7EDF\u8BA1 -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
         <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
@@ -40743,22 +40759,31 @@ ${block}` : block;
           <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
         </div>
       </div>
+  ` : "";
+    return `
+    <style>
+      @keyframes perf-skeleton-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+    </style>
+    <div id="perf-root" style="color: #374151; display: flex; flex-direction: column; gap: 12px;">
+      ${totalSection}
 
-      <!-- \u540E\u7AEF\u6D88\u8017 & \u8282\u7701 -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">EchoMem \u540E\u7AEF\u6D88\u8017</p>
-          <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
-          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
-        </div>
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; opacity: 0.6;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">\u9884\u8BA1\u8282\u7701 Token</p>
-          <p id="perf-saved" style="margin: 0; font-size: 20px; font-weight: 700; color: #9ca3af;">--</p>
-          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">\u5F85\u8BA1\u7B97</p>
-        </div>
+      ${sessionStatsSection}
+
+      <!-- \u540E\u7AEF\u6D88\u8017 -->
+      <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+        <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">EchoMem \u540E\u7AEF\u6D88\u8017</p>
+        <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
+        <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
       </div>
 
       <!-- \u8BF4\u660E -->
+      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
+        <button id="perf-refresh-btn" style="padding: 4px 10px; font-size: 12px; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; cursor: pointer;"
+        >\u{1F504} \u5237\u65B0</button>
+      </div>
       <div id="perf-desc" style="
         padding: 12px 14px;
         border-radius: 8px;
@@ -40803,7 +40828,7 @@ ${block}` : block;
     const result = await client2.fetchUsage();
     return ((_a2 = result.total) == null ? void 0 : _a2.total_tokens) ?? 0;
   }
-  function updatePerformanceDOM(bodyElement, data) {
+  function updatePerformanceDOM(bodyElement, data, showSessionStats = true) {
     if (!bodyElement) return;
     const totalEl = bodyElement.querySelector("#perf-total");
     const sessionsEl = bodyElement.querySelector("#perf-sessions");
@@ -40812,11 +40837,16 @@ ${block}` : block;
     const outputEl = bodyElement.querySelector("#perf-output");
     const backendEl = bodyElement.querySelector("#perf-backend");
     const descEl = bodyElement.querySelector("#perf-desc");
-    if (totalEl) totalEl.textContent = FMT(data.totalTokens ?? 0);
-    if (sessionsEl) sessionsEl.textContent = FMT(data.totalSessions ?? 0);
-    if (turnsEl) turnsEl.textContent = FMT(data.totalTurns ?? 0);
-    if (inputEl) inputEl.textContent = FMT(data.totalInputTokens ?? 0);
-    if (outputEl) outputEl.textContent = FMT(data.totalOutputTokens ?? 0);
+    const sessionTokens = data.totalTokens ?? 0;
+    const backendTokens = data.backendTokens ?? 0;
+    const totalTokens = sessionTokens + backendTokens;
+    if (showSessionStats) {
+      if (totalEl) totalEl.textContent = FMT(totalTokens);
+      if (sessionsEl) sessionsEl.textContent = FMT(data.totalSessions ?? 0);
+      if (turnsEl) turnsEl.textContent = FMT(data.totalTurns ?? 0);
+      if (inputEl) inputEl.textContent = FMT(data.totalInputTokens ?? 0);
+      if (outputEl) outputEl.textContent = FMT(data.totalOutputTokens ?? 0);
+    }
     if (backendEl) {
       if (data.backendTokens !== void 0 && data.backendTokens !== null) {
         backendEl.textContent = FMT(data.backendTokens);
@@ -40828,12 +40858,22 @@ ${block}` : block;
     }
     if (descEl) {
       const sinceText = data.since ? `\u81EA ${new Date(data.since).toLocaleString("zh-CN")} \u8D77\u7EDF\u8BA1` : "\u7EDF\u8BA1\u8303\u56F4\uFF1A\u5168\u90E8\u5386\u53F2\u4F1A\u8BDD";
-      descEl.innerHTML = `
-      <span style="color: #2563eb; font-weight: 600;">Token \u7EDF\u8BA1\uFF1A</span>
-      \u7D2F\u8BA1 ${FMT(data.totalSessions ?? 0)} \u4E2A\u4F1A\u8BDD\uFF0C${FMT(data.totalTurns ?? 0)} \u8F6E\u5BF9\u8BDD\uFF0C
-      \u5171\u6D88\u8017 <strong style="color: #111827;">${FMT(data.totalTokens ?? 0)}</strong> tokens\u3002
-      <br><span style="color: #9ca3af;">${sinceText}</span>
-    `;
+      if (showSessionStats) {
+        descEl.innerHTML = `
+        <span style="color: #2563eb; font-weight: 600;">Token \u7EDF\u8BA1\uFF1A</span>
+        \u7D2F\u8BA1 ${FMT(data.totalSessions ?? 0)} \u4E2A\u4F1A\u8BDD\uFF0C${FMT(data.totalTurns ?? 0)} \u8F6E\u5BF9\u8BDD\uFF1B
+        \u4F1A\u8BDD\u6D88\u8017 <strong style="color: #111827;">${FMT(sessionTokens)}</strong> tokens\uFF0C
+        EchoMem \u540E\u7AEF\u6D88\u8017 <strong style="color: #111827;">${FMT(backendTokens)}</strong> tokens\uFF0C
+        \u5408\u8BA1 <strong style="color: #111827;">${FMT(totalTokens)}</strong> tokens\u3002
+        <br><span style="color: #9ca3af;">${sinceText}</span>
+      `;
+      } else {
+        descEl.innerHTML = `
+        <span style="color: #2563eb; font-weight: 600;">Token \u7EDF\u8BA1\uFF1A</span>
+        \u5F53\u524D\u5E73\u53F0\u4EC5\u5C55\u793A EchoMem \u540E\u7AEF Token \u6D88\u8017\u3002
+        <br><span style="color: #9ca3af;">\u4F1A\u8BDD\u7EA7 Token \u7EDF\u8BA1\u4EC5\u5728 HIGO \u5E73\u53F0\u53EF\u7528</span>
+      `;
+      }
     }
   }
   function initPerformancePanel(bodyElement, options = {}) {
@@ -40842,11 +40882,16 @@ ${block}` : block;
     async function refresh() {
       if (destroyed) return;
       try {
-        const [statsResult, usageResult] = await Promise.allSettled([
-          fetchPerformanceData(),
-          fetchBackendUsageData()
-        ]);
-        const data = statsResult.status === "fulfilled" ? statsResult.value : {
+        const showSessionStats = isHigoPlatform();
+        const promises = [];
+        if (showSessionStats) {
+          promises.push(fetchPerformanceData());
+        }
+        promises.push(fetchBackendUsageData());
+        const results = await Promise.allSettled(promises);
+        const statsResult = showSessionStats ? results[0] : { status: "fulfilled", value: null };
+        const usageResult = showSessionStats ? results[1] : results[0];
+        const data = statsResult.status === "fulfilled" && statsResult.value ? statsResult.value : {
           totalSessions: 0,
           totalTurns: 0,
           totalInputTokens: 0,
@@ -40857,7 +40902,7 @@ ${block}` : block;
         if (usageResult.status === "fulfilled") {
           data.backendTokens = usageResult.value;
         }
-        if (!destroyed) updatePerformanceDOM(bodyElement, data);
+        if (!destroyed) updatePerformanceDOM(bodyElement, data, showSessionStats);
         if (statsResult.status === "rejected") {
           console.warn("EchoMem: session stats fetch failed", statsResult.reason);
         }
@@ -40873,6 +40918,17 @@ ${block}` : block;
       }
     }
     refresh();
+    const refreshBtn = bodyElement == null ? void 0 : bodyElement.querySelector("#perf-refresh-btn");
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", async () => {
+        const originalText = refreshBtn.textContent;
+        refreshBtn.textContent = "\u5237\u65B0\u4E2D...";
+        refreshBtn.disabled = true;
+        await refresh();
+        refreshBtn.textContent = originalText;
+        refreshBtn.disabled = false;
+      });
+    }
     const { pollInterval } = options;
     if (pollInterval && pollInterval > 0) {
       pollTimer = setInterval(refresh, pollInterval);
@@ -42166,6 +42222,79 @@ ${block}` : block;
       </div>
     `;
     }
+  }
+
+  // src/services/openview-client.js
+  var AUTH_STORAGE_KEY = "openviewAuth";
+  function normalizeBaseUrl(url) {
+    const trimmed = (url || "").trim();
+    if (!trimmed) return "http://127.0.0.1:31020";
+    return trimmed.replace(/\/$/, "");
+  }
+  function resolveUrl(baseUrl, path) {
+    const normalized = normalizeBaseUrl(baseUrl);
+    const safePath = path.startsWith("/") ? path : `/${path}`;
+    return `${normalized}${safePath}`;
+  }
+  async function parseResponse(response) {
+    const text = await response.text().catch(() => "");
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    const payload = data && typeof data.code === "number" && "data" in data ? data.data : data;
+    return { ok: response.ok, status: response.status, payload, text };
+  }
+  async function request(baseUrl, path, options = {}) {
+    var _a2, _b2;
+    const url = resolveUrl(baseUrl, path);
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers || {}
+      }
+    });
+    const parsed = await parseResponse(response);
+    if (!parsed.ok) {
+      const message = ((_a2 = parsed.payload) == null ? void 0 : _a2.message) || ((_b2 = parsed.payload) == null ? void 0 : _b2.error) || (parsed.text || "").trim() || `HTTP ${parsed.status}`;
+      const error2 = new Error(message);
+      error2.status = parsed.status;
+      error2.payload = parsed.payload;
+      throw error2;
+    }
+    return parsed.payload;
+  }
+  async function getOpenViewAuth() {
+    try {
+      const result = await chrome.storage.local.get(AUTH_STORAGE_KEY);
+      return result[AUTH_STORAGE_KEY] || null;
+    } catch {
+      return null;
+    }
+  }
+  async function setOpenViewAuth(auth) {
+    await chrome.storage.local.set({ [AUTH_STORAGE_KEY]: auth });
+  }
+  async function login({ baseUrl, username, password }) {
+    const payload = await request(baseUrl, "/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password })
+    });
+    if (!payload.accessToken || !payload.refreshToken) {
+      throw new Error("\u767B\u5F55\u54CD\u5E94\u4E2D\u7F3A\u5C11 token");
+    }
+    const auth = {
+      baseUrl: normalizeBaseUrl(baseUrl),
+      accessToken: payload.accessToken,
+      refreshToken: payload.refreshToken,
+      user: payload.user || null,
+      loggedInAt: Date.now()
+    };
+    await setOpenViewAuth(auth);
+    return auth;
   }
 
   // src/utils/text-processor.js
@@ -44135,7 +44264,45 @@ ${MEM_TAG_CLOSE2}`;
   }
 
   // src/panels/echomem/config.js
+  function isHigoPlatform2() {
+    var _a2;
+    const platform2 = getCurrentPlatform();
+    return ((_a2 = platform2 == null ? void 0 : platform2.config) == null ? void 0 : _a2.id) === "higo" || (platform2 == null ? void 0 : platform2.key) === "higo";
+  }
   function getEchoMemConfigContent() {
+    const showOpenView = isHigoPlatform2();
+    const openViewSection = showOpenView ? `
+      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #eee;">
+        <div style="font-size: 14px; font-weight: 500; margin-bottom: 10px; color: #333;">OpenView \u7EDF\u8BA1\u670D\u52A1</div>
+        <div style="padding: 10px 12px; background: #f6f8fa; border-radius: 6px; border-left: 3px solid #10b981; font-size: 12px; color: #666; margin-bottom: 12px;">
+          \u7528\u4E8E\u83B7\u53D6\u7528\u6237\u4F1A\u8BDD Token \u7EDF\u8BA1\u6C47\u603B
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u670D\u52A1\u5730\u5740</label>
+          <input id="cfg-openview-url" type="text"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u7528\u6237\u540D</label>
+          <input id="cfg-openview-username" type="text"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u5BC6\u7801</label>
+          <input id="cfg-openview-password" type="password"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+
+        <button id="cfg-openview-login-btn" style="width: 100%; padding: 10px; background: #10b981; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;"
+        >\u{1F511} \u767B\u5F55 OpenView</button>
+      </div>
+  ` : "";
     return `
     <div style="display: flex; flex-direction: column; gap: 14px; color: #333;">
       <div style="padding: 10px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #667eea; font-size: 12px; color: #666;">
@@ -44170,6 +44337,8 @@ ${MEM_TAG_CLOSE2}`;
         >\u{1F4BE} \u4FDD\u5B58\u914D\u7F6E</button>
       </div>
 
+      ${openViewSection}
+
       <div id="cfg-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
     </div>
   `;
@@ -44182,9 +44351,18 @@ ${MEM_TAG_CLOSE2}`;
     const testBtn = bodyElement.querySelector("#cfg-test-btn");
     const saveBtn = bodyElement.querySelector("#cfg-save-btn");
     const statusEl = bodyElement.querySelector("#cfg-status");
-    function normalizeBaseUrl(url) {
+    const openviewUrlInput = bodyElement.querySelector("#cfg-openview-url");
+    const openviewUsernameInput = bodyElement.querySelector("#cfg-openview-username");
+    const openviewPasswordInput = bodyElement.querySelector("#cfg-openview-password");
+    const openviewLoginBtn = bodyElement.querySelector("#cfg-openview-login-btn");
+    function normalizeBaseUrl2(url) {
       const trimmed = (url || "").trim();
       if (!trimmed) return "http://127.0.0.1:8010";
+      return trimmed.replace(/\/$/, "");
+    }
+    function normalizeOpenViewUrl(url) {
+      const trimmed = (url || "").trim();
+      if (!trimmed) return "http://127.0.0.1:31020";
       return trimmed.replace(/\/$/, "");
     }
     function showStatus(msg, type = "info") {
@@ -44201,11 +44379,22 @@ ${MEM_TAG_CLOSE2}`;
       statusEl.style.color = c.text;
       statusEl.textContent = msg;
     }
+    const showOpenView = isHigoPlatform2();
     try {
       const cfg = await getEchoMemConfig();
       if (baseUrlInput) baseUrlInput.value = cfg.baseUrl || "";
       if (authKeyInput) authKeyInput.value = cfg.authKey || "";
       if (agentIdInput) agentIdInput.value = cfg.agentId || "";
+      if (showOpenView) {
+        const openviewCfg = await getOpenViewConfig();
+        if (openviewUrlInput) openviewUrlInput.value = openviewCfg.baseUrl || "";
+        if (openviewUsernameInput) openviewUsernameInput.value = openviewCfg.username || "";
+        if (openviewPasswordInput) openviewPasswordInput.value = openviewCfg.password || "";
+        const openviewAuth = await getOpenViewAuth();
+        if ((openviewAuth == null ? void 0 : openviewAuth.accessToken) && openviewLoginBtn) {
+          openviewLoginBtn.textContent = "\u2705 \u5DF2\u767B\u5F55 OpenView";
+        }
+      }
     } catch (err) {
       console.warn("EchoMem: failed to load config", err);
     }
@@ -44215,7 +44404,7 @@ ${MEM_TAG_CLOSE2}`;
         showStatus("\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5...", "info");
         try {
           const config = {
-            baseUrl: normalizeBaseUrl(baseUrlInput == null ? void 0 : baseUrlInput.value),
+            baseUrl: normalizeBaseUrl2(baseUrlInput == null ? void 0 : baseUrlInput.value),
             authKey: ((_a2 = authKeyInput == null ? void 0 : authKeyInput.value) == null ? void 0 : _a2.trim()) || "",
             agentId: ((_b2 = agentIdInput == null ? void 0 : agentIdInput.value) == null ? void 0 : _b2.trim()) || ""
           };
@@ -44239,18 +44428,50 @@ ${MEM_TAG_CLOSE2}`;
     }
     if (saveBtn) {
       saveBtn.addEventListener("click", async () => {
-        var _a2, _b2;
+        var _a2, _b2, _c2;
         const config = {
-          baseUrl: normalizeBaseUrl(baseUrlInput == null ? void 0 : baseUrlInput.value),
+          baseUrl: normalizeBaseUrl2(baseUrlInput == null ? void 0 : baseUrlInput.value),
           authKey: ((_a2 = authKeyInput == null ? void 0 : authKeyInput.value) == null ? void 0 : _a2.trim()) || "",
           agentId: ((_b2 = agentIdInput == null ? void 0 : agentIdInput.value) == null ? void 0 : _b2.trim()) || ""
         };
         try {
           await setEchoMemConfig(config);
           resetClient();
+          if (showOpenView) {
+            const openviewConfig = {
+              baseUrl: normalizeOpenViewUrl(openviewUrlInput == null ? void 0 : openviewUrlInput.value),
+              username: ((_c2 = openviewUsernameInput == null ? void 0 : openviewUsernameInput.value) == null ? void 0 : _c2.trim()) || "",
+              password: (openviewPasswordInput == null ? void 0 : openviewPasswordInput.value) || ""
+            };
+            await setOpenViewConfig(openviewConfig);
+          }
           showStatus("\u2705 \u914D\u7F6E\u5DF2\u4FDD\u5B58", "success");
         } catch (err) {
           showStatus(`\u274C \u4FDD\u5B58\u5931\u8D25: ${err.message}`, "error");
+        }
+      });
+    }
+    if (showOpenView && openviewLoginBtn) {
+      openviewLoginBtn.addEventListener("click", async () => {
+        var _a2, _b2;
+        showStatus("\u6B63\u5728\u767B\u5F55 OpenView...", "info");
+        try {
+          const openviewConfig = {
+            baseUrl: normalizeOpenViewUrl(openviewUrlInput == null ? void 0 : openviewUrlInput.value),
+            username: ((_a2 = openviewUsernameInput == null ? void 0 : openviewUsernameInput.value) == null ? void 0 : _a2.trim()) || "",
+            password: (openviewPasswordInput == null ? void 0 : openviewPasswordInput.value) || ""
+          };
+          await setOpenViewConfig(openviewConfig);
+          const auth = await login({
+            baseUrl: openviewConfig.baseUrl,
+            username: openviewConfig.username,
+            password: openviewConfig.password
+          });
+          openviewLoginBtn.textContent = "\u2705 \u5DF2\u767B\u5F55 OpenView";
+          showStatus(`\u2705 OpenView \u767B\u5F55\u6210\u529F: ${((_b2 = auth.user) == null ? void 0 : _b2.username) || ""}`, "success");
+        } catch (err) {
+          openviewLoginBtn.textContent = "\u{1F511} \u767B\u5F55 OpenView";
+          showStatus(`\u274C OpenView \u767B\u5F55\u5931\u8D25: ${err.message}`, "error");
         }
       });
     }
@@ -44319,8 +44540,8 @@ ${MEM_TAG_CLOSE2}`;
         });
         const body = getPanelBodyElement();
         perfPanelCleanup = initPerformancePanel(body, {
-          pollInterval: 3e4
-          // 每 30 秒轮询一次，可按需调整
+          pollInterval: 5e3
+          // 每 5 秒轮询一次，保证模型回复完成后数据及时刷新
         });
       } else {
         openCustomPanel(panel.title, getPanelContent(panel.id), {
@@ -44609,7 +44830,7 @@ ${MEM_TAG_CLOSE2}`;
 
   // src/services/messaging.js
   function bindRuntimeMessages() {
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((request2, sender, sendResponse) => {
       return true;
     });
   }

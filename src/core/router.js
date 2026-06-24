@@ -116,7 +116,7 @@ export async function navigateToEchoMemPanel(panelIdOrTitle) {
       });
       const body = getPanelBodyElement();
       perfPanelCleanup = initPerformancePanel(body, {
-        pollInterval: 30000 // 每 30 秒轮询一次，可按需调整
+        pollInterval: 5000 // 每 5 秒轮询一次，保证模型回复完成后数据及时刷新
       });
     } else {
       openCustomPanel(panel.title, getPanelContent(panel.id), {

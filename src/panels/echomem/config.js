@@ -4,11 +4,54 @@
 import {
   getEchoMemConfig,
   setEchoMemConfig,
+  getOpenViewConfig,
+  setOpenViewConfig,
 } from '../../services/config.js';
 import { createClient } from '../../services/echomem-client.js';
+import { login, getOpenViewAuth } from '../../services/openview-client.js';
 import { resetClient } from '../../core/input-tracker.js';
+import { getCurrentPlatform } from '../../core/detection.js';
+
+function isHigoPlatform() {
+  const platform = getCurrentPlatform();
+  return platform?.config?.id === 'higo' || platform?.key === 'higo';
+}
 
 export function getEchoMemConfigContent() {
+  const showOpenView = isHigoPlatform();
+  const openViewSection = showOpenView ? `
+      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #eee;">
+        <div style="font-size: 14px; font-weight: 500; margin-bottom: 10px; color: #333;">OpenView 统计服务</div>
+        <div style="padding: 10px 12px; background: #f6f8fa; border-radius: 6px; border-left: 3px solid #10b981; font-size: 12px; color: #666; margin-bottom: 12px;">
+          用于获取用户会话 Token 统计汇总
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">服务地址</label>
+          <input id="cfg-openview-url" type="text"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">用户名</label>
+          <input id="cfg-openview-username" type="text"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">密码</label>
+          <input id="cfg-openview-password" type="password"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
+          />
+        </div>
+
+        <button id="cfg-openview-login-btn" style="width: 100%; padding: 10px; background: #10b981; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;"
+        >🔑 登录 OpenView</button>
+      </div>
+  ` : '';
+
   return `
     <div style="display: flex; flex-direction: column; gap: 14px; color: #333;">
       <div style="padding: 10px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #667eea; font-size: 12px; color: #666;">
@@ -43,6 +86,8 @@ export function getEchoMemConfigContent() {
         >💾 保存配置</button>
       </div>
 
+      ${openViewSection}
+
       <div id="cfg-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
     </div>
   `;
@@ -57,10 +102,20 @@ export async function initConfigPanel(bodyElement) {
   const testBtn = bodyElement.querySelector('#cfg-test-btn');
   const saveBtn = bodyElement.querySelector('#cfg-save-btn');
   const statusEl = bodyElement.querySelector('#cfg-status');
+  const openviewUrlInput = bodyElement.querySelector('#cfg-openview-url');
+  const openviewUsernameInput = bodyElement.querySelector('#cfg-openview-username');
+  const openviewPasswordInput = bodyElement.querySelector('#cfg-openview-password');
+  const openviewLoginBtn = bodyElement.querySelector('#cfg-openview-login-btn');
 
   function normalizeBaseUrl(url) {
     const trimmed = (url || '').trim();
     if (!trimmed) return 'http://127.0.0.1:8010';
+    return trimmed.replace(/\/$/, '');
+  }
+
+  function normalizeOpenViewUrl(url) {
+    const trimmed = (url || '').trim();
+    if (!trimmed) return 'http://127.0.0.1:31020';
     return trimmed.replace(/\/$/, '');
   }
 
@@ -79,12 +134,26 @@ export async function initConfigPanel(bodyElement) {
     statusEl.textContent = msg;
   }
 
+  const showOpenView = isHigoPlatform();
+
   // Load existing config
   try {
     const cfg = await getEchoMemConfig();
     if (baseUrlInput) baseUrlInput.value = cfg.baseUrl || '';
     if (authKeyInput) authKeyInput.value = cfg.authKey || '';
     if (agentIdInput) agentIdInput.value = cfg.agentId || '';
+
+    if (showOpenView) {
+      const openviewCfg = await getOpenViewConfig();
+      if (openviewUrlInput) openviewUrlInput.value = openviewCfg.baseUrl || '';
+      if (openviewUsernameInput) openviewUsernameInput.value = openviewCfg.username || '';
+      if (openviewPasswordInput) openviewPasswordInput.value = openviewCfg.password || '';
+
+      const openviewAuth = await getOpenViewAuth();
+      if (openviewAuth?.accessToken && openviewLoginBtn) {
+        openviewLoginBtn.textContent = '✅ 已登录 OpenView';
+      }
+    }
   } catch (err) {
     console.warn('EchoMem: failed to load config', err);
   }
@@ -129,9 +198,46 @@ export async function initConfigPanel(bodyElement) {
       try {
         await setEchoMemConfig(config);
         resetClient();
+
+        if (showOpenView) {
+          const openviewConfig = {
+            baseUrl: normalizeOpenViewUrl(openviewUrlInput?.value),
+            username: openviewUsernameInput?.value?.trim() || '',
+            password: openviewPasswordInput?.value || '',
+          };
+          await setOpenViewConfig(openviewConfig);
+        }
+
         showStatus('✅ 配置已保存', 'success');
       } catch (err) {
         showStatus(`❌ 保存失败: ${err.message}`, 'error');
+      }
+    });
+  }
+
+  // Login OpenView
+  if (showOpenView && openviewLoginBtn) {
+    openviewLoginBtn.addEventListener('click', async () => {
+      showStatus('正在登录 OpenView...', 'info');
+      try {
+        const openviewConfig = {
+          baseUrl: normalizeOpenViewUrl(openviewUrlInput?.value),
+          username: openviewUsernameInput?.value?.trim() || '',
+          password: openviewPasswordInput?.value || '',
+        };
+        await setOpenViewConfig(openviewConfig);
+
+        const auth = await login({
+          baseUrl: openviewConfig.baseUrl,
+          username: openviewConfig.username,
+          password: openviewConfig.password,
+        });
+
+        openviewLoginBtn.textContent = '✅ 已登录 OpenView';
+        showStatus(`✅ OpenView 登录成功: ${auth.user?.username || ''}`, 'success');
+      } catch (err) {
+        openviewLoginBtn.textContent = '🔑 登录 OpenView';
+        showStatus(`❌ OpenView 登录失败: ${err.message}`, 'error');
       }
     });
   }

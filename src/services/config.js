@@ -6,6 +6,12 @@ const DEFAULT_ECHOMEM_CONFIG = {
   agentId: '',
 };
 
+const DEFAULT_OPENVIEW_CONFIG = {
+  baseUrl: 'http://127.0.0.1:31020',
+  username: '',
+  password: '',
+};
+
 const DEFAULT_COMPLETION_CONFIG = {
   phraseScoreThreshold: 0.2,
 };
@@ -28,6 +34,19 @@ export async function getEchoMemConfig() {
 
 export async function setEchoMemConfig(config) {
   await chrome.storage.local.set({ echomemConfig: config });
+}
+
+export async function getOpenViewConfig() {
+  try {
+    const result = await chrome.storage.local.get('openviewConfig');
+    return { ...DEFAULT_OPENVIEW_CONFIG, ...(result.openviewConfig || {}) };
+  } catch {
+    return { ...DEFAULT_OPENVIEW_CONFIG };
+  }
+}
+
+export async function setOpenViewConfig(config) {
+  await chrome.storage.local.set({ openviewConfig: config });
 }
 
 export function getAgentIdForPlatform(platformId) {

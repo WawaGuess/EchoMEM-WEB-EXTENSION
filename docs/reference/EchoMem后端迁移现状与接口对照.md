@@ -13,7 +13,7 @@
 |---|---|---|
 | 一期 | 核心记忆链路（健康检查、记忆召回、会话创建/消息/提交）迁移到 EchoMem | 已完成 |
 | 二期 | 资源管理、Skill 商店迁移到 EchoMem 服务接口 | 已完成 |
-| 三期 | 效能统计面板接入 EchoMem 后端 | 后端 Token 消耗（`GET /metrics`）已完成；用户会话统计待后续迁移 |
+| 三期 | 效能统计面板接入 EchoMem 后端 | 后端 Token 消耗（`GET /metrics`）已完成；用户会话统计已迁移至 OpenView agent |
 
 ## 2. 可直接切换的接口（低改动）
 
@@ -51,27 +51,24 @@
 
 | 功能 | 原接口 | 需要 EchoMem 后端提供的能力 | 影响面板 |
 |---|---|---|---|
-| 用户会话 Token 汇总 | `GET /api/stats/summary`（原 Background 直接调用） | 新增用户会话级统计接口，返回 `total_sessions`、`total_turns`、`total_input_tokens`、`total_output_tokens`、`total_tokens`、`since` | 效能概览 |
+| 用户会话 Token 汇总 | `GET /api/stats/summary`（原 Background 直接调用端口 8000） | 迁移到 OpenView agent：`GET /v1/stats/summary`；扩展登录 OpenView 后拉取 | 效能概览 |
 | 通用文件系统写操作 | `POST /api/v1/fs/mkdir`、`DELETE /api/v1/fs?uri=` | 如需保留目录树写操作，需 EchoMem 暴露 fs 写接口；或提供资源/Skill 的 `list/update/delete` 服务接口替代前端目录管理 | 资源管理、Skill 商店 |
 
 ## 5. 需要 EchoMem 后端暴露的接口清单
 
 按优先级排序：
 
-1. **用户会话统计接口**
-   - 建议路径：`GET /api/stats/summary`
-   - 用途：替代 Background 中直接调用的 `http://127.0.0.1:8010/api/stats/summary`
-   - 期望响应字段：`total_sessions`、`total_turns`、`total_input_tokens`、`total_output_tokens`、`total_tokens`、`since`
-
-2. **资源/Skill 列表接口（可选，用于替代 `/fs/ls` 方案）**
+1. **资源/Skill 列表接口（可选，用于替代 `/fs/ls` 方案）**
    - 建议路径：`GET /api/resources`、`GET /api/skills`
    - 用途：让前端不再依赖 `/fs/ls` 读取目录结构，直接获取资源/Skill 列表
    - 优势：避免前端假设后端文件系统布局
 
-3. **通用文件系统写接口（可选）**
+2. **通用文件系统写接口（可选）**
    - 建议路径：`POST /fs/mkdir`、`DELETE /fs?uri=`
    - 用途：如需保留前端目录树写操作能力
    - 风险：与 EchoMem 当前设计冲突，可能引入权限边界问题
+
+> 用户会话统计接口已通过 OpenView agent 的 `GET /v1/stats/summary` 解决，不再依赖 EchoMem 后端新增该能力。
 
 ## 6. 功能切换状态总览
 
@@ -87,7 +84,7 @@
 | Skill 列表 | — | 是 | — | 否 |
 | Skill 删除 | — | 是 | — | 否 |
 | 后端 Token 统计 | — | — | 是（通过 `GET /metrics`） | 否 |
-| 用户会话统计 | — | — | 否 | 是 |
+| 用户会话统计 | — | — | 是（通过 OpenView `/v1/stats/summary`） | 否 |
 
 ## 7. 相关代码锚点
 

@@ -1,6 +1,14 @@
 // Background Service Worker
 // 处理扩展的后台逻辑
 
+import {
+  getOpenViewAuth,
+  setOpenViewAuth,
+  clearOpenViewAuth,
+  refreshToken,
+  fetchStatsSummary,
+} from './src/services/openview-client.js';
+
 chrome.runtime.onInstalled.addListener((details) => {
   console.log('Claw Extension installed:', details.reason);
 
@@ -48,26 +56,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'fetchStatsSummary') {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-
-    fetch('http://127.0.0.1:8000/api/stats/summary', {
-      method: 'GET',
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        clearTimeout(timer);
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          sendResponse({ success: false, error: data.error?.message || `HTTP ${response.status}` });
-        } else {
-          sendResponse({ success: true, data });
-        }
-      })
-      .catch((err) => {
-        clearTimeout(timer);
-        sendResponse({ success: false, error: err.message });
-      });
+    handleFetchStatsSummary(sendResponse);
     return true;
   }
 
@@ -115,6 +104,53 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 });
+
+async function handleFetchStatsSummary(sendResponse) {
+  const auth = await getOpenViewAuth();
+  if (!auth?.accessToken || !auth?.refreshToken || !auth?.baseUrl) {
+    sendResponse({
+      success: false,
+      error: 'OpenView 未登录，请先在 EchoMem 配置面板登录',
+    });
+    return;
+  }
+
+  try {
+    const data = await fetchStatsSummary({
+      baseUrl: auth.baseUrl,
+      accessToken: auth.accessToken,
+    });
+    sendResponse({ success: true, data });
+    return;
+  } catch (error) {
+    if (error.status !== 401) {
+      sendResponse({
+        success: false,
+        error: error.message || '获取统计失败',
+      });
+      return;
+    }
+  }
+
+  // Token 过期，尝试刷新
+  try {
+    const newAuth = await refreshToken({
+      baseUrl: auth.baseUrl,
+      refreshToken: auth.refreshToken,
+    });
+    const data = await fetchStatsSummary({
+      baseUrl: newAuth.baseUrl,
+      accessToken: newAuth.accessToken,
+    });
+    sendResponse({ success: true, data });
+  } catch (error) {
+    await clearOpenViewAuth();
+    sendResponse({
+      success: false,
+      error: `OpenView 登录已过期，请重新登录: ${error.message}`,
+    });
+  }
+}
 
 // 监听标签页更新
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
