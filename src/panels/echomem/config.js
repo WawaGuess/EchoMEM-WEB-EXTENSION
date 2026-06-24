@@ -7,6 +7,7 @@ import {
   getOpenViewConfig,
   setOpenViewConfig,
 } from '../../services/config.js';
+import { showFloatingToast } from '../../services/toast.js';
 import { createClient } from '../../services/echomem-client.js';
 import { login, getOpenViewAuth } from '../../services/openview-client.js';
 import { resetClient } from '../../core/input-tracker.js';
@@ -87,8 +88,6 @@ export function getEchoMemConfigContent() {
       </div>
 
       ${openViewSection}
-
-      <div id="cfg-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
     </div>
   `;
 }
@@ -101,7 +100,6 @@ export async function initConfigPanel(bodyElement) {
   const agentIdInput = bodyElement.querySelector('#cfg-agent-id');
   const testBtn = bodyElement.querySelector('#cfg-test-btn');
   const saveBtn = bodyElement.querySelector('#cfg-save-btn');
-  const statusEl = bodyElement.querySelector('#cfg-status');
   const openviewUrlInput = bodyElement.querySelector('#cfg-openview-url');
   const openviewUsernameInput = bodyElement.querySelector('#cfg-openview-username');
   const openviewPasswordInput = bodyElement.querySelector('#cfg-openview-password');
@@ -117,21 +115,6 @@ export async function initConfigPanel(bodyElement) {
     const trimmed = (url || '').trim();
     if (!trimmed) return 'http://127.0.0.1:31020';
     return trimmed.replace(/\/$/, '');
-  }
-
-  function showStatus(msg, type = 'info') {
-    if (!statusEl) return;
-    statusEl.style.display = 'block';
-    const colors = {
-      info: { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8' },
-      success: { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d' },
-      error: { bg: '#fef2f2', border: '#fecaca', text: '#b91c1c' }
-    };
-    const c = colors[type] || colors.info;
-    statusEl.style.background = c.bg;
-    statusEl.style.border = `1px solid ${c.border}`;
-    statusEl.style.color = c.text;
-    statusEl.textContent = msg;
   }
 
   const showOpenView = isHigoPlatform();
@@ -161,7 +144,7 @@ export async function initConfigPanel(bodyElement) {
   // Test connection
   if (testBtn) {
     testBtn.addEventListener('click', async () => {
-      showStatus('正在测试连接...', 'info');
+      showFloatingToast('正在测试连接...', 'info', 0);
       try {
         const config = {
           baseUrl: normalizeBaseUrl(baseUrlInput?.value),
@@ -171,17 +154,17 @@ export async function initConfigPanel(bodyElement) {
         const client = createClient(config);
         const ok = await client.healthCheck();
         if (ok) {
-          showStatus('✅ 连接成功', 'success');
+          showFloatingToast('连接成功', 'success');
         } else {
-          showStatus('❌ 连接失败：后端返回非 200 状态码', 'error');
+          showFloatingToast('连接失败：后端返回非 200 状态码', 'error');
         }
       } catch (err) {
         if (err.name === 'AbortError' || err.message?.includes('aborted')) {
-          showStatus('❌ 连接超时，请检查服务地址是否正确', 'error');
+          showFloatingToast('连接超时，请检查服务地址是否正确', 'error');
         } else if (err.message?.includes('Failed to fetch')) {
-          showStatus('❌ 无法连接到后端，请检查服务是否启动', 'error');
+          showFloatingToast('无法连接到后端，请检查服务是否启动', 'error');
         } else {
-          showStatus(`❌ 连接失败: ${err.message}`, 'error');
+          showFloatingToast(`连接失败: ${err.message}`, 'error');
         }
       }
     });
@@ -208,9 +191,9 @@ export async function initConfigPanel(bodyElement) {
           await setOpenViewConfig(openviewConfig);
         }
 
-        showStatus('✅ 配置已保存', 'success');
+        showFloatingToast('配置已保存', 'success');
       } catch (err) {
-        showStatus(`❌ 保存失败: ${err.message}`, 'error');
+        showFloatingToast(`保存失败: ${err.message}`, 'error');
       }
     });
   }
@@ -218,7 +201,7 @@ export async function initConfigPanel(bodyElement) {
   // Login OpenView
   if (showOpenView && openviewLoginBtn) {
     openviewLoginBtn.addEventListener('click', async () => {
-      showStatus('正在登录 OpenView...', 'info');
+      showFloatingToast('正在登录 OpenView...', 'info', 0);
       try {
         const openviewConfig = {
           baseUrl: normalizeOpenViewUrl(openviewUrlInput?.value),
@@ -234,10 +217,10 @@ export async function initConfigPanel(bodyElement) {
         });
 
         openviewLoginBtn.textContent = '✅ 已登录 OpenView';
-        showStatus(`✅ OpenView 登录成功: ${auth.user?.username || ''}`, 'success');
+        showFloatingToast(`OpenView 登录成功: ${auth.user?.username || ''}`, 'success');
       } catch (err) {
         openviewLoginBtn.textContent = '🔑 登录 OpenView';
-        showStatus(`❌ OpenView 登录失败: ${err.message}`, 'error');
+        showFloatingToast(`OpenView 登录失败: ${err.message}`, 'error');
       }
     });
   }

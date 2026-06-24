@@ -1,171 +1,100 @@
-// 认知反馈面板内容 - 知识图谱渲染
+// 认知反馈面板内容 - 知识图谱 3D 渲染
+// 文档：docs/flows/cognitive-feedback/图谱渲染.md
 
-// 假数据：JavaScript 异步编程知识点图谱
-const mockGraphData = {
-  nodes: [
-    // 核心概念（大节点）
-    { id: 'js', name: 'JavaScript', symbolSize: 70, category: 0, value: 100 },
-    { id: 'async', name: '异步编程', symbolSize: 60, category: 0, value: 90 },
+import { fetchGraphData } from '../../services/graph-client.js';
+import { renderThreeGraph, cleanupThreeGraph } from './graph-three.js';
 
-    // 关键知识点（中等节点）
-    { id: 'promise', name: 'Promise', symbolSize: 50, category: 1, value: 80 },
-    { id: 'async-await', name: 'async/await', symbolSize: 50, category: 1, value: 80 },
-    { id: 'callback', name: '回调函数', symbolSize: 45, category: 1, value: 70 },
-    { id: 'event-loop', name: '事件循环', symbolSize: 45, category: 1, value: 70 },
+const DEFAULT_MODE = 'about';
 
-    // 细节概念（小节点）
-    { id: 'then', name: '.then()', symbolSize: 35, category: 2, value: 50 },
-    { id: 'catch', name: '.catch()', symbolSize: 35, category: 2, value: 50 },
-    { id: 'resolve', name: 'resolve', symbolSize: 30, category: 2, value: 40 },
-    { id: 'reject', name: 'reject', symbolSize: 30, category: 2, value: 40 },
-    { id: 'microtask', name: '微任务', symbolSize: 35, category: 2, value: 50 },
-    { id: 'macrotask', name: '宏任务', symbolSize: 35, category: 2, value: 50 },
-    { id: 'settimeout', name: 'setTimeout', symbolSize: 30, category: 2, value: 40 },
-    { id: 'fetch', name: 'Fetch API', symbolSize: 35, category: 2, value: 50 },
-    { id: 'xhr', name: 'XMLHttpRequest', symbolSize: 30, category: 2, value: 40 },
+function setLoadingState(container) {
+  container.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; flex-direction: column; gap: 12px;">
+      <div style="width: 32px; height: 32px; border: 3px solid #1a2332; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      <p style="font-size: 13px; color: #8899aa;">正在加载认知图谱…</p>
+    </div>
+    <style>
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  `;
+}
 
-    // 问题/注意（小节点，红色）
-    { id: 'hell', name: '回调地狱', symbolSize: 35, category: 3, value: 50 },
-  ],
-  links: [
-    // 层级关系
-    { source: 'js', target: 'async', name: '包含' },
-    { source: 'async', target: 'promise', name: '核心方案' },
-    { source: 'async', target: 'callback', name: '基础方式' },
-    { source: 'async', target: 'event-loop', name: '底层机制' },
+function setErrorState(container, err) {
+  container.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; flex-direction: column; gap: 12px; padding: 20px; text-align: center;">
+      <p style="font-size: 14px; color: #aabbcc;">图谱加载失败</p>
+      <p style="font-size: 12px; color: #667788; max-width: 300px;">${err.message || '未知错误'}</p>
+      <button id="echomem-retry-graph" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">重试</button>
+    </div>
+  `;
 
-    // Promise 相关
-    { source: 'promise', target: 'then', name: '方法' },
-    { source: 'promise', target: 'catch', name: '方法' },
-    { source: 'promise', target: 'resolve', name: '状态' },
-    { source: 'promise', target: 'reject', name: '状态' },
-    { source: 'promise', target: 'async-await', name: '语法糖' },
+  const retryBtn = container.querySelector('#echomem-retry-graph');
+  if (retryBtn) {
+    retryBtn.addEventListener('click', () => {
+      container._graphData = null;
+      renderGraph(container);
+    });
+  }
+}
 
-    // 事件循环相关
-    { source: 'event-loop', target: 'microtask', name: '包含' },
-    { source: 'event-loop', target: 'macrotask', name: '包含' },
-    { source: 'macrotask', target: 'settimeout', name: '示例' },
+function setEmptyState(container) {
+  container.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; flex-direction: column; gap: 12px; text-align: center;">
+      <p style="font-size: 14px; color: #aabbcc;">当前视图暂无数据</p>
+      <p style="font-size: 12px; color: #667788; max-width: 300px;">实体关系下没有找到可渲染的节点或关系。</p>
+    </div>
+  `;
+}
 
-    // 实际应用
-    { source: 'async', target: 'fetch', name: '应用场景' },
-    { source: 'callback', target: 'xhr', name: '传统用法' },
-    { source: 'callback', target: 'hell', name: '导致' },
-    { source: 'promise', target: 'hell', name: '解决' },
-  ],
-  categories: [
-    { name: '核心概念', itemStyle: { color: '#667eea' } },
-    { name: '关键知识点', itemStyle: { color: '#f093fb' } },
-    { name: '细节/方法', itemStyle: { color: '#4facfe' } },
-    { name: '问题/注意', itemStyle: { color: '#fa709a' } },
-  ],
-};
+function filterGraphData(graphData, mode) {
+  if (mode === 'all') return graphData;
 
-import * as echarts from 'echarts/core';
-import { GraphChart } from 'echarts/charts';
-import { CanvasRenderer } from 'echarts/renderers';
-import { TooltipComponent, LegendComponent } from 'echarts/components';
+  const filteredLinks = graphData.links.filter((l) => l.name === mode);
+  const linkedIds = new Set();
+  filteredLinks.forEach((l) => {
+    linkedIds.add(l.source);
+    linkedIds.add(l.target);
+  });
+  const filteredNodes = graphData.nodes.filter((n) => linkedIds.has(n.id));
 
-// 注册需要的组件（按需加载，减小打包体积）
-echarts.use([GraphChart, CanvasRenderer, TooltipComponent, LegendComponent]);
+  const usedCategories = new Set(filteredNodes.map((n) => n.category));
+  const filteredCategories = graphData.categories.filter((_, idx) => usedCategories.has(idx));
 
-/**
- * 获取 ECharts 实例（已打包进扩展，无需动态加载）
- */
-function loadECharts() {
-  return Promise.resolve(echarts);
+  return {
+    ...graphData,
+    nodes: filteredNodes,
+    links: filteredLinks,
+    categories: filteredCategories,
+  };
 }
 
 /**
- * 初始化并渲染知识图谱
+ * 渲染知识图谱（仅实体关系）
  * @param {HTMLElement} container - 图表容器元素
- * 文档：docs/flows/cognitive-feedback/图谱渲染.md
  */
 async function renderGraph(container) {
   try {
-    const echarts = await loadECharts();
+    setLoadingState(container);
 
-    const chart = echarts.init(container);
+    let graphData = container._graphData;
+    if (!graphData) {
+      graphData = await fetchGraphData();
+      container._graphData = graphData;
+    }
 
-    const option = {
-      tooltip: {
-        trigger: 'item',
-        formatter: (params) => {
-          if (params.dataType === 'node') {
-            const categoryName = mockGraphData.categories[params.data.category]?.name || '未知';
-            return `<b>${params.data.name}</b><br/>类型: ${categoryName}`;
-          }
-          return `${params.data.source} → ${params.data.target}<br/>关系: ${params.data.name}`;
-        },
-      },
-      legend: {
-        data: mockGraphData.categories.map((c) => c.name),
-        bottom: 10,
-        textStyle: { fontSize: 12 },
-      },
-      series: [
-        {
-          type: 'graph',
-          layout: 'force',
-          data: mockGraphData.nodes,
-          links: mockGraphData.links,
-          categories: mockGraphData.categories,
-          roam: true,
-          draggable: true,
-          label: {
-            show: true,
-            position: 'inside',
-            fontSize: 12,
-            color: '#fff',
-          },
-          force: {
-            repulsion: 300,
-            edgeLength: [80, 150],
-            gravity: 0.1,
-          },
-          lineStyle: {
-            color: 'source',
-            curveness: 0.2,
-            width: 2,
-          },
-          emphasis: {
-            focus: 'adjacency',
-            lineStyle: { width: 4 },
-          },
-          animationDuration: 1500,
-          animationEasingUpdate: 'quinticInOut',
-        },
-      ],
-    };
+    if (!container.isConnected) return;
 
-    chart.setOption(option);
+    const viewData = filterGraphData(graphData, DEFAULT_MODE);
 
-    // 响应式：窗口大小变化时重绘
-    const resizeHandler = () => chart.resize();
-    window.addEventListener('resize', resizeHandler);
+    if (viewData.nodes.length === 0) {
+      setEmptyState(container);
+      return;
+    }
 
-    // 清理：面板关闭时移除 resize 监听
-    container._echartsResizeHandler = resizeHandler;
-    container._echartsInstance = chart;
-
-    return chart;
+    renderThreeGraph(container, viewData);
   } catch (err) {
-    console.error('EchoMem: 加载 ECharts 失败', err);
-    const errorMsg = err.message || '未知错误';
-    container.innerHTML = `
-      <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; flex-direction: column; gap: 12px; padding: 20px; text-align: center;">
-        <p style="font-size: 14px; color: #666;">图谱加载失败</p>
-        <p style="font-size: 12px; color: #999; max-width: 300px;">${errorMsg}</p>
-        <button id="echomem-retry-graph" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">重试</button>
-      </div>
-    `;
-
-    // 绑定重试按钮事件（使用 addEventListener 而不是 onclick）
-    const retryBtn = container.querySelector('#echomem-retry-graph');
-    if (retryBtn) {
-      retryBtn.addEventListener('click', () => {
-        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999;">正在加载...</div>';
-        renderGraph(container);
-      });
+    console.error('EchoMem: 加载认知图谱失败', err);
+    if (container.isConnected) {
+      setErrorState(container, err);
     }
   }
 }
@@ -213,12 +142,12 @@ export function getFeedbackContent() {
 }
 
 /**
- * 获取认知图谱浮层内容（用于居中 overlay）
+ * 获取认知图谱浮层内容（用于居中 overlay，仅展示实体关系）
  */
 export function getGraphOverlayContent() {
+  const wrapperId = 'echomem-graph-wrapper-' + Date.now();
   const containerId = 'echomem-graph-container-' + Date.now();
 
-  // 使用 setTimeout 在 DOM 插入后初始化图表
   setTimeout(() => {
     const container = document.getElementById(containerId);
     if (container) {
@@ -227,7 +156,16 @@ export function getGraphOverlayContent() {
   }, 100);
 
   return `
-    <div id="${containerId}" style="width: 100%; height: 100%; min-height: 400px;"></div>
+    <div id="${wrapperId}" style="
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      min-height: 400px;
+      background: #05070a;
+    ">
+      <div id="${containerId}" style="flex: 1; min-height: 0;"></div>
+    </div>
   `;
 }
 
@@ -237,11 +175,6 @@ export function getGraphOverlayContent() {
 export function cleanupGraph(containerId) {
   const container = document.getElementById(containerId);
   if (container) {
-    if (container._echartsResizeHandler) {
-      window.removeEventListener('resize', container._echartsResizeHandler);
-    }
-    if (container._echartsInstance) {
-      container._echartsInstance.dispose();
-    }
+    cleanupThreeGraph(container);
   }
 }

@@ -5,6 +5,7 @@ import {
   getCompletionConfig,
   setCompletionConfig,
 } from '../../services/config.js';
+import { showFloatingToast } from '../../services/toast.js';
 
 export function getInputAssociationContent() {
   const inputAssociationEnabled = getAssociationEnabled();
@@ -158,8 +159,12 @@ export function bindConfigUI() {
       e.preventDefault();
       e.stopPropagation();
       const phraseScoreThreshold = parseFloat(document.getElementById('completion-threshold')?.value || '0.2');
-      await setCompletionConfig({ phraseScoreThreshold });
-      alert('配置已保存');
+      try {
+        await setCompletionConfig({ phraseScoreThreshold });
+        showFloatingToast('配置已保存', 'success');
+      } catch (err) {
+        showFloatingToast(`保存失败: ${err.message}`, 'error');
+      }
     });
   }
 }

@@ -103,7 +103,12 @@ export async function navigateToEchoMemPanel(panelIdOrTitle) {
       onBack: () => {
         closeOverlayPanel();
         openEchoMemHomePanel();
-      }
+      },
+      width: '95vw',
+      height: '90vh',
+      maxWidth: '1400px',
+      maxHeight: '900px',
+      compactHeader: true,
     });
   } else {
     cleanupPerformancePanel();

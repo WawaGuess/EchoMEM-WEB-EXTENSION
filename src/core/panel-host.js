@@ -19,19 +19,19 @@ export function isPanelOpen() {
   return isCustomPanelOpen;
 }
 
-function buildPanelHeader(title, showBack, onBack) {
+function buildPanelHeader(title, showBack, onBack, compact = false) {
   if (showBack) {
     return `
       <div style="
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 20px 24px;
+        padding: ${compact ? '12px 16px' : '20px 24px'};
       ">
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: ${compact ? '8px' : '12px'};">
           <button class="claw-back-btn" style="
-            width: 32px;
-            height: 32px;
+            width: ${compact ? '28px' : '32px'};
+            height: ${compact ? '28px' : '32px'};
             border-radius: 50%;
             border: none;
             background: rgba(58, 47, 40, 0.06);
@@ -43,14 +43,14 @@ function buildPanelHeader(title, showBack, onBack) {
             color: #9a8b7a;
             transition: all 0.4s ease;
           " title="返回">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="${compact ? '16' : '18'}" height="${compact ? '16' : '18'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"></line>
               <polyline points="12 19 5 12 12 5"></polyline>
             </svg>
           </button>
           <h6 style="
             margin: 0;
-            font-size: 18px;
+            font-size: ${compact ? '16px' : '18px'};
             font-weight: 600;
             color: #3a2f28;
             font-family: Roboto, 'Noto Sans SC', sans-serif;
@@ -58,8 +58,8 @@ function buildPanelHeader(title, showBack, onBack) {
           ">${title}</h6>
         </div>
         <button class="claw-close-panel" style="
-          width: 32px;
-          height: 32px;
+          width: ${compact ? '28px' : '32px'};
+          height: ${compact ? '28px' : '32px'};
           border-radius: 50%;
           border: none;
           background: rgba(58, 47, 40, 0.06);
@@ -71,7 +71,7 @@ function buildPanelHeader(title, showBack, onBack) {
           color: #9a8b7a;
           transition: all 0.4s ease;
         " title="关闭">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="${compact ? '16' : '18'}" height="${compact ? '16' : '18'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
@@ -341,7 +341,7 @@ export function getPanelBodyElement() {
  * 文档：docs/flows/panel-system/居中浮层.md
  */
 export function openCenterOverlay(title, contentHtml, options = {}) {
-  const { showBack = false, onBack = null, width, height, maxWidth, maxHeight } = options;
+  const { showBack = false, onBack = null, width, height, maxWidth, maxHeight, compactHeader = false } = options;
 
   // 保存当前可能存在的 EchoMem overlay 面板（DeepSeek 场景）
   const existingOverlay = currentOverlayPanel;
@@ -354,7 +354,7 @@ export function openCenterOverlay(title, contentHtml, options = {}) {
   // 移除旧遮罩层
   document.querySelectorAll('.claw-overlay-backdrop').forEach(b => b.remove());
 
-  const headerHtml = buildPanelHeader(title, showBack, onBack);
+  const headerHtml = buildPanelHeader(title, showBack, onBack, compactHeader);
   const panelHtml = `
     <div class="claw-custom-panel" style="
       display: flex;

@@ -347,6 +347,29 @@ class EchoMemClient {
     return result;
   }
 
+  async fsTree(uri, options = {}) {
+    const params = new URLSearchParams({ uri });
+    if (options.maxDepth !== undefined) {
+      params.set('max_depth', String(options.maxDepth));
+    }
+
+    if (this.cfg.debug) {
+      log('fsTree request', uri, JSON.stringify(options));
+    }
+
+    const result = await this._fetchJson(`${this.cfg.baseUrl}/fs/tree?${params.toString()}`, {
+      method: 'GET',
+      headers: this._buildHeaders(false),
+    });
+
+    if (this.cfg.debug) {
+      const entries = Array.isArray(result) ? result : (result?.entries || []);
+      log('fsTree response', `entries=${entries.length}`);
+    }
+
+    return result;
+  }
+
   async fsRead(uri, options = {}) {
     const params = new URLSearchParams({ uri });
     if (options.offset !== undefined) params.set('offset', String(options.offset));
