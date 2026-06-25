@@ -111,6 +111,8 @@ export async function fetchPerformanceData() {
 
 若 accessToken 过期返回 401，background script 会使用 `refreshToken` 调用 `POST /v1/auth/refresh` 刷新，再重试一次；刷新失败则清除本地 auth 并要求重新登录。
 
+> 补充说明：`background.js` 同时监听 `openViewRequest` 消息，用于代理内容脚本对 OpenView 的登录、刷新、stats 请求。`src/services/openview-client.js` 在 Service Worker 内部会直接 `fetch`，避免 Service Worker 无法接收自己发出的 `chrome.runtime.sendMessage` 消息。
+
 ```js
 if (request.action === 'fetchStatsSummary') {
   // 1. 读取 chrome.storage.local 中的 openviewAuth

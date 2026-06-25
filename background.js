@@ -60,6 +60,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'openViewRequest') {
+    const { url, method = 'GET', headers = {}, body } = request;
+
+    fetch(url, { method, headers, body })
+      .then(async (response) => {
+        const text = await response.text().catch(() => '');
+        let data = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          data = {};
+        }
+        if (!response.ok) {
+          sendResponse({
+            success: false,
+            status: response.status,
+            error: data.message || data.error?.message || `HTTP ${response.status}`,
+            data,
+            text,
+          });
+          return;
+        }
+        sendResponse({ success: true, status: response.status, data, text });
+      })
+      .catch((err) => {
+        sendResponse({ success: false, error: err.message });
+      });
+    return true;
+  }
+
   if (request.action === 'echoMemRequest') {
     const { url, method = 'GET', headers = {}, body, timeout = 5000 } = request;
     const controller = new AbortController();

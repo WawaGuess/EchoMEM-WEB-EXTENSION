@@ -30,9 +30,62 @@ async function parseResponse(response) {
   return { ok: response.ok, status: response.status, payload, text };
 }
 
+function fetchViaBackground(url, options = {}) {
+  // Service Worker 内部不能通过 chrome.runtime.sendMessage 给自己发消息，
+  // 因此直接在 background 里发起 fetch。
+  const isServiceWorker =
+    typeof window === 'undefined' &&
+    typeof self !== 'undefined' &&
+    typeof ServiceWorkerGlobalScope !== 'undefined' &&
+    self instanceof ServiceWorkerGlobalScope;
+
+  if (isServiceWorker) {
+    return fetch(url, options)
+      .then(async (response) => {
+        const text = await response.text().catch(() => '');
+        let data = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          data = {};
+        }
+        if (!response.ok) {
+          return {
+            success: false,
+            status: response.status,
+            error: data.message || data.error?.message || `HTTP ${response.status}`,
+            data,
+            text,
+          };
+        }
+        return { success: true, status: response.status, data, text };
+      })
+      .catch((err) => ({ success: false, error: err.message }));
+  }
+
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      {
+        action: 'openViewRequest',
+        url,
+        method: options.method || 'GET',
+        headers: options.headers,
+        body: options.body,
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(response);
+      }
+    );
+  });
+}
+
 async function request(baseUrl, path, options = {}) {
   const url = resolveUrl(baseUrl, path);
-  const response = await fetch(url, {
+  const response = await fetchViaBackground(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -40,19 +93,21 @@ async function request(baseUrl, path, options = {}) {
     },
   });
 
-  const parsed = await parseResponse(response);
-
-  if (!parsed.ok) {
+  if (!response || !response.success) {
     const message =
-      parsed.payload?.message ||
-      parsed.payload?.error ||
-      (parsed.text || '').trim() ||
-      `HTTP ${parsed.status}`;
+      response?.error ||
+      `HTTP ${response?.status || 'unknown'}`;
     const error = new Error(message);
-    error.status = parsed.status;
-    error.payload = parsed.payload;
+    error.status = response?.status;
+    error.payload = response?.data;
     throw error;
   }
+
+  const parsed = await parseResponse({
+    ok: response.success,
+    status: response.status,
+    text: async () => response.text || '',
+  });
 
   return parsed.payload;
 }

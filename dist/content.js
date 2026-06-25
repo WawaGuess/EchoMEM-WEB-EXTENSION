@@ -26140,24 +26140,70 @@ ${block}` : block;
     const payload = data && typeof data.code === "number" && "data" in data ? data.data : data;
     return { ok: response.ok, status: response.status, payload, text };
   }
+  function fetchViaBackground2(url, options = {}) {
+    const isServiceWorker = typeof window === "undefined" && typeof self !== "undefined" && typeof ServiceWorkerGlobalScope !== "undefined" && self instanceof ServiceWorkerGlobalScope;
+    if (isServiceWorker) {
+      return fetch(url, options).then(async (response) => {
+        var _a;
+        const text = await response.text().catch(() => "");
+        let data = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          data = {};
+        }
+        if (!response.ok) {
+          return {
+            success: false,
+            status: response.status,
+            error: data.message || ((_a = data.error) == null ? void 0 : _a.message) || `HTTP ${response.status}`,
+            data,
+            text
+          };
+        }
+        return { success: true, status: response.status, data, text };
+      }).catch((err) => ({ success: false, error: err.message }));
+    }
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        {
+          action: "openViewRequest",
+          url,
+          method: options.method || "GET",
+          headers: options.headers,
+          body: options.body
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          resolve(response);
+        }
+      );
+    });
+  }
   async function request(baseUrl, path, options = {}) {
-    var _a, _b;
     const url = resolveUrl(baseUrl, path);
-    const response = await fetch(url, {
+    const response = await fetchViaBackground2(url, {
       ...options,
       headers: {
         "Content-Type": "application/json",
         ...options.headers || {}
       }
     });
-    const parsed = await parseResponse(response);
-    if (!parsed.ok) {
-      const message = ((_a = parsed.payload) == null ? void 0 : _a.message) || ((_b = parsed.payload) == null ? void 0 : _b.error) || (parsed.text || "").trim() || `HTTP ${parsed.status}`;
+    if (!response || !response.success) {
+      const message = (response == null ? void 0 : response.error) || `HTTP ${(response == null ? void 0 : response.status) || "unknown"}`;
       const error = new Error(message);
-      error.status = parsed.status;
-      error.payload = parsed.payload;
+      error.status = response == null ? void 0 : response.status;
+      error.payload = response == null ? void 0 : response.data;
       throw error;
     }
+    const parsed = await parseResponse({
+      ok: response.success,
+      status: response.status,
+      text: async () => response.text || ""
+    });
     return parsed.payload;
   }
   async function getOpenViewAuth() {
