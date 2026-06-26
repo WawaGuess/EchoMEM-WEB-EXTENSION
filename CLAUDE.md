@@ -33,10 +33,14 @@ EchoMEM-WEB-EXTENSION/
 ├── icons/                 # 扩展图标 (16x16, 48x48, 128x128)
 ├── src/                   # 模块化内容脚本源码
 │   ├── entry/             # 内容脚本入口
-│   ├── core/              # 检测、注入、路由、状态、面板宿主
+│   ├── core/              # 检测、注入、路由、状态、面板宿主、会话录制
 │   ├── panels/            # EchoMem 功能面板模块
 │   ├── platforms/         # 平台注册与配置
-│   └── services/          # Chrome API 封装
+│   ├── adapters/          # 平台适配器（配置驱动 + 默认实现）
+│   ├── streaming/         # 流式完成检测策略
+│   ├── config/            # 运行时配置加载
+│   ├── utils/             # 通用工具（Skill 解析、文本处理等）
+│   └── services/          # Chrome API 与后端服务封装
 └── docs/                  # 文档目录
     ├── decisions/         # 架构决策记录 (ADR)
     ├── flows/             # 功能流程/调用链文档
@@ -61,7 +65,22 @@ EchoMEM-WEB-EXTENSION/
 ### 通信流程
 - **Popup** (`popup.js`) 当前为纯信息展示 UI
 - **Content Script** (`src/entry/content.js` -> `dist/content.js`) 在支持的页面注入 EchoMem 入口和面板
-- **Background** (`background.js`) 初始化存储，提供 `getTabInfo`、`saveToHistory` 等基础消息处理
+- **Background** (`background.js`) 初始化存储，提供 `getTabInfo`、`saveToHistory` 等基础消息处理，并代理内容脚本发起的跨域请求（如 EchoMem 后端、OpenView 接口）
+
+### 平台适配器
+- `src/adapters/` 提供配置驱动的 `BaseAdapter`，统一处理消息容器查找、角色判定、噪音过滤、文本提取、流式检测器创建等行为
+- `src/platforms/registry.js` 按 `platformId` 注册适配器；未注册平台自动回退到 `BaseAdapter`
+- 平台差异优先通过 `platforms.json` 声明，JSON 无法表达时才在对应 adapter 中覆盖方法
+
+### 流式完成检测
+- `src/streaming/` 维护检测策略注册表（如 `button-svg-poll`、`text-stability`、`selector-state`）
+- 适配器根据 `config.streaming` 创建检测器，用于判断助手消息在流式输出中是否已完整生成
+
+### 后端服务客户端
+- `src/services/echomem-client.js`：EchoMem 后端客户端，提供资源/Skill/Usage 等接口调用
+- `src/services/graph-client.js`：认知图谱数据客户端
+- `src/services/openview-client.js`：HIGO Office 本地/OpenView 会话 Token 统计客户端
+- 跨域请求统一通过 Background Service Worker 代理转发
 
 ### 数据流
 1. 内容脚本通过 `MutationObserver` 监听 DOM 变化
@@ -69,6 +88,7 @@ EchoMEM-WEB-EXTENSION/
 3. 在支持的页面注入 EchoMem 入口按钮
 4. 点击入口打开右侧浮层面板
 5. 菜单项打开对应功能面板，支持返回导航到首页
+6. 会话录制器（`src/core/session-recorder.js`）基于适配器抽象和流式检测，自动提取当前页面的聊天消息，供认知反馈和效能面板使用
 
 ## 常见开发任务
 
@@ -99,13 +119,13 @@ EchoMEM-WEB-EXTENSION/
 - **功能导航**：右侧 EchoMem 首页面板，包含 5 个功能入口
 - **资源管理**：上传区域和资源列表
 - **输入联想**：可开关的输入联想功能
-- **认知反馈**：会话统计和反馈报告
-- **Skill 商店**：商店首页和详情页，支持返回导航
-- **效能概览**：使用数据和效率指标
+- **认知反馈**：基于 Three.js 的 3D 认知知识图谱，以及会话统计分析
+- **Skill 商店**：Skill 列表（我的 Skill）、上传 Skill、安装管理
+- **效能概览**：Token 消耗概览，支持 HIGO 平台会话级统计与 EchoMem 后端 Usage 统计
 
 功能面板源码模块位于 `src/panels/`，每个主要 EchoMem 入口一个目录：
 `echomem/`、`resource/`、`association/`、`feedback/`、`skill-store/`、`performance/`。
-新增子功能应放在对应的功能目录下，除非成为共享的运行时服务。
+新增子功能应放在对应的功能目录下；若成为跨面板共享的运行时能力（如适配器、流式检测、后端客户端、工具函数），则放到 `src/adapters/`、`src/streaming/`、`src/services/`、`src/utils/` 等对应目录。
 
 ## 文档维护规则
 
@@ -146,6 +166,19 @@ EchoMEM-WEB-EXTENSION/
 | 平台检测、注入方式、运行入口、数据流、目录结构变化 | 更新 `docs/flows/` 并考虑新增 `docs/decisions/` ADR |
 | 新方案仍在讨论或验证中 | 临时写在 `docs/decisions/` 草稿或本地笔记 |
 | 方案已被替代但仍有参考价值 | 移入 `docs/legacy/` |
+
+### 助手指引同步检查
+
+代码发生以下类型变更时，除按上述规则更新 `docs/` 外，还应同步检查并更新本仓库的两份助手指引：
+
+| 变更范围 | 需同步的指引 |
+|----------|--------------|
+| 新增/删除 `src/` 顶层目录或调整模块职责 | 更新 `CLAUDE.md` 的项目结构图和核心架构说明 |
+| 功能入口、交互流程、支持平台发生变化 | 同步更新 `README.md` 的功能介绍和使用说明 |
+| 项目结构、构建方式、调试方式发生变化 | 同步更新 `README.md` 和 `CLAUDE.md` 的对应章节 |
+| 架构决策、数据流、通信流程发生变化 | 同步更新 `CLAUDE.md` 的核心架构说明 |
+
+**原则**：`CLAUDE.md` 面向开发者（Claude Code）的内部工作指南，`README.md` 面向用户和贡献者的项目概览；任何一方描述的事实与代码不一致时，都应修正。
 
 ### 决策文档 (ADR) 规范
 

@@ -14,18 +14,18 @@
 
 ### 3. 认知反馈
 - 当前会话分析（对话轮次、响应时间、Token 消耗）
-- 生成反馈报告
+- 3D 认知知识图谱：基于 Three.js 渲染实体关系，支持缩放、旋转、节点聚焦和关系筛选
 
 ### 4. Skill 商店
-- **用户历史 Skill**：查看和管理使用过的 Skill
-- **上传 Skill**：上传自定义 Skill 到商店
-- **商店购买**：浏览和购买商店中的 Skill
-- **商家 Skill**：官方和认证商家提供的 Skill
-- **安装管理**：已安装 Skill 的更新/卸载
+- **我的 Skill**：查看和管理已上传/使用过的 Skill，支持搜索、展开详情、查看完整内容
+- **上传 Skill**：上传 `.md` / `.txt` 格式 SKILL.md 文件，自动解析 frontmatter 并保存到 EchoMem 后端
+- **安装管理**：管理已安装的 Skill，支持删除
 
 ### 5. 效能
-- 今日会话、Skill 使用、联想触发、资源引用、反馈报告等效率指标概览
-- 首版展示占位数据，后续可接入真实使用数据
+- **Token 消耗概览**：展示当前页面会话及 EchoMem 后端的 Token 消耗统计
+- HIGO Office 平台显示完整会话指标：总 Token、会话数、轮次数、Input/Output Tokens
+- 其他平台展示 EchoMem 后端消耗
+- 支持手动刷新和定时轮询
 
 ## 安装方法
 
@@ -67,13 +67,16 @@ EchoMEM-WEB-EXTENSION/
 │   ├── core/              # 检测、注入、路由、状态和面板承载
 │   ├── panels/            # EchoMem 功能面板目录模块
 │   ├── platforms/         # 平台配置注册
-│   └── services/          # Chrome API 服务封装
-├── docs/                  # 文档索引、现行设计、架构说明和历史归档
-│   ├── README.md
-│   ├── architecture/
-│   ├── design/
-│   ├── proposals/
-│   └── legacy/
+│   ├── adapters/          # 平台适配器（配置驱动 + 默认实现）
+│   ├── streaming/         # 流式完成检测策略
+│   ├── config/            # 配置加载
+│   ├── utils/             # 通用工具（Skill 解析、文本处理等）
+│   └── services/          # 后端/API 服务封装
+├── docs/                  # 文档目录
+│   ├── decisions/         # 架构决策记录（ADR）
+│   ├── flows/             # 功能流程、调用链、数据流文档
+│   ├── reference/         # 配置参考、接口清单
+│   └── legacy/            # 历史归档
 └── README.md              # 本文件
 ```
 
@@ -82,17 +85,21 @@ EchoMEM-WEB-EXTENSION/
 | 路径 | 说明 |
 |------|------|
 | `manifest.json` | Chrome 扩展配置，声明权限、后台脚本、弹窗和实际加载的内容脚本 |
-| `background.js` | Manifest V3 后台 Service Worker，负责初始化存储和处理基础消息 |
+| `background.js` | Manifest V3 后台 Service Worker，负责初始化存储、代理跨域请求和处理基础消息 |
 | `popup.html` / `popup.css` / `popup.js` | 扩展工具栏弹窗，目前主要作为信息展示入口 |
 | `content.css` | 注入到目标页面的通用样式 |
 | `dist/content.js` | 构建后的内容脚本，Chrome 实际加载和执行的文件，不建议手动修改 |
 | `src/entry/` | 内容脚本源码入口，当前入口为 `src/entry/content.js` |
-| `src/core/` | 核心运行逻辑，包括平台检测、入口注入、DOM 监听、路由、状态和面板承载 |
+| `src/core/` | 核心运行逻辑，包括平台检测、入口注入、DOM 监听、路由、状态、面板承载和会话录制 |
 | `src/platforms/` | 平台配置注册，目前包含 HIGO Office 和 DeepSeek |
+| `src/adapters/` | 平台适配器抽象。`BaseAdapter` 提供配置驱动的默认实现，`DeepseekAdapter` / `HigoAdapter` 按需覆盖 |
+| `src/streaming/` | 流式完成检测策略注册表，用于在流式输出场景判断助手消息是否已结束 |
+| `src/config/` | 配置加载器，负责加载 `platforms.json` 等运行时配置 |
+| `src/utils/` | 通用工具，包括 `skill-parser`（解析 SKILL.md）、`text-processor`（文本处理）等 |
 | `src/panels/` | EchoMem 功能面板和面板注册表；每个主功能入口使用独立目录，便于继续拆分子功能 |
-| `src/services/` | Chrome API 服务封装，预留消息和存储能力 |
+| `src/services/` | 服务封装，包括 EchoMem 后端客户端、认知图谱客户端、OpenView 统计客户端、存储和消息代理 |
 | `icons/` | 扩展图标资源 |
-| `docs/` | 文档目录，包含现行设计、架构说明、方案记录和历史归档 |
+| `docs/` | 文档目录，按功能域分为架构决策、流程、参考和历史归档 |
 
 运行逻辑修改应优先改 `src/`，再执行 `npm run build` 生成新的 `dist/content.js`。
 
@@ -104,9 +111,9 @@ EchoMEM-WEB-EXTENSION/
 | `src/panels/echomem/` | EchoMem 首页 | 展示主功能导航入口 |
 | `src/panels/resource/` | 资源管理 | 资源上传区域和资源列表入口 |
 | `src/panels/association/` | 输入联想 | 输入联想开关和状态展示 |
-| `src/panels/feedback/` | 认知反馈 | 会话分析和反馈报告入口 |
-| `src/panels/skill-store/` | Skill 商店 | Skill 浏览、上传、购买、商家和安装管理 |
-| `src/panels/performance/` | 效能 | 使用效率指标和状态概览 |
+| `src/panels/feedback/` | 认知反馈 | 3D 认知知识图谱和会话分析入口 |
+| `src/panels/skill-store/` | Skill 商店 | Skill 列表、上传、安装管理 |
+| `src/panels/performance/` | 效能 | Token 消耗概览：会话级统计（HIGO）+ EchoMem 后端 Usage |
 
 ## 使用说明
 
@@ -131,15 +138,17 @@ EchoMEM-WEB-EXTENSION/
 ### EchoMem 功能导航
 - **资源管理**：管理文件资源
 - **输入联想**：开启/关闭智能联想
-- **认知反馈**：查看会话分析
-- **skill商店**：浏览和管理 Skill
-- **效能**：查看使用效率概览
+- **认知反馈**：查看 3D 认知知识图谱和会话分析
+- **Skill 商店**：管理、上传和删除 Skill
+- **效能**：查看 Token 消耗概览
 
 ### Skill 商店使用
-1. 点击 `EchoMem` 后选择「skill商店」打开商店首页
-2. 点击任意板块卡片进入详情页
-3. 详情页左上角有「← 返回」按钮可返回首页
-4. 右上角「×」按钮关闭整个面板
+1. 点击 `EchoMem` 后选择「Skill 商店」打开商店首页
+2. 点击「我的 Skill」查看已上传 Skill 列表，支持搜索和展开详情
+3. 点击「上传 Skill」上传符合 SKILL.md 格式的 `.md` / `.txt` 文件
+4. 点击「安装管理」查看已安装 Skill 并执行删除
+5. 详情页左上角有「← 返回」按钮可返回首页
+6. 右上角「×」按钮关闭整个面板
 
 ## 技术说明
 
@@ -148,6 +157,10 @@ EchoMEM-WEB-EXTENSION/
 - **构建工具**：使用 esbuild 将 `src/` 模块打包为 Chrome 可加载的内容脚本
 - **MutationObserver**：监听页面动态变化，确保 UI 正确挂载
 - **事件委托**：处理动态生成的元素点击事件
+- **平台适配器**：`src/adapters/` 提供配置驱动的 `BaseAdapter`，平台差异优先通过 `platforms.json` 声明；未注册平台自动回退到默认实现
+- **流式完成检测**：`src/streaming/` 注册多种检测策略（如 `button-svg-poll`、`text-stability`、`selector-state`），用于适配不同平台的流式输出
+- **后端客户端**：`src/services/echomem-client.js` 对接 EchoMem 后端，`graph-client.js` 获取认知图谱，`openview-client.js` 拉取 HIGO Office 本地/OpenView 会话统计
+- **会话录制**：`src/core/session-recorder.js` 基于适配器抽象和流式检测，自动提取当前页面的聊天消息
 
 ## 开发调试
 
