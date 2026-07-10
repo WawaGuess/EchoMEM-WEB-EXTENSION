@@ -224,6 +224,7 @@ class EchoMemClient {
       tags: options.tags,
       metadata: options.metadata,
     };
+    if (options.sessionId) body.session_id = options.sessionId;
     Object.keys(body).forEach((key) => {
       if (body[key] === undefined) delete body[key];
     });
@@ -263,6 +264,57 @@ class EchoMemClient {
 
     if (this.cfg.debug) {
       log('deleteResource response', result);
+    }
+
+    return result;
+  }
+
+  async getResourceIndexStatus(resourceId) {
+    if (!resourceId) throw new Error('resourceId is required');
+    const url = `${this.cfg.baseUrl}/api/resources/${encodeURIComponent(resourceId)}/index`;
+
+    if (this.cfg.debug) {
+      log('getResourceIndexStatus request', resourceId);
+    }
+
+    const result = await this._fetchJson(url, {
+      method: 'GET',
+      headers: this._buildHeaders(false),
+    });
+
+    if (this.cfg.debug) {
+      log('getResourceIndexStatus response', `status=${result?.status}`, JSON.stringify(result?.detail || {}));
+    }
+
+    return result;
+  }
+
+  async searchResources(options = {}) {
+    const body = {
+      query: options.query ?? '',
+      limit: options.limit || 8,
+    };
+
+    if (options.sessionId) body.session_id = options.sessionId;
+    if (options.resourceIds?.length) body.resource_ids = options.resourceIds;
+    if (options.tags?.length) body.tags = options.tags;
+    if (options.metadata && Object.keys(options.metadata).length > 0) {
+      body.metadata = options.metadata;
+    }
+
+    if (this.cfg.debug) {
+      log('searchResources request', JSON.stringify(body));
+    }
+
+    const result = await this._fetchJson(`${this.cfg.baseUrl}/api/resources/search`, {
+      method: 'POST',
+      headers: this._buildHeaders(true),
+      body: JSON.stringify(body),
+    });
+
+    if (this.cfg.debug) {
+      const results = result?.results || [];
+      log('searchResources response', `results=${results.length}`);
     }
 
     return result;

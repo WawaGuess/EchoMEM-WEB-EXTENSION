@@ -1,5 +1,5 @@
 // 文档：docs/reference/面板注册参考.md
-import { getResourceImportContent } from './resource/import.js';
+import { getResourceHomeContent } from './resource/index.js';
 import { getInputAssociationContent } from './association/index.js';
 import { getFeedbackContent } from './feedback/index.js';
 import { getPerformanceContent } from './performance/index.js';
@@ -10,7 +10,7 @@ export const panelRegistry = {
     id: 'resources',
     title: '资源管理',
     description: '管理文件资源与上传内容',
-    render: getResourceImportContent
+    render: getResourceHomeContent
   },
   association: {
     id: 'association',

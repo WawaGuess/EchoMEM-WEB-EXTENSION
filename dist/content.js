@@ -717,6 +717,62 @@
     setPanelOpen(true);
   }
 
+  // src/panels/resource/index.js
+  function getResourceHomeContent() {
+    const sections = [
+      {
+        id: "import",
+        title: "\u2B06\uFE0F \u4E0A\u4F20\u8D44\u6E90",
+        desc: "\u4E0A\u4F20\u672C\u5730\u6587\u4EF6\u5E76\u6D4F\u89C8\u5DF2\u5BFC\u5165\u7684\u8D44\u6E90",
+        color: "#2563eb"
+      },
+      {
+        id: "query",
+        title: "\u{1F50D} \u67E5\u8BE2\u8D44\u6E90",
+        desc: "\u6309 session\u3001resource id\u3001tag\u3001metadata \u641C\u7D22\u8D44\u6E90",
+        color: "#059669"
+      }
+    ];
+    const cards = sections.map((s) => `
+    <div class="claw-resource-section" data-resource-section="${s.id}" style="
+      padding: 16px;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    " onmouseenter="this.style.borderColor='${s.color}';this.style.background='#fafafa';this.style.transform='translateX(4px)'"
+       onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='none';this.style.transform='none'"
+    >
+      <div style="
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: ${s.color}15;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
+      ">${s.title.split(" ")[0]}</div>
+      <div style="flex: 1;">
+        <p style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 2px;">${s.title.split(" ").slice(1).join(" ")}</p>
+        <p style="font-size: 12px; color: #888;">${s.desc}</p>
+      </div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    </div>
+  `).join("");
+    return `
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      ${cards}
+    </div>
+  `;
+  }
+
   // src/services/config.js
   var DEFAULT_ECHOMEM_CONFIG = {
     baseUrl: "http://127.0.0.1:8010",
@@ -782,885 +838,6 @@
   }
   async function setCompletionConfig(config) {
     await chrome.storage.local.set({ completionConfig: config });
-  }
-
-  // src/services/echomem-client.js
-  var DEFAULT_CONFIG = {
-    baseUrl: "http://127.0.0.1:8010",
-    authKey: "",
-    timeoutMs: 5e3,
-    debug: true
-  };
-  function log(prefix, ...args) {
-    console.log(`EchoMem client [${prefix}]`, ...args);
-  }
-  function fetchViaBackground(url, options = {}) {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage(
-        {
-          action: "echoMemRequest",
-          url,
-          method: options.method || "GET",
-          headers: options.headers,
-          body: options.body,
-          timeout: options.timeout
-        },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-            return;
-          }
-          if (!response || !response.success) {
-            reject(new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error")));
-            return;
-          }
-          resolve(response);
-        }
-      );
-    });
-  }
-  var EchoMemClient = class {
-    constructor(config = {}) {
-      this.cfg = { ...DEFAULT_CONFIG, ...config };
-    }
-    _buildHeaders(contentType = false) {
-      const headers = {};
-      if (this.cfg.authKey) {
-        headers["X-Auth-Key"] = this.cfg.authKey;
-      }
-      if (contentType) {
-        headers["Content-Type"] = "application/json";
-      }
-      return headers;
-    }
-    async _fetchJson(url, options = {}) {
-      var _a;
-      const response = await fetchViaBackground(url, {
-        ...options,
-        timeout: this.cfg.timeoutMs
-      });
-      const data = response.data ?? response.text;
-      if (data && data.status === "error") {
-        throw new Error(data.message || ((_a = data.error) == null ? void 0 : _a.message) || "EchoMem error");
-      }
-      return data.result !== void 0 ? data.result : data;
-    }
-    async healthCheck() {
-      try {
-        const response = await fetchViaBackground(`${this.cfg.baseUrl}/health`, {
-          method: "GET",
-          timeout: this.cfg.timeoutMs
-        });
-        const data = response.data ?? response.text;
-        if (this.cfg.debug) {
-          log("health", "ok", data);
-        }
-        return true;
-      } catch (err) {
-        if (this.cfg.debug) {
-          log("health", "failed", err.message);
-        }
-        throw err;
-      }
-    }
-    async find(query, options = {}) {
-      const body = {
-        query,
-        agent_id: options.agentId,
-        limit: options.limit || 5,
-        include_explain: options.includeExplain || false
-      };
-      if (options.sessionId) body.session_id = options.sessionId;
-      if (this.cfg.debug) {
-        log("find request", JSON.stringify(body));
-      }
-      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/retrieval/search`, {
-        method: "POST",
-        headers: this._buildHeaders(true),
-        body: JSON.stringify(body)
-      });
-      if (this.cfg.debug) {
-        const items = (result == null ? void 0 : result.items) || [];
-        log(
-          "find response",
-          `items=${items.length}`,
-          items[0] ? JSON.stringify(items[0]) : "empty",
-          (result == null ? void 0 : result.explain) ? `explain=${JSON.stringify(result.explain)}` : "no explain"
-        );
-      }
-      return result;
-    }
-    async openSession(options = {}) {
-      var _a;
-      const body = {
-        agent_id: options.agentId
-      };
-      if (options.sessionId) body.session_id = options.sessionId;
-      if (options.runId) body.run_id = options.runId;
-      if (options.metadata) body.metadata = options.metadata;
-      if (this.cfg.debug) {
-        log("openSession request", JSON.stringify(body));
-      }
-      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/sessions/open`, {
-        method: "POST",
-        headers: this._buildHeaders(true),
-        body: JSON.stringify(body)
-      });
-      const normalized = {
-        ...result,
-        session_id: ((_a = result.scope) == null ? void 0 : _a.session_id) || result.session_id || result.id
-      };
-      if (this.cfg.debug) {
-        log("openSession response", `raw=${JSON.stringify(result)}`, `normalized session_id=${normalized.session_id}`);
-      }
-      return normalized;
-    }
-    async addMessage(sessionId, message) {
-      var _a;
-      const body = {
-        role: message.role,
-        content: message.text
-      };
-      if (this.cfg.debug) {
-        log("addMessage request", `session=${sessionId}`, JSON.stringify(body));
-      }
-      const result = await this._fetchJson(
-        `${this.cfg.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/messages`,
-        {
-          method: "POST",
-          headers: this._buildHeaders(true),
-          body: JSON.stringify(body)
-        }
-      );
-      if (this.cfg.debug) {
-        log("addMessage response", `session=${sessionId}`, `message.id=${((_a = result == null ? void 0 : result.message) == null ? void 0 : _a.id) || (result == null ? void 0 : result.id) || "unknown"}`);
-      }
-      return result;
-    }
-    async appendMessages(sessionId, messages) {
-      if (this.cfg.debug) {
-        log("appendMessages", `session=${sessionId}`, `count=${messages.length}`);
-      }
-      const results = [];
-      for (const msg of messages) {
-        const result = await this.addMessage(sessionId, msg);
-        results.push(result);
-      }
-      return results;
-    }
-    async commitSession(sessionId) {
-      if (this.cfg.debug) {
-        log("commitSession request", `session=${sessionId}`);
-      }
-      const result = await this._fetchJson(
-        `${this.cfg.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/commit`,
-        {
-          method: "POST",
-          headers: this._buildHeaders(true),
-          body: JSON.stringify({})
-        }
-      );
-      if (this.cfg.debug) {
-        log("commitSession response", `session=${sessionId}`, `commit_id=${result == null ? void 0 : result.commit_id}`, `archive_id=${result == null ? void 0 : result.archive_id}`, `status=${result == null ? void 0 : result.status}`);
-      }
-      return result;
-    }
-    // ── Resource Management ──
-    async addResource(options = {}) {
-      const body = {
-        content: options.content,
-        name: options.name,
-        content_type: options.contentType,
-        tags: options.tags,
-        metadata: options.metadata
-      };
-      Object.keys(body).forEach((key) => {
-        if (body[key] === void 0) delete body[key];
-      });
-      if (this.cfg.debug) {
-        const preview = body.content ? `${String(body.content).slice(0, 100)}...(${String(body.content).length} chars)` : "empty";
-        log("addResource request", JSON.stringify({ ...body, content: preview }));
-      }
-      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/resources`, {
-        method: "POST",
-        headers: this._buildHeaders(true),
-        body: JSON.stringify(body)
-      });
-      if (this.cfg.debug) {
-        log("addResource response", `resource_id=${result == null ? void 0 : result.resource_id}`, `uri=${result == null ? void 0 : result.uri}`);
-      }
-      return result;
-    }
-    async deleteResource(resourceId) {
-      if (!resourceId) throw new Error("resourceId is required");
-      const url = `${this.cfg.baseUrl}/api/resources/${encodeURIComponent(resourceId)}`;
-      if (this.cfg.debug) {
-        log("deleteResource request", resourceId);
-      }
-      const result = await this._fetchJson(url, {
-        method: "DELETE",
-        headers: this._buildHeaders(false)
-      });
-      if (this.cfg.debug) {
-        log("deleteResource response", result);
-      }
-      return result;
-    }
-    // ── Skill Management ──
-    async addSkill(options = {}) {
-      const body = {
-        data: options.data,
-        name: options.name,
-        description: options.description,
-        tags: options.tags,
-        allowed_tools: options.allowedTools
-      };
-      Object.keys(body).forEach((key) => {
-        if (body[key] === void 0) delete body[key];
-      });
-      if (this.cfg.debug) {
-        log("addSkill request", options.name, JSON.stringify({ ...body, data: void 0 }));
-      }
-      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/skills`, {
-        method: "POST",
-        headers: this._buildHeaders(true),
-        body: JSON.stringify(body)
-      });
-      if (this.cfg.debug) {
-        log("addSkill response", `name=${result == null ? void 0 : result.name}`, `uri=${result == null ? void 0 : result.uri}`);
-      }
-      return result;
-    }
-    async deleteSkill(name) {
-      if (!name) throw new Error("name is required");
-      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}`;
-      if (this.cfg.debug) {
-        log("deleteSkill request", name);
-      }
-      const result = await this._fetchJson(url, {
-        method: "DELETE",
-        headers: this._buildHeaders(false)
-      });
-      if (this.cfg.debug) {
-        log("deleteSkill response", result);
-      }
-      return result;
-    }
-    // ── Filesystem ──
-    async fsLs(uri, options = {}) {
-      const params = new URLSearchParams({ uri });
-      if (options.simple) params.set("simple", "true");
-      if (options.recursive) params.set("recursive", "true");
-      if (options.output) params.set("output", options.output);
-      if (options.absLimit) params.set("abs_limit", String(options.absLimit));
-      if (options.showAllHidden) params.set("show_all_hidden", "true");
-      if (options.nodeLimit) params.set("node_limit", String(options.nodeLimit));
-      if (this.cfg.debug) {
-        log("fsLs request", uri, JSON.stringify(options));
-      }
-      const result = await this._fetchJson(`${this.cfg.baseUrl}/fs/ls?${params.toString()}`, {
-        method: "GET",
-        headers: this._buildHeaders(false)
-      });
-      if (this.cfg.debug) {
-        const entries = Array.isArray(result) ? result : (result == null ? void 0 : result.entries) || [];
-        log("fsLs response", `entries=${entries.length}`);
-      }
-      return result;
-    }
-    async fsTree(uri, options = {}) {
-      const params = new URLSearchParams({ uri });
-      if (options.maxDepth !== void 0) {
-        params.set("max_depth", String(options.maxDepth));
-      }
-      if (this.cfg.debug) {
-        log("fsTree request", uri, JSON.stringify(options));
-      }
-      const result = await this._fetchJson(`${this.cfg.baseUrl}/fs/tree?${params.toString()}`, {
-        method: "GET",
-        headers: this._buildHeaders(false)
-      });
-      if (this.cfg.debug) {
-        const entries = Array.isArray(result) ? result : (result == null ? void 0 : result.entries) || [];
-        log("fsTree response", `entries=${entries.length}`);
-      }
-      return result;
-    }
-    async fsRead(uri, options = {}) {
-      const params = new URLSearchParams({ uri });
-      if (options.offset !== void 0) params.set("offset", String(options.offset));
-      if (options.limit !== void 0) params.set("limit", String(options.limit));
-      if (this.cfg.debug) {
-        log("fsRead request", uri);
-      }
-      const result = await this._fetchJson(`${this.cfg.baseUrl}/fs/read?${params.toString()}`, {
-        method: "GET",
-        headers: this._buildHeaders(false)
-      });
-      if (this.cfg.debug) {
-        const preview = typeof result === "string" ? `${result.slice(0, 80)}...` : JSON.stringify(result).slice(0, 80);
-        log("fsRead response", preview);
-      }
-      if (typeof result === "string") return result;
-      return (result == null ? void 0 : result.content) ?? (result == null ? void 0 : result.text) ?? "";
-    }
-    // ── Metrics / Token Statistics ──
-    async fetchMetrics() {
-      const url = `${this.cfg.baseUrl}/metrics`;
-      if (this.cfg.debug) {
-        log("fetchMetrics request", url);
-      }
-      const response = await fetchViaBackground(url, {
-        method: "GET",
-        timeout: this.cfg.timeoutMs
-      });
-      const text = response.text ?? "";
-      if (this.cfg.debug) {
-        log("fetchMetrics response", `${String(text).length} chars`);
-      }
-      return text;
-    }
-    async fetchUsage() {
-      const metricsText = await this.fetchMetrics();
-      const totalTokens = this._sumTokenCounters(metricsText, [
-        "echomem_router_llm_input_tokens_total",
-        "echomem_router_llm_output_tokens_total",
-        "echomem_engine_llm_input_tokens_total",
-        "echomem_engine_llm_output_tokens_total"
-      ]);
-      if (this.cfg.debug) {
-        log("fetchUsage", `total_tokens=${totalTokens}`);
-      }
-      return { total: { total_tokens: totalTokens } };
-    }
-    _sumTokenCounters(metricsText, counterNames) {
-      if (typeof metricsText !== "string" || metricsText.length === 0) {
-        return 0;
-      }
-      const names = new Set(counterNames);
-      let total = 0;
-      for (const line of metricsText.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) continue;
-        const match = trimmed.match(/^([^{\s]+)(?:\{[^}]*\})?\s+(\S+)$/);
-        if (!match) continue;
-        const [, name, valueStr] = match;
-        if (!names.has(name)) continue;
-        const value = parseFloat(valueStr);
-        if (!Number.isNaN(value)) {
-          total += value;
-        }
-      }
-      return Math.round(total);
-    }
-  };
-  function createClient(config) {
-    return new EchoMemClient(config);
-  }
-
-  // src/core/content-injector.js
-  function findInputElement() {
-    var _a, _b, _c;
-    const platform = getCurrentPlatform();
-    if (!platform) return null;
-    const selector = (_c = (_b = (_a = platform.config) == null ? void 0 : _a.launcher) == null ? void 0 : _b.validateSelectors) == null ? void 0 : _c.textarea;
-    if (!selector) return null;
-    return document.querySelector(selector);
-  }
-  var MEM_TAG_OPEN = "<relevant-memories>";
-  var MEM_TAG_CLOSE = "</relevant-memories>";
-  function stripMemoryBlock(text) {
-    const start2 = text.indexOf(MEM_TAG_OPEN);
-    if (start2 === -1) return text.trim();
-    const end = text.indexOf(MEM_TAG_CLOSE, start2);
-    if (end === -1) return text.trim();
-    return (text.slice(0, start2) + text.slice(end + MEM_TAG_CLOSE.length)).trim();
-  }
-  function injectContent(content, options = {}) {
-    const textarea = findInputElement();
-    if (!textarea) {
-      console.warn("EchoMem: \u672A\u627E\u5230\u8F93\u5165\u6846\uFF0C\u65E0\u6CD5\u6CE8\u5165\u5185\u5BB9");
-      return false;
-    }
-    const existing = textarea.value || "";
-    let base = options.replace ? stripMemoryBlock(existing) : existing;
-    const cleanContent = content.replace(new RegExp(MEM_TAG_OPEN, "g"), "").replace(new RegExp(MEM_TAG_CLOSE, "g"), "").trim();
-    if (!cleanContent) return false;
-    const block = `${MEM_TAG_OPEN}
-${cleanContent}
-${MEM_TAG_CLOSE}`;
-    const next = base ? `${base}
-
-${block}` : block;
-    textarea.value = next;
-    try {
-      textarea.selectionStart = textarea.selectionEnd = next.length;
-    } catch (_) {
-    }
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    if (options.focus !== false) {
-      textarea.focus();
-    }
-    return true;
-  }
-
-  // src/panels/resource/import.js
-  function normalizeUri(uri) {
-    return uri.replace(/\/$/, "");
-  }
-  function getRootDirUri() {
-    return "echo://resources";
-  }
-  function getParentUri(uri) {
-    const clean = normalizeUri(uri);
-    const parts = clean.split("/");
-    if (parts.length <= 3) return null;
-    return parts.slice(0, -1).join("/");
-  }
-  function getResourceImportContent() {
-    return `
-    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
-      <!-- \u672C\u5730\u6587\u4EF6\u4E0A\u4F20 -->
-      <div>
-        <p style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">\u{1F4C1} \u672C\u5730\u6587\u4EF6\u4E0A\u4F20</p>
-        <div id="claw-resource-dropzone" style="
-          border: 1.5px dashed #ccc;
-          border-radius: 8px;
-          padding: 0px 16px;
-          text-align: center;
-          cursor: pointer;
-          transition: all 0.2s;
-          background: #fafafa;
-        " onmouseenter="this.style.borderColor='#2563eb';this.style.background='#f0f7ff'"
-           onmouseleave="this.style.borderColor='#ccc';this.style.background='#fafafa'">
-          <p style="font-size: 14px; margin: 0;">\u{1F4E4}</p>
-          <p style="font-size: 11px; font-weight: 500; margin: 0;">\u70B9\u51FB\u6216\u62D6\u62FD\u6587\u4EF6\u5230\u6B64\u5904</p>
-          <p style="font-size: 9px; color: #888; margin: 0;">\u652F\u6301 PDF, DOC, TXT, MD</p>
-          <input type="file" id="claw-resource-file-input" style="display: none;" />
-        </div>
-      </div>
-
-      <!-- \u72B6\u6001\u63D0\u793A -->
-      <div id="claw-resource-import-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
-
-      <!-- \u5904\u7406\u7ED3\u679C\u533A -->
-      <div id="claw-resource-import-result" style="display: none;"></div>
-
-      <!-- \u8FDC\u7A0B\u6587\u4EF6\u5217\u8868 -->
-      <div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <p style="font-weight: 600; font-size: 14px; margin: 0;">\u{1F4C2} \u8FDC\u7A0B\u6587\u4EF6</p>
-          <p id="claw-remote-path" style="font-size: 10px; color: #888; margin: 0; font-family: monospace;">echo://resources</p>
-        </div>
-        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-          <div id="claw-remote-back-btn" style="display: none;">
-            <button id="claw-remote-back" style="
-              padding: 4px 10px;
-              background: #f3f4f6;
-              border: 1px solid #d1d5db;
-              border-radius: 4px;
-              font-size: 12px;
-              cursor: pointer;
-              color: #374151;
-            ">\u2190 \u8FD4\u56DE\u4E0A\u7EA7</button>
-          </div>
-        </div>
-        <div id="claw-backup-list-loading" style="text-align: center; padding: 16px; color: #888; font-size: 12px;">\u23F3 \u6B63\u5728\u52A0\u8F7D...</div>
-        <div id="claw-backup-list-content" style="display: none;"></div>
-      </div>
-    </div>
-  `;
-  }
-  async function initImportPanel(bodyElement) {
-    if (!bodyElement) return;
-    const dropzone = bodyElement.querySelector("#claw-resource-dropzone");
-    const fileInput = bodyElement.querySelector("#claw-resource-file-input");
-    const statusEl = bodyElement.querySelector("#claw-resource-import-status");
-    const resultEl = bodyElement.querySelector("#claw-resource-import-result");
-    const backupLoadingEl = bodyElement.querySelector("#claw-backup-list-loading");
-    const backupContentEl = bodyElement.querySelector("#claw-backup-list-content");
-    const pathEl = bodyElement.querySelector("#claw-remote-path");
-    const backBtnContainer = bodyElement.querySelector("#claw-remote-back-btn");
-    const backBtn = bodyElement.querySelector("#claw-remote-back");
-    if (!dropzone || !fileInput) return;
-    let currentDirUri = getRootDirUri();
-    function formatSize2(bytes) {
-      if (!bytes || bytes < 0) return "-";
-      if (bytes < 1024) return `${bytes} B`;
-      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    }
-    function formatDate2(ts) {
-      if (!ts) return "-";
-      const d = typeof ts === "string" ? new Date(ts) : new Date(ts * 1e3);
-      if (isNaN(d.getTime())) return "-";
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    }
-    function isDirectory2(entry) {
-      var _a, _b;
-      if (entry.kind) return entry.kind === "directory";
-      return entry.isDir || entry.is_dir || ((_a = entry.stat) == null ? void 0 : _a.isDir) || ((_b = entry.stat) == null ? void 0 : _b.is_dir) || false;
-    }
-    function isFile(entry) {
-      if (entry.kind) return entry.kind === "file";
-      return !isDirectory2(entry);
-    }
-    function getEntryName2(entry) {
-      var _a;
-      return entry.name || ((_a = entry.uri) == null ? void 0 : _a.split("/").pop()) || "\u672A\u547D\u540D";
-    }
-    function getEntryUpdatedAt3(entry) {
-      return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
-    }
-    function getEntrySize2(entry) {
-      var _a;
-      return entry.size ?? ((_a = entry.stat) == null ? void 0 : _a.size);
-    }
-    function isRootDir(uri) {
-      return normalizeUri(uri) === getRootDirUri();
-    }
-    async function loadRemoteFileList(dirUri = currentDirUri) {
-      if (!backupLoadingEl || !backupContentEl) return;
-      backupLoadingEl.style.display = "block";
-      backupContentEl.style.display = "none";
-      currentDirUri = dirUri;
-      if (pathEl) pathEl.textContent = dirUri;
-      if (backBtnContainer) {
-        backBtnContainer.style.display = dirUri === getRootDirUri() ? "none" : "flex";
-      }
-      try {
-        const client2 = createClient(await getEchoMemConfig());
-        const lsResult = await client2.fsLs(dirUri, { output: "agent", absLimit: 128, showAllHidden: true });
-        let entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
-        entries = entries.filter((e) => getEntryName2(e) !== ".DS_Store");
-        if (entries.length === 0) {
-          backupLoadingEl.style.display = "none";
-          backupContentEl.style.display = "block";
-          backupContentEl.innerHTML = `
-          <div style="text-align: center; padding: 24px 16px; color: #999; font-size: 12px;">
-            <p style="font-size: 24px; margin-bottom: 8px;">\u{1F4C2}</p>
-            <p>\u6682\u65E0\u6587\u4EF6</p>
-          </div>
-        `;
-          return;
-        }
-        const dirs = entries.filter((e) => isDirectory2(e));
-        const files = entries.filter((e) => isFile(e));
-        const sortByModTime = (a, b) => {
-          const ta = getEntryUpdatedAt3(a) ? new Date(getEntryUpdatedAt3(a)).getTime() : 0;
-          const tb = getEntryUpdatedAt3(b) ? new Date(getEntryUpdatedAt3(b)).getTime() : 0;
-          return tb - ta;
-        };
-        dirs.sort(sortByModTime);
-        files.sort(sortByModTime);
-        const allEntries = [...dirs, ...files];
-        const itemsHtml = allEntries.map((entry) => {
-          const name = getEntryName2(entry);
-          const isDir = isDirectory2(entry);
-          const icon = isDir ? "\u{1F4C1}" : "\u{1F4C4}";
-          const size = isDir ? "" : formatSize2(getEntrySize2(entry));
-          const date = formatDate2(getEntryUpdatedAt3(entry));
-          const atRoot = isRootDir(currentDirUri);
-          if (isDir) {
-            const deleteBtn = atRoot ? `<button class="claw-remote-btn-delete" data-resource-id="${name}" style="
-                padding: 3px 8px;
-                background: #fef2f2;
-                color: #dc2626;
-                border: 1px solid #fecaca;
-                border-radius: 4px;
-                font-size: 11px;
-                cursor: pointer;
-                white-space: nowrap;
-                margin-left: 8px;
-              ">\u5220\u9664</button>` : "";
-            return `
-            <div class="claw-remote-folder" data-uri="${entry.uri}" style="
-              padding: 8px 10px;
-              background: #f0f9ff;
-              border: 1px solid #bae6fd;
-              border-radius: 6px;
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              font-size: 12px;
-              cursor: pointer;
-            " title="\u70B9\u51FB\u8FDB\u5165\u6587\u4EF6\u5939">
-              <span style="font-size: 14px;">${icon}</span>
-              <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0369a1; font-weight: 500;"
-                >${name}</span>
-              <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
-              ${deleteBtn}
-            </div>
-          `;
-          }
-          return `
-          <div class="claw-remote-file" data-uri="${entry.uri}" style="
-            padding: 8px 10px;
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12px;
-          ">
-            <span style="font-size: 14px;">${icon}</span>
-            <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #111827;"
-              title="${name}">${name}</span>
-            <span style="color: #6b7280; white-space: nowrap; width: 60px; text-align: right;">${size}</span>
-            <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
-            <button class="claw-remote-btn-view" data-uri="${entry.uri}" style="
-              padding: 3px 8px;
-              background: #eff6ff;
-              color: #2563eb;
-              border: 1px solid #bfdbfe;
-              border-radius: 4px;
-              font-size: 11px;
-              cursor: pointer;
-              white-space: nowrap;
-            ">\u67E5\u770B</button>
-          </div>
-        `;
-        }).join("");
-        backupLoadingEl.style.display = "none";
-        backupContentEl.style.display = "block";
-        backupContentEl.innerHTML = `
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          ${itemsHtml}
-        </div>
-      `;
-        backupContentEl.querySelectorAll(".claw-remote-folder").forEach((folder) => {
-          folder.addEventListener("click", (e) => {
-            if (e.target.closest(".claw-remote-btn-delete")) return;
-            const uri = folder.dataset.uri;
-            if (uri) loadRemoteFileList(normalizeUri(uri));
-          });
-        });
-        backupContentEl.querySelectorAll(".claw-remote-btn-view").forEach((btn) => {
-          btn.addEventListener("click", async (e) => {
-            e.stopPropagation();
-            const uri = btn.dataset.uri;
-            if (!uri) return;
-            btn.textContent = "\u52A0\u8F7D\u4E2D...";
-            try {
-              const client3 = createClient(await getEchoMemConfig());
-              const result = await client3.fsRead(uri);
-              const text = typeof result === "string" ? result : (result == null ? void 0 : result.content) || JSON.stringify(result, null, 2);
-              const name = uri.split("/").pop() || uri;
-              const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
-              openCenterOverlay(name, previewHtml, {
-                showBack: true,
-                onBack: () => closeOverlayPanel()
-              });
-            } catch (err) {
-              alert(`\u67E5\u770B\u5931\u8D25: ${err.message}`);
-            }
-            btn.textContent = "\u67E5\u770B";
-          });
-        });
-        backupContentEl.querySelectorAll(".claw-remote-btn-delete").forEach((btn) => {
-          btn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            const resourceId = btn.dataset.resourceId;
-            if (!resourceId) {
-              alert("\u65E0\u6CD5\u5220\u9664\uFF1A\u7F3A\u5C11\u8D44\u6E90 ID");
-              return;
-            }
-            const dialogHtml = `
-            <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
-              <div style="text-align: center;">
-                <p style="font-size: 24px; margin: 0; line-height: 1;">\u{1F5D1}\uFE0F</p>
-                <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u5220\u9664\u8D44\u6E90</p>
-                <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u786E\u5B9A\u5220\u9664\u8D44\u6E90\u300C<strong style="color: #111;">${resourceId}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
-              </div>
-              <div style="display: flex; gap: 10px; justify-content: center;">
-                <button id="claw-resource-del-cancel" style="
-                  padding: 8px 20px;
-                  background: #f3f4f6;
-                  color: #374151;
-                  border: 1px solid #d1d5db;
-                  border-radius: 8px;
-                  font-size: 13px;
-                  cursor: pointer;
-                  font-weight: 500;
-                ">\u53D6\u6D88</button>
-                <button id="claw-resource-del-ok" style="
-                  padding: 8px 20px;
-                  background: #ef5350;
-                  color: white;
-                  border: none;
-                  border-radius: 8px;
-                  font-size: 13px;
-                  cursor: pointer;
-                  font-weight: 500;
-                ">\u786E\u8BA4\u5220\u9664</button>
-              </div>
-            </div>
-          `;
-            openCenterOverlay("\u5220\u9664\u786E\u8BA4", dialogHtml, {
-              width: "360px",
-              maxWidth: "360px",
-              height: "240px",
-              maxHeight: "280px"
-            });
-            setTimeout(() => {
-              const cancelBtn = document.getElementById("claw-resource-del-cancel");
-              const okBtn = document.getElementById("claw-resource-del-ok");
-              cancelBtn == null ? void 0 : cancelBtn.addEventListener("click", () => {
-                closeOverlayPanel();
-              });
-              okBtn == null ? void 0 : okBtn.addEventListener("click", async () => {
-                closeOverlayPanel();
-                btn.textContent = "\u5220\u9664\u4E2D...";
-                btn.disabled = true;
-                try {
-                  const client3 = createClient(await getEchoMemConfig());
-                  await client3.deleteResource(resourceId);
-                  await loadRemoteFileList();
-                } catch (err) {
-                  alert(`\u5220\u9664\u5931\u8D25: ${err.message}`);
-                  btn.textContent = "\u5220\u9664";
-                  btn.disabled = false;
-                }
-              });
-            }, 50);
-          });
-        });
-      } catch (err) {
-        backupLoadingEl.style.display = "none";
-        backupContentEl.style.display = "block";
-        backupContentEl.innerHTML = `
-        <div style="text-align: center; padding: 16px; color: #b91c1c; font-size: 12px;">
-          <p>\u274C \u52A0\u8F7D\u6587\u4EF6\u5217\u8868\u5931\u8D25</p>
-          <p style="color: #888;">${err.message}</p>
-        </div>
-      `;
-      }
-    }
-    if (backBtn) {
-      backBtn.addEventListener("click", () => {
-        const parent = getParentUri(currentDirUri);
-        if (parent) loadRemoteFileList(parent);
-      });
-    }
-    loadRemoteFileList();
-    function showStatus(msg, type = "info") {
-      if (!statusEl) return;
-      statusEl.style.display = "block";
-      const colors = {
-        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
-        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
-        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
-      };
-      const c = colors[type] || colors.info;
-      statusEl.style.background = c.bg;
-      statusEl.style.border = `1px solid ${c.border}`;
-      statusEl.style.color = c.text;
-      statusEl.textContent = msg;
-    }
-    function showResult(html) {
-      if (!resultEl) return;
-      resultEl.style.display = "block";
-      resultEl.innerHTML = html;
-    }
-    function hideResult() {
-      if (!resultEl) return;
-      resultEl.style.display = "none";
-      resultEl.innerHTML = "";
-    }
-    function formatError(err) {
-      var _a, _b, _c, _d;
-      if (err.name === "AbortError" || ((_a = err.message) == null ? void 0 : _a.includes("aborted"))) {
-        return "\u8BF7\u6C42\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u540E\u7AEF\u662F\u5426\u6B63\u5E38\u8FD0\u884C\u6216\u7F51\u7EDC\u8FDE\u63A5";
-      }
-      if ((_b = err.message) == null ? void 0 : _b.includes("Failed to fetch")) {
-        return "\u65E0\u6CD5\u8FDE\u63A5\u5230\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E";
-      }
-      if (((_c = err.message) == null ? void 0 : _c.includes("401")) || ((_d = err.message) == null ? void 0 : _d.includes("403"))) {
-        return "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728 EchoMem \u4E3B\u9875\u7684\u300C\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key";
-      }
-      return err.message;
-    }
-    function isTextFile(file) {
-      var _a;
-      if ((_a = file.type) == null ? void 0 : _a.startsWith("text/")) return true;
-      const ext = file.name.split(".").pop().toLowerCase();
-      return ["md", "txt", "json", "csv"].includes(ext);
-    }
-    function readFileContent(file) {
-      return new Promise((resolve, reject) => {
-        if (isTextFile(file)) {
-          file.text().then((text) => resolve({
-            content: text,
-            contentType: file.type || "text/plain"
-          })).catch(reject);
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = reader.result;
-          const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
-          resolve({
-            content: base64,
-            contentType: file.type || "application/octet-stream",
-            encoding: "base64"
-          });
-        };
-        reader.onerror = () => reject(new Error("\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25"));
-        reader.readAsDataURL(file);
-      });
-    }
-    async function doUpload(file) {
-      hideResult();
-      showStatus("\u6B63\u5728\u8BFB\u53D6\u6587\u4EF6...", "info");
-      try {
-        const { content, contentType, encoding } = await readFileContent(file);
-        const metadata = encoding ? { encoding, source: "EchoMem extension" } : { source: "EchoMem extension" };
-        showStatus("\u6B63\u5728\u4E0A\u4F20...", "info");
-        const config = await getEchoMemConfig();
-        const client2 = createClient(config);
-        const result = await client2.addResource({
-          content,
-          name: file.name,
-          contentType,
-          tags: [],
-          metadata
-        });
-        showStatus(`\u2705 \u300C${file.name}\u300D\u4E0A\u4F20\u6210\u529F`, "success");
-        await loadRemoteFileList();
-      } catch (err) {
-        showStatus(`\u274C \u4E0A\u4F20\u5931\u8D25: ${formatError(err)}`, "error");
-      }
-    }
-    dropzone.addEventListener("click", (e) => {
-      if (e.target !== fileInput) {
-        fileInput.click();
-      }
-    });
-    fileInput.addEventListener("change", () => {
-      var _a;
-      const file = (_a = fileInput.files) == null ? void 0 : _a[0];
-      if (file) doUpload(file);
-      fileInput.value = "";
-    });
-    dropzone.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      dropzone.style.borderColor = "#2563eb";
-      dropzone.style.background = "#f0f7ff";
-    });
-    dropzone.addEventListener("dragleave", (e) => {
-      e.preventDefault();
-      dropzone.style.borderColor = "#ccc";
-      dropzone.style.background = "#fafafa";
-    });
-    dropzone.addEventListener("drop", (e) => {
-      var _a, _b;
-      e.preventDefault();
-      dropzone.style.borderColor = "#ccc";
-      dropzone.style.background = "#fafafa";
-      const file = (_b = (_a = e.dataTransfer) == null ? void 0 : _a.files) == null ? void 0 : _b[0];
-      if (file) doUpload(file);
-    });
   }
 
   // src/services/toast.js
@@ -1875,6 +1052,422 @@ ${block}` : block;
     const thresholdNumber = document.getElementById("completion-threshold-number");
     if (thresholdInput) thresholdInput.value = completionConfig.phraseScoreThreshold;
     if (thresholdNumber) thresholdNumber.value = completionConfig.phraseScoreThreshold;
+  }
+
+  // src/services/echomem-client.js
+  var DEFAULT_CONFIG = {
+    baseUrl: "http://127.0.0.1:8010",
+    authKey: "",
+    timeoutMs: 5e3,
+    debug: true
+  };
+  function log(prefix, ...args) {
+    console.log(`EchoMem client [${prefix}]`, ...args);
+  }
+  function fetchViaBackground(url, options = {}) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        {
+          action: "echoMemRequest",
+          url,
+          method: options.method || "GET",
+          headers: options.headers,
+          body: options.body,
+          timeout: options.timeout
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          if (!response || !response.success) {
+            reject(new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error")));
+            return;
+          }
+          resolve(response);
+        }
+      );
+    });
+  }
+  var EchoMemClient = class {
+    constructor(config = {}) {
+      this.cfg = { ...DEFAULT_CONFIG, ...config };
+    }
+    _buildHeaders(contentType = false) {
+      const headers = {};
+      if (this.cfg.authKey) {
+        headers["X-Auth-Key"] = this.cfg.authKey;
+      }
+      if (contentType) {
+        headers["Content-Type"] = "application/json";
+      }
+      return headers;
+    }
+    async _fetchJson(url, options = {}) {
+      var _a;
+      const response = await fetchViaBackground(url, {
+        ...options,
+        timeout: this.cfg.timeoutMs
+      });
+      const data = response.data ?? response.text;
+      if (data && data.status === "error") {
+        throw new Error(data.message || ((_a = data.error) == null ? void 0 : _a.message) || "EchoMem error");
+      }
+      return data.result !== void 0 ? data.result : data;
+    }
+    async healthCheck() {
+      try {
+        const response = await fetchViaBackground(`${this.cfg.baseUrl}/health`, {
+          method: "GET",
+          timeout: this.cfg.timeoutMs
+        });
+        const data = response.data ?? response.text;
+        if (this.cfg.debug) {
+          log("health", "ok", data);
+        }
+        return true;
+      } catch (err) {
+        if (this.cfg.debug) {
+          log("health", "failed", err.message);
+        }
+        throw err;
+      }
+    }
+    async find(query, options = {}) {
+      const body = {
+        query,
+        agent_id: options.agentId,
+        limit: options.limit || 5,
+        include_explain: options.includeExplain || false
+      };
+      if (options.sessionId) body.session_id = options.sessionId;
+      if (this.cfg.debug) {
+        log("find request", JSON.stringify(body));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/retrieval/search`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      if (this.cfg.debug) {
+        const items = (result == null ? void 0 : result.items) || [];
+        log(
+          "find response",
+          `items=${items.length}`,
+          items[0] ? JSON.stringify(items[0]) : "empty",
+          (result == null ? void 0 : result.explain) ? `explain=${JSON.stringify(result.explain)}` : "no explain"
+        );
+      }
+      return result;
+    }
+    async openSession(options = {}) {
+      var _a;
+      const body = {
+        agent_id: options.agentId
+      };
+      if (options.sessionId) body.session_id = options.sessionId;
+      if (options.runId) body.run_id = options.runId;
+      if (options.metadata) body.metadata = options.metadata;
+      if (this.cfg.debug) {
+        log("openSession request", JSON.stringify(body));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/sessions/open`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      const normalized = {
+        ...result,
+        session_id: ((_a = result.scope) == null ? void 0 : _a.session_id) || result.session_id || result.id
+      };
+      if (this.cfg.debug) {
+        log("openSession response", `raw=${JSON.stringify(result)}`, `normalized session_id=${normalized.session_id}`);
+      }
+      return normalized;
+    }
+    async addMessage(sessionId, message) {
+      var _a;
+      const body = {
+        role: message.role,
+        content: message.text
+      };
+      if (this.cfg.debug) {
+        log("addMessage request", `session=${sessionId}`, JSON.stringify(body));
+      }
+      const result = await this._fetchJson(
+        `${this.cfg.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/messages`,
+        {
+          method: "POST",
+          headers: this._buildHeaders(true),
+          body: JSON.stringify(body)
+        }
+      );
+      if (this.cfg.debug) {
+        log("addMessage response", `session=${sessionId}`, `message.id=${((_a = result == null ? void 0 : result.message) == null ? void 0 : _a.id) || (result == null ? void 0 : result.id) || "unknown"}`);
+      }
+      return result;
+    }
+    async appendMessages(sessionId, messages) {
+      if (this.cfg.debug) {
+        log("appendMessages", `session=${sessionId}`, `count=${messages.length}`);
+      }
+      const results = [];
+      for (const msg of messages) {
+        const result = await this.addMessage(sessionId, msg);
+        results.push(result);
+      }
+      return results;
+    }
+    async commitSession(sessionId) {
+      if (this.cfg.debug) {
+        log("commitSession request", `session=${sessionId}`);
+      }
+      const result = await this._fetchJson(
+        `${this.cfg.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/commit`,
+        {
+          method: "POST",
+          headers: this._buildHeaders(true),
+          body: JSON.stringify({})
+        }
+      );
+      if (this.cfg.debug) {
+        log("commitSession response", `session=${sessionId}`, `commit_id=${result == null ? void 0 : result.commit_id}`, `archive_id=${result == null ? void 0 : result.archive_id}`, `status=${result == null ? void 0 : result.status}`);
+      }
+      return result;
+    }
+    // ── Resource Management ──
+    async addResource(options = {}) {
+      const body = {
+        content: options.content,
+        name: options.name,
+        content_type: options.contentType,
+        tags: options.tags,
+        metadata: options.metadata
+      };
+      if (options.sessionId) body.session_id = options.sessionId;
+      Object.keys(body).forEach((key) => {
+        if (body[key] === void 0) delete body[key];
+      });
+      if (this.cfg.debug) {
+        const preview = body.content ? `${String(body.content).slice(0, 100)}...(${String(body.content).length} chars)` : "empty";
+        log("addResource request", JSON.stringify({ ...body, content: preview }));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/resources`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      if (this.cfg.debug) {
+        log("addResource response", `resource_id=${result == null ? void 0 : result.resource_id}`, `uri=${result == null ? void 0 : result.uri}`);
+      }
+      return result;
+    }
+    async deleteResource(resourceId) {
+      if (!resourceId) throw new Error("resourceId is required");
+      const url = `${this.cfg.baseUrl}/api/resources/${encodeURIComponent(resourceId)}`;
+      if (this.cfg.debug) {
+        log("deleteResource request", resourceId);
+      }
+      const result = await this._fetchJson(url, {
+        method: "DELETE",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        log("deleteResource response", result);
+      }
+      return result;
+    }
+    async getResourceIndexStatus(resourceId) {
+      if (!resourceId) throw new Error("resourceId is required");
+      const url = `${this.cfg.baseUrl}/api/resources/${encodeURIComponent(resourceId)}/index`;
+      if (this.cfg.debug) {
+        log("getResourceIndexStatus request", resourceId);
+      }
+      const result = await this._fetchJson(url, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        log("getResourceIndexStatus response", `status=${result == null ? void 0 : result.status}`, JSON.stringify((result == null ? void 0 : result.detail) || {}));
+      }
+      return result;
+    }
+    async searchResources(options = {}) {
+      var _a, _b;
+      const body = {
+        query: options.query ?? "",
+        limit: options.limit || 8
+      };
+      if (options.sessionId) body.session_id = options.sessionId;
+      if ((_a = options.resourceIds) == null ? void 0 : _a.length) body.resource_ids = options.resourceIds;
+      if ((_b = options.tags) == null ? void 0 : _b.length) body.tags = options.tags;
+      if (options.metadata && Object.keys(options.metadata).length > 0) {
+        body.metadata = options.metadata;
+      }
+      if (this.cfg.debug) {
+        log("searchResources request", JSON.stringify(body));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/resources/search`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      if (this.cfg.debug) {
+        const results = (result == null ? void 0 : result.results) || [];
+        log("searchResources response", `results=${results.length}`);
+      }
+      return result;
+    }
+    // ── Skill Management ──
+    async addSkill(options = {}) {
+      const body = {
+        data: options.data,
+        name: options.name,
+        description: options.description,
+        tags: options.tags,
+        allowed_tools: options.allowedTools
+      };
+      Object.keys(body).forEach((key) => {
+        if (body[key] === void 0) delete body[key];
+      });
+      if (this.cfg.debug) {
+        log("addSkill request", options.name, JSON.stringify({ ...body, data: void 0 }));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/skills`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      if (this.cfg.debug) {
+        log("addSkill response", `name=${result == null ? void 0 : result.name}`, `uri=${result == null ? void 0 : result.uri}`);
+      }
+      return result;
+    }
+    async deleteSkill(name) {
+      if (!name) throw new Error("name is required");
+      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}`;
+      if (this.cfg.debug) {
+        log("deleteSkill request", name);
+      }
+      const result = await this._fetchJson(url, {
+        method: "DELETE",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        log("deleteSkill response", result);
+      }
+      return result;
+    }
+    // ── Filesystem ──
+    async fsLs(uri, options = {}) {
+      const params = new URLSearchParams({ uri });
+      if (options.simple) params.set("simple", "true");
+      if (options.recursive) params.set("recursive", "true");
+      if (options.output) params.set("output", options.output);
+      if (options.absLimit) params.set("abs_limit", String(options.absLimit));
+      if (options.showAllHidden) params.set("show_all_hidden", "true");
+      if (options.nodeLimit) params.set("node_limit", String(options.nodeLimit));
+      if (this.cfg.debug) {
+        log("fsLs request", uri, JSON.stringify(options));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/fs/ls?${params.toString()}`, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        const entries = Array.isArray(result) ? result : (result == null ? void 0 : result.entries) || [];
+        log("fsLs response", `entries=${entries.length}`);
+      }
+      return result;
+    }
+    async fsTree(uri, options = {}) {
+      const params = new URLSearchParams({ uri });
+      if (options.maxDepth !== void 0) {
+        params.set("max_depth", String(options.maxDepth));
+      }
+      if (this.cfg.debug) {
+        log("fsTree request", uri, JSON.stringify(options));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/fs/tree?${params.toString()}`, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        const entries = Array.isArray(result) ? result : (result == null ? void 0 : result.entries) || [];
+        log("fsTree response", `entries=${entries.length}`);
+      }
+      return result;
+    }
+    async fsRead(uri, options = {}) {
+      const params = new URLSearchParams({ uri });
+      if (options.offset !== void 0) params.set("offset", String(options.offset));
+      if (options.limit !== void 0) params.set("limit", String(options.limit));
+      if (this.cfg.debug) {
+        log("fsRead request", uri);
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/fs/read?${params.toString()}`, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        const preview = typeof result === "string" ? `${result.slice(0, 80)}...` : JSON.stringify(result).slice(0, 80);
+        log("fsRead response", preview);
+      }
+      if (typeof result === "string") return result;
+      return (result == null ? void 0 : result.content) ?? (result == null ? void 0 : result.text) ?? "";
+    }
+    // ── Metrics / Token Statistics ──
+    async fetchMetrics() {
+      const url = `${this.cfg.baseUrl}/metrics`;
+      if (this.cfg.debug) {
+        log("fetchMetrics request", url);
+      }
+      const response = await fetchViaBackground(url, {
+        method: "GET",
+        timeout: this.cfg.timeoutMs
+      });
+      const text = response.text ?? "";
+      if (this.cfg.debug) {
+        log("fetchMetrics response", `${String(text).length} chars`);
+      }
+      return text;
+    }
+    async fetchUsage() {
+      const metricsText = await this.fetchMetrics();
+      const totalTokens = this._sumTokenCounters(metricsText, [
+        "echomem_router_llm_input_tokens_total",
+        "echomem_router_llm_output_tokens_total",
+        "echomem_engine_llm_input_tokens_total",
+        "echomem_engine_llm_output_tokens_total"
+      ]);
+      if (this.cfg.debug) {
+        log("fetchUsage", `total_tokens=${totalTokens}`);
+      }
+      return { total: { total_tokens: totalTokens } };
+    }
+    _sumTokenCounters(metricsText, counterNames) {
+      if (typeof metricsText !== "string" || metricsText.length === 0) {
+        return 0;
+      }
+      const names = new Set(counterNames);
+      let total = 0;
+      for (const line of metricsText.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const match = trimmed.match(/^([^{\s]+)(?:\{[^}]*\})?\s+(\S+)$/);
+        if (!match) continue;
+        const [, name, valueStr] = match;
+        if (!names.has(name)) continue;
+        const value = parseFloat(valueStr);
+        if (!Number.isNaN(value)) {
+          total += value;
+        }
+      }
+      return Math.round(total);
+    }
+  };
+  function createClient(config) {
+    return new EchoMemClient(config);
   }
 
   // src/services/graph-client.js
@@ -25263,7 +24856,7 @@ ${block}` : block;
         }
       }, 4e3);
     }
-    function formatDate2(ts) {
+    function formatDate3(ts) {
       if (!ts) return "-";
       const d = typeof ts === "string" ? new Date(ts) : new Date(ts * 1e3);
       if (isNaN(d.getTime())) return "-";
@@ -25284,7 +24877,7 @@ ${block}` : block;
         const desc = skill.description || "\u6682\u65E0\u63CF\u8FF0";
         const version = skill.version ? `v${skill.version}` : "";
         const author = skill.author || "";
-        const metaParts = [version, author, formatDate2(skill.modifiedAt)].filter(Boolean);
+        const metaParts = [version, author, formatDate3(skill.modifiedAt)].filter(Boolean);
         const meta = metaParts.join(" \xB7 ") || "-";
         const deleteBtnHtml = options.showDelete ? `<button class="claw-skill-btn-delete" data-name="${skill.name}" style="
             padding: 4px 10px;
@@ -25580,7 +25173,7 @@ ${block}` : block;
       id: "resources",
       title: "\u8D44\u6E90\u7BA1\u7406",
       description: "\u7BA1\u7406\u6587\u4EF6\u8D44\u6E90\u4E0E\u4E0A\u4F20\u5185\u5BB9",
-      render: getResourceImportContent
+      render: getResourceHomeContent
     },
     association: {
       id: "association",
@@ -25731,509 +25324,50 @@ ${block}` : block;
     return `<div style="display: flex; flex-direction: column;">${cards}${configCard}</div>`;
   }
 
-  // src/panels/resource/index.js
-  function getResourceHomeContent() {
-    const sections = [
-      {
-        id: "import",
-        title: "\u2B06\uFE0F \u8D44\u6E90\u5BFC\u5165",
-        desc: "\u4E0A\u4F20\u672C\u5730\u6587\u4EF6\u6216\u901A\u8FC7 URL \u6DFB\u52A0\u8D44\u6E90",
-        color: "#2563eb"
-      },
-      {
-        id: "manage",
-        title: "\u{1F4CB} \u67E5\u770B\u8D44\u6E90",
-        desc: "\u6D4F\u89C8\u3001\u9884\u89C8\u548C\u5220\u9664\u5DF2\u5BFC\u5165\u7684\u8D44\u6E90",
-        color: "#059669"
-      }
-    ];
-    const cards = sections.map((s) => `
-    <div class="claw-resource-section" data-resource-section="${s.id}" style="
-      padding: 16px;
-      border: 1px solid #e0e0e0;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    " onmouseenter="this.style.borderColor='${s.color}';this.style.background='#fafafa';this.style.transform='translateX(4px)'"
-       onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='none';this.style.transform='none'"
-    >
-      <div style="
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        background: ${s.color}15;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-        flex-shrink: 0;
-      ">${s.title.split(" ")[0]}</div>
-      <div style="flex: 1;">
-        <p style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 2px;">${s.title.split(" ").slice(1).join(" ")}</p>
-        <p style="font-size: 12px; color: #888;">${s.desc}</p>
-      </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="9 18 15 12 9 6"></polyline>
-      </svg>
-    </div>
-  `).join("");
-    return `
-    <div style="display: flex; flex-direction: column; gap: 10px;">
-      ${cards}
-    </div>
-  `;
+  // src/core/content-injector.js
+  function findInputElement() {
+    var _a, _b, _c;
+    const platform = getCurrentPlatform();
+    if (!platform) return null;
+    const selector = (_c = (_b = (_a = platform.config) == null ? void 0 : _a.launcher) == null ? void 0 : _b.validateSelectors) == null ? void 0 : _c.textarea;
+    if (!selector) return null;
+    return document.querySelector(selector);
   }
+  var MEM_TAG_OPEN = "<relevant-memories>";
+  var MEM_TAG_CLOSE = "</relevant-memories>";
+  function stripMemoryBlock(text) {
+    const start2 = text.indexOf(MEM_TAG_OPEN);
+    if (start2 === -1) return text.trim();
+    const end = text.indexOf(MEM_TAG_CLOSE, start2);
+    if (end === -1) return text.trim();
+    return (text.slice(0, start2) + text.slice(end + MEM_TAG_CLOSE.length)).trim();
+  }
+  function injectContent(content, options = {}) {
+    const textarea = findInputElement();
+    if (!textarea) {
+      console.warn("EchoMem: \u672A\u627E\u5230\u8F93\u5165\u6846\uFF0C\u65E0\u6CD5\u6CE8\u5165\u5185\u5BB9");
+      return false;
+    }
+    const existing = textarea.value || "";
+    let base = options.replace ? stripMemoryBlock(existing) : existing;
+    const cleanContent = content.replace(new RegExp(MEM_TAG_OPEN, "g"), "").replace(new RegExp(MEM_TAG_CLOSE, "g"), "").trim();
+    if (!cleanContent) return false;
+    const block = `${MEM_TAG_OPEN}
+${cleanContent}
+${MEM_TAG_CLOSE}`;
+    const next = base ? `${base}
 
-  // src/panels/resource/manage.js
-  function getResourceDirUri() {
-    return "echo://resources";
-  }
-  function formatSize(bytes) {
-    if (!bytes || bytes < 0) return "-";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-  function formatDate(ts) {
-    if (!ts) return "-";
-    const d = typeof ts === "string" ? new Date(ts) : new Date(ts * 1e3);
-    if (isNaN(d.getTime())) return "-";
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }
-  function getResourceIdFromUri(uri) {
-    if (!uri) return "";
-    return uri.replace(/\/$/, "").split("/").pop() || "";
-  }
-  function getEntryUpdatedAt2(entry) {
-    return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
-  }
-  function getEntrySize(entry) {
-    var _a;
-    return entry.size ?? ((_a = entry.stat) == null ? void 0 : _a.size);
-  }
-  function getResourceManageContent() {
-    return `
-    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
-      <div id="claw-resource-toast" style="display: none;"></div>
-      <div id="claw-resource-list-loading" style="text-align: center; padding: 40px 20px; color: #888;">
-        <p style="font-size: 14px;">\u23F3 \u6B63\u5728\u52A0\u8F7D\u8D44\u6E90\u5217\u8868...</p>
-      </div>
-      <div id="claw-resource-toolbar" style="display: none; justify-content: flex-end; margin-bottom: 8px;">
-        <button id="claw-resource-btn-refresh" style="
-          padding: 5px 12px;
-          background: white;
-          color: #374151;
-          border: 1px solid #d1d5db;
-          border-radius: 6px;
-          font-size: 12px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        ">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-          \u5237\u65B0
-        </button>
-      </div>
-      <div id="claw-resource-list-content" style="display: none;"></div>
-    </div>
-  `;
-  }
-  async function initManagePanel(bodyElement) {
-    if (!bodyElement) return;
-    const loadingEl = bodyElement.querySelector("#claw-resource-list-loading");
-    const contentEl = bodyElement.querySelector("#claw-resource-list-content");
-    const toastEl = bodyElement.querySelector("#claw-resource-toast");
-    const toolbarEl = bodyElement.querySelector("#claw-resource-toolbar");
-    const refreshBtn = bodyElement.querySelector("#claw-resource-btn-refresh");
-    if (!loadingEl || !contentEl) return;
-    if (refreshBtn) {
-      refreshBtn.disabled = false;
-      refreshBtn.style.opacity = "1";
-      refreshBtn.style.cursor = "pointer";
-    }
-    if (refreshBtn && !refreshBtn.dataset.bound) {
-      refreshBtn.dataset.bound = "true";
-      refreshBtn.addEventListener("click", async () => {
-        refreshBtn.disabled = true;
-        refreshBtn.style.opacity = "0.6";
-        refreshBtn.style.cursor = "not-allowed";
-        loadingEl.style.display = "block";
-        contentEl.style.display = "none";
-        if (toolbarEl) toolbarEl.style.display = "none";
-        await initManagePanel(bodyElement);
-      });
-    }
-    function showToast(msg, type = "info") {
-      if (!toastEl) return;
-      const colors = {
-        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
-        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
-        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
-      };
-      const c = colors[type] || colors.info;
-      toastEl.style.display = "block";
-      toastEl.style.padding = "10px 12px";
-      toastEl.style.borderRadius = "6px";
-      toastEl.style.fontSize = "13px";
-      toastEl.style.marginBottom = "8px";
-      toastEl.style.background = c.bg;
-      toastEl.style.border = `1px solid ${c.border}`;
-      toastEl.style.color = c.text;
-      toastEl.textContent = msg;
-      setTimeout(() => {
-        if (toastEl) {
-          toastEl.style.display = "none";
-          toastEl.textContent = "";
-        }
-      }, 4e3);
-    }
+${block}` : block;
+    textarea.value = next;
     try {
-      const config = await getEchoMemConfig();
-      const client2 = createClient(config);
-      const dirUri = getResourceDirUri();
-      const lsResult = await client2.fsLs(dirUri, { output: "agent", absLimit: 128 });
-      console.log("[EchoMem:manage] lsResult type:", typeof lsResult, "isArray:", Array.isArray(lsResult), "raw:", lsResult);
-      const entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
-      console.log("[EchoMem:manage] entries count:", entries.length, "type:", typeof entries);
-      if (entries.length === 0) {
-        loadingEl.style.display = "none";
-        contentEl.style.display = "block";
-        if (toolbarEl) toolbarEl.style.display = "flex";
-        contentEl.innerHTML = `
-        <div style="text-align: center; padding: 40px 20px; color: #999;">
-          <p style="font-size: 36px; margin-bottom: 12px;">\u{1F4C2}</p>
-          <p style="font-size: 14px;">\u6682\u65E0\u5DF2\u5BFC\u5165\u8D44\u6E90</p>
-          <p style="font-size: 12px; margin-top: 6px;">\u5F53\u524D\u76EE\u5F55: ${dirUri}</p>
-        </div>
-      `;
-        return;
-      }
-      entries.sort((a, b) => {
-        const ta = getEntryUpdatedAt2(a) ? new Date(getEntryUpdatedAt2(a)).getTime() : 0;
-        const tb = getEntryUpdatedAt2(b) ? new Date(getEntryUpdatedAt2(b)).getTime() : 0;
-        return tb - ta;
-      });
-      const itemsHtml = entries.map((entry) => {
-        var _a;
-        const name = entry.name || ((_a = entry.uri) == null ? void 0 : _a.split("/").pop()) || "\u672A\u547D\u540D";
-        const size = formatSize(getEntrySize(entry));
-        const date = formatDate(getEntryUpdatedAt2(entry));
-        const abstractText = entry.abstract || "";
-        const resourceId = getResourceIdFromUri(entry.uri);
-        const contentUri = entry.uri ? `${entry.uri.replace(/\/$/, "")}/content` : "";
-        return `
-        <div class="claw-resource-item" data-uri="${entry.uri}" data-resource-id="${resourceId}" style="
-          padding: 12px;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        ">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div style="min-width: 0; flex: 1;">
-              <p style="font-weight: 600; font-size: 13px; color: #111827; margin-bottom: 2px; word-break: break-all;">${name}</p>
-              <p style="font-size: 11px; color: #6b7280;">
-                <span>${size}</span>
-                <span style="margin: 0 6px;">\xB7</span>
-                <span>${date}</span>
-              </p>
-            </div>
-            <span style="
-              padding: 2px 8px;
-              border-radius: 999px;
-              font-size: 11px;
-              font-weight: 500;
-              background: #15803d15;
-              color: #15803d;
-              white-space: nowrap;
-              margin-left: 8px;
-            ">\u5DF2\u5904\u7406</span>
-          </div>
-          ${abstractText ? `<p style="font-size: 12px; color: #4b5563; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${abstractText}</p>` : ""}
-          <div class="claw-resource-actions" style="display: flex; gap: 6px; margin-top: 4px;">
-            <button class="claw-resource-btn-view" data-uri="${contentUri}" style="
-              padding: 5px 10px;
-              background: #eff6ff;
-              color: #2563eb;
-              border: 1px solid #bfdbfe;
-              border-radius: 5px;
-              font-size: 12px;
-              cursor: pointer;
-            ">\u67E5\u770B\u5185\u5BB9</button>
-            <button class="claw-resource-btn-insert" data-uri="${contentUri}" style="
-              padding: 5px 10px;
-              background: #f0fdf4;
-              color: #15803d;
-              border: 1px solid #bbf7d0;
-              border-radius: 5px;
-              font-size: 12px;
-              cursor: pointer;
-            ">\u63D2\u5165\u5BF9\u8BDD</button>
-            <button class="claw-resource-btn-delete" data-resource-id="${resourceId}" style="
-              padding: 5px 10px;
-              background: #fef2f2;
-              color: #dc2626;
-              border: 1px solid #fecaca;
-              border-radius: 5px;
-              font-size: 12px;
-              cursor: pointer;
-              margin-left: auto;
-            ">\u5220\u9664</button>
-          </div>
-        </div>
-      `;
-      }).join("");
-      loadingEl.style.display = "none";
-      contentEl.style.display = "block";
-      if (toolbarEl) toolbarEl.style.display = "flex";
-      contentEl.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <p style="font-size: 12px; color: #6b7280;">\u5F53\u524D\u76EE\u5F55: <span style="font-family: monospace;">${dirUri}</span></p>
-        <p style="font-size: 12px; color: #6b7280;">\u5171 ${entries.length} \u4E2A\u8D44\u6E90</p>
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        ${itemsHtml}
-      </div>
-    `;
-      contentEl.querySelectorAll(".claw-resource-btn-view").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const uri = btn.dataset.uri;
-          if (!uri) return;
-          btn.textContent = "\u52A0\u8F7D\u4E2D...";
-          try {
-            const client3 = createClient(await getEchoMemConfig());
-            const result = await client3.fsRead(uri);
-            const text = typeof result === "string" ? result : (result == null ? void 0 : result.content) || JSON.stringify(result, null, 2);
-            const name = uri.split("/").pop() || uri;
-            const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
-            openCenterOverlay(name, previewHtml, {
-              showBack: true,
-              onBack: () => closeOverlayPanel()
-            });
-          } catch (err) {
-            showToast(`\u274C \u8BFB\u53D6\u5931\u8D25: ${err.message}`, "error");
-          }
-          btn.textContent = "\u67E5\u770B\u5185\u5BB9";
-        });
-      });
-      contentEl.querySelectorAll(".claw-resource-btn-insert").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const uri = btn.dataset.uri;
-          if (!uri) return;
-          btn.textContent = "\u63D2\u5165\u4E2D...";
-          try {
-            const client3 = createClient(await getEchoMemConfig());
-            const result = await client3.fsRead(uri);
-            const text = typeof result === "string" ? result : (result == null ? void 0 : result.content) || JSON.stringify(result, null, 2);
-            injectContent(text, { replace: false });
-          } catch (err) {
-            alert(`\u274C \u63D2\u5165\u5931\u8D25: ${err.message}`);
-          }
-          btn.textContent = "\u63D2\u5165\u5BF9\u8BDD";
-        });
-      });
-      contentEl.querySelectorAll(".claw-resource-btn-delete").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const resourceId = btn.dataset.resourceId;
-          if (!resourceId) return;
-          const dialogHtml = `
-          <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
-            <div style="text-align: center;">
-              <p style="font-size: 24px; margin: 0; line-height: 1;">\u{1F5D1}\uFE0F</p>
-              <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u5220\u9664\u8D44\u6E90</p>
-              <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u786E\u5B9A\u5220\u9664\u8D44\u6E90\u300C<strong style="color: #111;">${resourceId}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
-            </div>
-            <div style="display: flex; gap: 10px; justify-content: center;">
-              <button id="claw-resource-manage-del-cancel" style="
-                padding: 8px 20px;
-                background: #f3f4f6;
-                color: #374151;
-                border: 1px solid #d1d5db;
-                border-radius: 8px;
-                font-size: 13px;
-                cursor: pointer;
-                font-weight: 500;
-              ">\u53D6\u6D88</button>
-              <button id="claw-resource-manage-del-ok" style="
-                padding: 8px 20px;
-                background: #ef5350;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                font-size: 13px;
-                cursor: pointer;
-                font-weight: 500;
-              ">\u786E\u8BA4\u5220\u9664</button>
-            </div>
-          </div>
-        `;
-          openCenterOverlay("\u5220\u9664\u786E\u8BA4", dialogHtml, {
-            width: "360px",
-            maxWidth: "360px",
-            height: "240px",
-            maxHeight: "280px"
-          });
-          setTimeout(() => {
-            const cancelBtn = document.getElementById("claw-resource-manage-del-cancel");
-            const okBtn = document.getElementById("claw-resource-manage-del-ok");
-            cancelBtn == null ? void 0 : cancelBtn.addEventListener("click", () => {
-              closeOverlayPanel();
-            });
-            okBtn == null ? void 0 : okBtn.addEventListener("click", async () => {
-              closeOverlayPanel();
-              btn.textContent = "\u5220\u9664\u4E2D...";
-              btn.disabled = true;
-              try {
-                const client3 = createClient(await getEchoMemConfig());
-                await client3.deleteResource(resourceId);
-                showToast("\u2705 \u8D44\u6E90\u5DF2\u5220\u9664", "success");
-                await initManagePanel(bodyElement);
-              } catch (err) {
-                showToast(`\u274C \u5220\u9664\u5931\u8D25: ${err.message}`, "error");
-                btn.textContent = "\u5220\u9664";
-                btn.disabled = false;
-              }
-            });
-          }, 50);
-        });
-      });
-    } catch (err) {
-      loadingEl.style.display = "none";
-      contentEl.style.display = "block";
-      if (toolbarEl) toolbarEl.style.display = "flex";
-      contentEl.innerHTML = `
-      <div style="text-align: center; padding: 40px 20px; color: #b91c1c; background: #fef2f2; border-radius: 8px;">
-        <p style="font-size: 14px; margin-bottom: 6px;">\u274C \u52A0\u8F7D\u5931\u8D25</p>
-        <p style="font-size: 12px;">${err.message}</p>
-        <p style="font-size: 11px; color: #888; margin-top: 8px;">\u76EE\u5F55: ${getResourceDirUri()}</p>
-      </div>
-    `;
+      textarea.selectionStart = textarea.selectionEnd = next.length;
+    } catch (_) {
     }
-  }
-
-  // src/services/openview-client.js
-  var AUTH_STORAGE_KEY = "openviewAuth";
-  function normalizeBaseUrl(url) {
-    const trimmed = (url || "").trim();
-    if (!trimmed) return "http://127.0.0.1:31020";
-    return trimmed.replace(/\/$/, "");
-  }
-  function resolveUrl(baseUrl, path) {
-    const normalized = normalizeBaseUrl(baseUrl);
-    const safePath = path.startsWith("/") ? path : `/${path}`;
-    return `${normalized}${safePath}`;
-  }
-  async function parseResponse(response) {
-    const text = await response.text().catch(() => "");
-    let data = null;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      data = null;
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    if (options.focus !== false) {
+      textarea.focus();
     }
-    const payload = data && typeof data.code === "number" && "data" in data ? data.data : data;
-    return { ok: response.ok, status: response.status, payload, text };
-  }
-  function fetchViaBackground2(url, options = {}) {
-    const isServiceWorker = typeof window === "undefined" && typeof self !== "undefined" && typeof ServiceWorkerGlobalScope !== "undefined" && self instanceof ServiceWorkerGlobalScope;
-    if (isServiceWorker) {
-      return fetch(url, options).then(async (response) => {
-        var _a;
-        const text = await response.text().catch(() => "");
-        let data = {};
-        try {
-          data = text ? JSON.parse(text) : {};
-        } catch {
-          data = {};
-        }
-        if (!response.ok) {
-          return {
-            success: false,
-            status: response.status,
-            error: data.message || ((_a = data.error) == null ? void 0 : _a.message) || `HTTP ${response.status}`,
-            data,
-            text
-          };
-        }
-        return { success: true, status: response.status, data, text };
-      }).catch((err) => ({ success: false, error: err.message }));
-    }
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage(
-        {
-          action: "openViewRequest",
-          url,
-          method: options.method || "GET",
-          headers: options.headers,
-          body: options.body
-        },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-            return;
-          }
-          resolve(response);
-        }
-      );
-    });
-  }
-  async function request(baseUrl, path, options = {}) {
-    const url = resolveUrl(baseUrl, path);
-    const response = await fetchViaBackground2(url, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers || {}
-      }
-    });
-    if (!response || !response.success) {
-      const message = (response == null ? void 0 : response.error) || `HTTP ${(response == null ? void 0 : response.status) || "unknown"}`;
-      const error = new Error(message);
-      error.status = response == null ? void 0 : response.status;
-      error.payload = response == null ? void 0 : response.data;
-      throw error;
-    }
-    const parsed = await parseResponse({
-      ok: response.success,
-      status: response.status,
-      text: async () => response.text || ""
-    });
-    return parsed.payload;
-  }
-  async function getOpenViewAuth() {
-    try {
-      const result = await chrome.storage.local.get(AUTH_STORAGE_KEY);
-      return result[AUTH_STORAGE_KEY] || null;
-    } catch {
-      return null;
-    }
-  }
-  async function setOpenViewAuth(auth) {
-    await chrome.storage.local.set({ [AUTH_STORAGE_KEY]: auth });
-  }
-  async function login({ baseUrl, username, password }) {
-    const payload = await request(baseUrl, "/v1/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password })
-    });
-    if (!payload.accessToken || !payload.refreshToken) {
-      throw new Error("\u767B\u5F55\u54CD\u5E94\u4E2D\u7F3A\u5C11 token");
-    }
-    const auth = {
-      baseUrl: normalizeBaseUrl(baseUrl),
-      accessToken: payload.accessToken,
-      refreshToken: payload.refreshToken,
-      user: payload.user || null,
-      loggedInAt: Date.now()
-    };
-    await setOpenViewAuth(auth);
-    return auth;
+    return true;
   }
 
   // src/utils/text-processor.js
@@ -27611,6 +26745,1627 @@ ${block}` : block;
     };
   }
 
+  // src/panels/resource/import.js
+  function normalizeUri(uri) {
+    return uri.replace(/\/$/, "");
+  }
+  function getRootDirUri() {
+    return "echo://resources";
+  }
+  function resolveUploadSessionId() {
+    const { echoMemSessionId } = getRecordingState();
+    if (echoMemSessionId) return echoMemSessionId;
+    const platform = getCurrentPlatform();
+    if (!(platform == null ? void 0 : platform.key)) return null;
+    const rawSessionId = extractSessionId(platform.key);
+    return rawSessionId || null;
+  }
+  function getParentUri(uri) {
+    const clean = normalizeUri(uri);
+    const parts = clean.split("/");
+    if (parts.length <= 3) return null;
+    return parts.slice(0, -1).join("/");
+  }
+  function getResourceImportContent() {
+    return `
+    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+      <!-- \u672C\u5730\u6587\u4EF6\u4E0A\u4F20 -->
+      <div>
+        <p style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">\u{1F4C1} \u672C\u5730\u6587\u4EF6\u4E0A\u4F20</p>
+        <div id="claw-resource-dropzone" style="
+          border: 1.5px dashed #ccc;
+          border-radius: 8px;
+          padding: 0px 16px;
+          text-align: center;
+          cursor: pointer;
+          transition: all 0.2s;
+          background: #fafafa;
+        " onmouseenter="this.style.borderColor='#2563eb';this.style.background='#f0f7ff'"
+           onmouseleave="this.style.borderColor='#ccc';this.style.background='#fafafa'">
+          <p style="font-size: 14px; margin: 0;">\u{1F4E4}</p>
+          <p style="font-size: 11px; font-weight: 500; margin: 0;">\u70B9\u51FB\u6216\u62D6\u62FD\u6587\u4EF6\u5230\u6B64\u5904</p>
+          <p style="font-size: 9px; color: #888; margin: 0;">\u652F\u6301 PDF, DOC, TXT, MD</p>
+          <input type="file" id="claw-resource-file-input" style="display: none;" />
+        </div>
+      </div>
+
+      <!-- \u72B6\u6001\u63D0\u793A -->
+      <div id="claw-resource-import-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
+
+      <!-- \u5904\u7406\u7ED3\u679C\u533A -->
+      <div id="claw-resource-import-result" style="display: none;"></div>
+
+      <!-- \u8FDC\u7A0B\u6587\u4EF6\u5217\u8868 -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <p style="font-weight: 600; font-size: 14px; margin: 0;">\u{1F4C2} \u8FDC\u7A0B\u6587\u4EF6</p>
+          <p id="claw-remote-path" style="font-size: 10px; color: #888; margin: 0; font-family: monospace;">echo://resources</p>
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <div id="claw-remote-back-btn" style="display: none;">
+            <button id="claw-remote-back" style="
+              padding: 4px 10px;
+              background: #f3f4f6;
+              border: 1px solid #d1d5db;
+              border-radius: 4px;
+              font-size: 12px;
+              cursor: pointer;
+              color: #374151;
+            ">\u2190 \u8FD4\u56DE\u4E0A\u7EA7</button>
+          </div>
+        </div>
+        <div id="claw-backup-list-loading" style="text-align: center; padding: 16px; color: #888; font-size: 12px;">\u23F3 \u6B63\u5728\u52A0\u8F7D...</div>
+        <div id="claw-backup-list-content" style="display: none;"></div>
+      </div>
+    </div>
+  `;
+  }
+  async function initImportPanel(bodyElement) {
+    if (!bodyElement) return;
+    const dropzone = bodyElement.querySelector("#claw-resource-dropzone");
+    const fileInput = bodyElement.querySelector("#claw-resource-file-input");
+    const statusEl = bodyElement.querySelector("#claw-resource-import-status");
+    const resultEl = bodyElement.querySelector("#claw-resource-import-result");
+    const backupLoadingEl = bodyElement.querySelector("#claw-backup-list-loading");
+    const backupContentEl = bodyElement.querySelector("#claw-backup-list-content");
+    const pathEl = bodyElement.querySelector("#claw-remote-path");
+    const backBtnContainer = bodyElement.querySelector("#claw-remote-back-btn");
+    const backBtn = bodyElement.querySelector("#claw-remote-back");
+    if (!dropzone || !fileInput) return;
+    let currentDirUri = getRootDirUri();
+    function formatSize2(bytes) {
+      if (!bytes || bytes < 0) return "-";
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    function formatDate3(ts) {
+      if (!ts) return "-";
+      const d = typeof ts === "string" ? new Date(ts) : new Date(ts * 1e3);
+      if (isNaN(d.getTime())) return "-";
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    function isDirectory2(entry) {
+      var _a, _b;
+      if (entry.kind) return entry.kind === "directory";
+      return entry.isDir || entry.is_dir || ((_a = entry.stat) == null ? void 0 : _a.isDir) || ((_b = entry.stat) == null ? void 0 : _b.is_dir) || false;
+    }
+    function isFile(entry) {
+      if (entry.kind) return entry.kind === "file";
+      return !isDirectory2(entry);
+    }
+    function getEntryName2(entry) {
+      var _a;
+      return entry.name || ((_a = entry.uri) == null ? void 0 : _a.split("/").pop()) || "\u672A\u547D\u540D";
+    }
+    function getEntryUpdatedAt3(entry) {
+      return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
+    }
+    function getEntrySize2(entry) {
+      var _a;
+      return entry.size ?? ((_a = entry.stat) == null ? void 0 : _a.size);
+    }
+    function isRootDir(uri) {
+      return normalizeUri(uri) === getRootDirUri();
+    }
+    async function loadRemoteFileList(dirUri = currentDirUri) {
+      if (!backupLoadingEl || !backupContentEl) return;
+      backupLoadingEl.style.display = "block";
+      backupContentEl.style.display = "none";
+      currentDirUri = dirUri;
+      if (pathEl) pathEl.textContent = dirUri;
+      if (backBtnContainer) {
+        backBtnContainer.style.display = dirUri === getRootDirUri() ? "none" : "flex";
+      }
+      try {
+        const client2 = createClient(await getEchoMemConfig());
+        const lsResult = await client2.fsLs(dirUri, { output: "agent", absLimit: 128, showAllHidden: true });
+        let entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
+        entries = entries.filter((e) => {
+          const name = getEntryName2(e);
+          return name !== ".DS_Store" && name !== ".idx";
+        });
+        if (entries.length === 0) {
+          backupLoadingEl.style.display = "none";
+          backupContentEl.style.display = "block";
+          backupContentEl.innerHTML = `
+          <div style="text-align: center; padding: 24px 16px; color: #999; font-size: 12px;">
+            <p style="font-size: 24px; margin-bottom: 8px;">\u{1F4C2}</p>
+            <p>\u6682\u65E0\u6587\u4EF6</p>
+          </div>
+        `;
+          return;
+        }
+        const dirs = entries.filter((e) => isDirectory2(e));
+        const files = entries.filter((e) => isFile(e));
+        const sortByModTime = (a, b) => {
+          const ta = getEntryUpdatedAt3(a) ? new Date(getEntryUpdatedAt3(a)).getTime() : 0;
+          const tb = getEntryUpdatedAt3(b) ? new Date(getEntryUpdatedAt3(b)).getTime() : 0;
+          return tb - ta;
+        };
+        dirs.sort(sortByModTime);
+        files.sort(sortByModTime);
+        const allEntries = [...dirs, ...files];
+        const itemsHtml = allEntries.map((entry) => {
+          const name = getEntryName2(entry);
+          const isDir = isDirectory2(entry);
+          const icon = isDir ? "\u{1F4C1}" : "\u{1F4C4}";
+          const size = isDir ? "" : formatSize2(getEntrySize2(entry));
+          const date = formatDate3(getEntryUpdatedAt3(entry));
+          const atRoot = isRootDir(currentDirUri);
+          if (isDir) {
+            const deleteBtn = atRoot ? `<button class="claw-remote-btn-delete" data-resource-id="${name}" style="
+                padding: 3px 8px;
+                background: #fef2f2;
+                color: #dc2626;
+                border: 1px solid #fecaca;
+                border-radius: 4px;
+                font-size: 11px;
+                cursor: pointer;
+                white-space: nowrap;
+                margin-left: 8px;
+              ">\u5220\u9664</button>` : "";
+            return `
+            <div class="claw-remote-folder" data-uri="${entry.uri}" style="
+              padding: 8px 10px;
+              background: #f0f9ff;
+              border: 1px solid #bae6fd;
+              border-radius: 6px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-size: 12px;
+              cursor: pointer;
+            " title="\u70B9\u51FB\u8FDB\u5165\u6587\u4EF6\u5939">
+              <span style="font-size: 14px;">${icon}</span>
+              <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0369a1; font-weight: 500;"
+                >${name}</span>
+              <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
+              ${deleteBtn}
+            </div>
+          `;
+          }
+          return `
+          <div class="claw-remote-file" data-uri="${entry.uri}" style="
+            padding: 8px 10px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+          ">
+            <span style="font-size: 14px;">${icon}</span>
+            <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #111827;"
+              title="${name}">${name}</span>
+            <span style="color: #6b7280; white-space: nowrap; width: 60px; text-align: right;">${size}</span>
+            <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
+            <button class="claw-remote-btn-view" data-uri="${entry.uri}" style="
+              padding: 3px 8px;
+              background: #eff6ff;
+              color: #2563eb;
+              border: 1px solid #bfdbfe;
+              border-radius: 4px;
+              font-size: 11px;
+              cursor: pointer;
+              white-space: nowrap;
+            ">\u67E5\u770B</button>
+          </div>
+        `;
+        }).join("");
+        backupLoadingEl.style.display = "none";
+        backupContentEl.style.display = "block";
+        backupContentEl.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          ${itemsHtml}
+        </div>
+      `;
+        backupContentEl.querySelectorAll(".claw-remote-folder").forEach((folder) => {
+          folder.addEventListener("click", (e) => {
+            if (e.target.closest(".claw-remote-btn-delete")) return;
+            const uri = folder.dataset.uri;
+            if (uri) loadRemoteFileList(normalizeUri(uri));
+          });
+        });
+        backupContentEl.querySelectorAll(".claw-remote-btn-view").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const uri = btn.dataset.uri;
+            if (!uri) return;
+            btn.textContent = "\u52A0\u8F7D\u4E2D...";
+            try {
+              const client3 = createClient(await getEchoMemConfig());
+              const result = await client3.fsRead(uri);
+              const text = typeof result === "string" ? result : (result == null ? void 0 : result.content) || JSON.stringify(result, null, 2);
+              const name = uri.split("/").pop() || uri;
+              const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+              openCenterOverlay(name, previewHtml, {
+                showBack: true,
+                onBack: () => closeOverlayPanel()
+              });
+            } catch (err) {
+              alert(`\u67E5\u770B\u5931\u8D25: ${err.message}`);
+            }
+            btn.textContent = "\u67E5\u770B";
+          });
+        });
+        backupContentEl.querySelectorAll(".claw-remote-btn-delete").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const resourceId = btn.dataset.resourceId;
+            if (!resourceId) {
+              alert("\u65E0\u6CD5\u5220\u9664\uFF1A\u7F3A\u5C11\u8D44\u6E90 ID");
+              return;
+            }
+            const dialogHtml = `
+            <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="text-align: center;">
+                <p style="font-size: 24px; margin: 0; line-height: 1;">\u{1F5D1}\uFE0F</p>
+                <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u5220\u9664\u8D44\u6E90</p>
+                <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u786E\u5B9A\u5220\u9664\u8D44\u6E90\u300C<strong style="color: #111;">${resourceId}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
+              </div>
+              <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="claw-resource-del-cancel" style="
+                  padding: 8px 20px;
+                  background: #f3f4f6;
+                  color: #374151;
+                  border: 1px solid #d1d5db;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  cursor: pointer;
+                  font-weight: 500;
+                ">\u53D6\u6D88</button>
+                <button id="claw-resource-del-ok" style="
+                  padding: 8px 20px;
+                  background: #ef5350;
+                  color: white;
+                  border: none;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  cursor: pointer;
+                  font-weight: 500;
+                ">\u786E\u8BA4\u5220\u9664</button>
+              </div>
+            </div>
+          `;
+            openCenterOverlay("\u5220\u9664\u786E\u8BA4", dialogHtml, {
+              width: "360px",
+              maxWidth: "360px",
+              height: "240px",
+              maxHeight: "280px"
+            });
+            setTimeout(() => {
+              const cancelBtn = document.getElementById("claw-resource-del-cancel");
+              const okBtn = document.getElementById("claw-resource-del-ok");
+              cancelBtn == null ? void 0 : cancelBtn.addEventListener("click", () => {
+                closeOverlayPanel();
+              });
+              okBtn == null ? void 0 : okBtn.addEventListener("click", async () => {
+                closeOverlayPanel();
+                btn.textContent = "\u5220\u9664\u4E2D...";
+                btn.disabled = true;
+                try {
+                  const client3 = createClient(await getEchoMemConfig());
+                  await client3.deleteResource(resourceId);
+                  await loadRemoteFileList();
+                } catch (err) {
+                  alert(`\u5220\u9664\u5931\u8D25: ${err.message}`);
+                  btn.textContent = "\u5220\u9664";
+                  btn.disabled = false;
+                }
+              });
+            }, 50);
+          });
+        });
+      } catch (err) {
+        backupLoadingEl.style.display = "none";
+        backupContentEl.style.display = "block";
+        backupContentEl.innerHTML = `
+        <div style="text-align: center; padding: 16px; color: #b91c1c; font-size: 12px;">
+          <p>\u274C \u52A0\u8F7D\u6587\u4EF6\u5217\u8868\u5931\u8D25</p>
+          <p style="color: #888;">${err.message}</p>
+        </div>
+      `;
+      }
+    }
+    if (backBtn) {
+      backBtn.addEventListener("click", () => {
+        const parent = getParentUri(currentDirUri);
+        if (parent) loadRemoteFileList(parent);
+      });
+    }
+    loadRemoteFileList();
+    function showStatus(msg, type = "info") {
+      if (!statusEl) return;
+      statusEl.style.display = "block";
+      const colors = {
+        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+      };
+      const c = colors[type] || colors.info;
+      statusEl.style.background = c.bg;
+      statusEl.style.border = `1px solid ${c.border}`;
+      statusEl.style.color = c.text;
+      statusEl.textContent = msg;
+    }
+    function showResult(html) {
+      if (!resultEl) return;
+      resultEl.style.display = "block";
+      resultEl.innerHTML = html;
+    }
+    function hideResult() {
+      if (!resultEl) return;
+      resultEl.style.display = "none";
+      resultEl.innerHTML = "";
+    }
+    function formatError(err) {
+      var _a, _b, _c, _d;
+      if (err.name === "AbortError" || ((_a = err.message) == null ? void 0 : _a.includes("aborted"))) {
+        return "\u8BF7\u6C42\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u540E\u7AEF\u662F\u5426\u6B63\u5E38\u8FD0\u884C\u6216\u7F51\u7EDC\u8FDE\u63A5";
+      }
+      if ((_b = err.message) == null ? void 0 : _b.includes("Failed to fetch")) {
+        return "\u65E0\u6CD5\u8FDE\u63A5\u5230\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E";
+      }
+      if (((_c = err.message) == null ? void 0 : _c.includes("401")) || ((_d = err.message) == null ? void 0 : _d.includes("403"))) {
+        return "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u5728 EchoMem \u4E3B\u9875\u7684\u300C\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E\u300D\u4E2D\u68C0\u67E5 API Key";
+      }
+      return err.message;
+    }
+    function isTextFile(file) {
+      var _a;
+      if ((_a = file.type) == null ? void 0 : _a.startsWith("text/")) return true;
+      const ext = file.name.split(".").pop().toLowerCase();
+      return ["md", "txt", "json", "csv"].includes(ext);
+    }
+    function readFileContent(file) {
+      return new Promise((resolve, reject) => {
+        if (isTextFile(file)) {
+          file.text().then((text) => resolve({
+            content: text,
+            contentType: file.type || "text/plain"
+          })).catch(reject);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result;
+          const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+          resolve({
+            content: base64,
+            contentType: file.type || "application/octet-stream",
+            encoding: "base64"
+          });
+        };
+        reader.onerror = () => reject(new Error("\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25"));
+        reader.readAsDataURL(file);
+      });
+    }
+    async function pollResourceIndexStatus(client2, resourceId, options = {}) {
+      const { timeoutMs = 3e4, intervalMs = 1500 } = options;
+      const start2 = Date.now();
+      while (Date.now() - start2 < timeoutMs) {
+        const status = await client2.getResourceIndexStatus(resourceId);
+        if (["completed", "failed"].includes(status == null ? void 0 : status.status)) {
+          return status;
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      }
+      return { status: "timeout" };
+    }
+    function openUploadMetadataOverlay(file, onConfirm) {
+      const overlayId = "claw-upload-meta-overlay";
+      const safeName = file.name.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const dialogHtml = `
+      <div id="${overlayId}" style="
+        padding: 22px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        color: #3a2f28;
+        font-family: inherit;
+      ">
+        <!-- \u6587\u4EF6\u4FE1\u606F\u5361\u7247 -->
+        <div style="
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 16px;
+          border-radius: 18px;
+          background: linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(250,247,244,0.6) 100%);
+          border: 1px solid rgba(58, 47, 40, 0.08);
+          box-shadow: 0 4px 18px rgba(58, 47, 40, 0.06);
+        ">
+          <div style="
+            width: 42px; height: 42px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #a8c6d8 0%, #8ab0c8 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(138, 176, 200, 0.25);
+          ">\u{1F4C4}</div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 13px; font-weight: 600; color: #3a2f28; word-break: break-all;">${safeName}</div>
+            <div style="font-size: 11px; color: #9a8f80; margin-top: 2px;">${(file.size / 1024).toFixed(1)} KB \xB7 \u4E0A\u4F20\u524D\u8865\u5145\u4FE1\u606F</div>
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label style="font-size: 12px; font-weight: 500; color: #5a5045;">\u6807\u7B7E Tags <span style="color: #9a8f80; font-weight: 400;">\uFF08\u53EF\u9009\uFF0C\u9017\u53F7\u5206\u9694\uFF09</span></label>
+          <input id="claw-upload-meta-tags" type="text" placeholder="doc, design, API \u6587\u6863..." style="
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(58, 47, 40, 0.1);
+            background: rgba(255, 255, 255, 0.6);
+            color: #3a2f28;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.35s ease;
+          ">
+        </div>
+
+        <!-- Metadata -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label style="font-size: 12px; font-weight: 500; color: #5a5045;">Metadata <span style="color: #9a8f80; font-weight: 400;">\uFF08\u53EF\u9009\uFF09</span></label>
+            <button id="claw-upload-meta-add" style="
+              padding: 5px 11px;
+              border-radius: 12px;
+              border: 1px dashed rgba(58, 47, 40, 0.2);
+              background: transparent;
+              color: #7a6f62;
+              font-size: 11px;
+              font-weight: 500;
+              cursor: pointer;
+              transition: all 0.3s ease;
+            ">+ \u6DFB\u52A0\u6761\u4EF6</button>
+          </div>
+          <div id="claw-upload-meta-rows" style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="claw-upload-meta-row" data-idx="0" style="
+              display: grid;
+              grid-template-columns: 1fr 1fr 28px;
+              gap: 8px;
+              align-items: center;
+            ">
+              <input class="claw-upload-meta-key" type="text" placeholder="key" style="
+                padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(58, 47, 40, 0.1);
+                background: rgba(255, 255, 255, 0.6); color: #3a2f28; font-size: 12px; font-family: inherit; outline: none;
+              ">
+              <input class="claw-upload-meta-value" type="text" placeholder="value" style="
+                padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(58, 47, 40, 0.1);
+                background: rgba(255, 255, 255, 0.6); color: #3a2f28; font-size: 12px; font-family: inherit; outline: none;
+              ">
+              <button class="claw-upload-meta-remove" style="
+                width: 28px; height: 28px; border-radius: 50%; border: none;
+                background: rgba(220, 100, 100, 0.08); color: #c07070; cursor: pointer;
+                display: flex; align-items: center; justify-content: center; font-size: 16px;
+              ">\xD7</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px;">
+          <button id="claw-upload-meta-cancel" style="
+            padding: 10px 18px;
+            background: rgba(255, 255, 255, 0.5);
+            color: #5a5045;
+            border: 1px solid rgba(58, 47, 40, 0.1);
+            border-radius: 14px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+          ">\u53D6\u6D88</button>
+          <button id="claw-upload-meta-confirm" style="
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #8ab0c8 0%, #6a90a8 100%);
+            color: #fff;
+            border: none;
+            border-radius: 14px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 4px 16px rgba(122, 158, 181, 0.25);
+            transition: all 0.3s ease;
+          ">\u786E\u8BA4\u4E0A\u4F20</button>
+        </div>
+      </div>
+    `;
+      openCenterOverlay("\u8865\u5145\u8D44\u6E90\u4FE1\u606F", dialogHtml, {
+        width: "420px",
+        maxWidth: "420px",
+        height: "auto",
+        maxHeight: "520px"
+      });
+      setTimeout(() => {
+        const overlay = document.getElementById(overlayId);
+        if (!overlay) return;
+        const tagsInput = overlay.querySelector("#claw-upload-meta-tags");
+        const rowsContainer = overlay.querySelector("#claw-upload-meta-rows");
+        const addBtn = overlay.querySelector("#claw-upload-meta-add");
+        const cancelBtn = overlay.querySelector("#claw-upload-meta-cancel");
+        const confirmBtn = overlay.querySelector("#claw-upload-meta-confirm");
+        function collectRows() {
+          return Array.from(rowsContainer.querySelectorAll(".claw-upload-meta-row")).map((row) => {
+            var _a, _b;
+            return {
+              key: ((_a = row.querySelector(".claw-upload-meta-key")) == null ? void 0 : _a.value.trim()) || "",
+              value: ((_b = row.querySelector(".claw-upload-meta-value")) == null ? void 0 : _b.value.trim()) || ""
+            };
+          });
+        }
+        function renderRows(rows) {
+          rowsContainer.innerHTML = rows.map((row, idx) => `
+          <div class="claw-upload-meta-row" data-idx="${idx}" style="
+            display: grid;
+            grid-template-columns: 1fr 1fr 28px;
+            gap: 8px;
+            align-items: center;
+          ">
+            <input class="claw-upload-meta-key" type="text" value="${row.key}" placeholder="key" style="
+              padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(58, 47, 40, 0.1);
+              background: rgba(255, 255, 255, 0.6); color: #3a2f28; font-size: 12px; font-family: inherit; outline: none;
+            ">
+            <input class="claw-upload-meta-value" type="text" value="${row.value}" placeholder="value" style="
+              padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(58, 47, 40, 0.1);
+              background: rgba(255, 255, 255, 0.6); color: #3a2f28; font-size: 12px; font-family: inherit; outline: none;
+            ">
+            <button class="claw-upload-meta-remove" style="
+              width: 28px; height: 28px; border-radius: 50%; border: none;
+              background: rgba(220, 100, 100, 0.08); color: #c07070; cursor: pointer;
+              display: flex; align-items: center; justify-content: center; font-size: 16px;
+            ">\xD7</button>
+          </div>
+        `).join("");
+          rowsContainer.querySelectorAll(".claw-upload-meta-remove").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+              const row = e.target.closest(".claw-upload-meta-row");
+              const idx = Number(row == null ? void 0 : row.dataset.idx);
+              if (!Number.isNaN(idx)) {
+                const current = collectRows();
+                current.splice(idx, 1);
+                if (current.length === 0) current.push({ key: "", value: "" });
+                renderRows(current);
+              }
+            });
+          });
+        }
+        addBtn == null ? void 0 : addBtn.addEventListener("click", () => {
+          renderRows([...collectRows(), { key: "", value: "" }]);
+        });
+        cancelBtn == null ? void 0 : cancelBtn.addEventListener("click", () => {
+          closeOverlayPanel();
+        });
+        confirmBtn == null ? void 0 : confirmBtn.addEventListener("click", () => {
+          const tags = ((tagsInput == null ? void 0 : tagsInput.value) || "").split(",").map((t) => t.trim()).filter(Boolean);
+          const metadataRows = collectRows().filter((r) => r.key);
+          const metadata = {};
+          for (const row of metadataRows) {
+            metadata[row.key] = row.value;
+          }
+          closeOverlayPanel();
+          onConfirm({ tags, metadata });
+        });
+      }, 50);
+    }
+    async function executeUpload(file, userMeta = {}) {
+      var _a, _b;
+      hideResult();
+      showStatus("\u6B63\u5728\u8BFB\u53D6\u6587\u4EF6...", "info");
+      try {
+        const { content, contentType, encoding } = await readFileContent(file);
+        const metadata = encoding ? { encoding, source: "EchoMem extension", ...userMeta.metadata } : { source: "EchoMem extension", ...userMeta.metadata };
+        showStatus("\u6B63\u5728\u4E0A\u4F20...", "info");
+        const config = await getEchoMemConfig();
+        const client2 = createClient(config);
+        const result = await client2.addResource({
+          content,
+          name: file.name,
+          contentType,
+          tags: userMeta.tags || [],
+          metadata,
+          sessionId: resolveUploadSessionId()
+        });
+        const resourceId = result == null ? void 0 : result.resource_id;
+        if (!resourceId) {
+          showStatus(`\u2705 \u300C${file.name}\u300D\u4E0A\u4F20\u6210\u529F`, "success");
+          await loadRemoteFileList();
+          return;
+        }
+        showStatus(`\u23F3 \u300C${file.name}\u300D\u6B63\u5728\u7D22\u5F15...`, "info");
+        let indexStatus;
+        try {
+          indexStatus = await pollResourceIndexStatus(client2, resourceId);
+        } catch (pollErr) {
+          const msg = ((_a = pollErr.message) == null ? void 0 : _a.includes("404")) ? "\u8D44\u6E90\u5DF2\u4FDD\u5B58\uFF0C\u4F46\u8D44\u6E90\u8BB0\u5FC6\u5F15\u64CE\u672A\u542F\u7528\uFF0C\u6682\u65E0\u6CD5\u7D22\u5F15" : "\u8D44\u6E90\u5DF2\u4FDD\u5B58\uFF0C\u4F46\u7D22\u5F15\u72B6\u6001\u83B7\u53D6\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u5237\u65B0\u67E5\u770B";
+          showStatus(`\u26A0\uFE0F \u300C${file.name}\u300D${msg}`, "info");
+          await loadRemoteFileList();
+          return;
+        }
+        if (indexStatus.status === "completed") {
+          showStatus(`\u2705 \u300C${file.name}\u300D\u7D22\u5F15\u5B8C\u6210`, "success");
+        } else if (indexStatus.status === "failed") {
+          const error = ((_b = indexStatus.detail) == null ? void 0 : _b.error) || "\u672A\u77E5\u9519\u8BEF";
+          showStatus(`\u274C \u300C${file.name}\u300D\u7D22\u5F15\u5931\u8D25: ${error}`, "error");
+        } else {
+          showStatus(`\u23F3 \u300C${file.name}\u300D\u7D22\u5F15\u4E2D\uFF0C\u8BF7\u7A0D\u540E\u5237\u65B0\u67E5\u770B`, "info");
+        }
+        await loadRemoteFileList();
+      } catch (err) {
+        showStatus(`\u274C \u4E0A\u4F20\u5931\u8D25: ${formatError(err)}`, "error");
+      }
+    }
+    async function doUpload(file) {
+      openUploadMetadataOverlay(file, (userMeta) => executeUpload(file, userMeta));
+    }
+    dropzone.addEventListener("click", (e) => {
+      if (e.target !== fileInput) {
+        fileInput.click();
+      }
+    });
+    fileInput.addEventListener("change", () => {
+      var _a;
+      const file = (_a = fileInput.files) == null ? void 0 : _a[0];
+      if (file) doUpload(file);
+      fileInput.value = "";
+    });
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.style.borderColor = "#2563eb";
+      dropzone.style.background = "#f0f7ff";
+    });
+    dropzone.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      dropzone.style.borderColor = "#ccc";
+      dropzone.style.background = "#fafafa";
+    });
+    dropzone.addEventListener("drop", (e) => {
+      var _a, _b;
+      e.preventDefault();
+      dropzone.style.borderColor = "#ccc";
+      dropzone.style.background = "#fafafa";
+      const file = (_b = (_a = e.dataTransfer) == null ? void 0 : _a.files) == null ? void 0 : _b[0];
+      if (file) doUpload(file);
+    });
+  }
+
+  // src/panels/resource/manage.js
+  function getResourceDirUri() {
+    return "echo://resources";
+  }
+  function formatSize(bytes) {
+    if (!bytes || bytes < 0) return "-";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  function formatDate(ts) {
+    if (!ts) return "-";
+    const d = typeof ts === "string" ? new Date(ts) : new Date(ts * 1e3);
+    if (isNaN(d.getTime())) return "-";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  function getResourceIdFromUri(uri) {
+    if (!uri) return "";
+    return uri.replace(/\/$/, "").split("/").pop() || "";
+  }
+  function getEntryUpdatedAt2(entry) {
+    return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
+  }
+  function getEntrySize(entry) {
+    var _a;
+    return entry.size ?? ((_a = entry.stat) == null ? void 0 : _a.size);
+  }
+  function getResourceManageContent() {
+    return `
+    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+      <div id="claw-resource-toast" style="display: none;"></div>
+      <div id="claw-resource-list-loading" style="text-align: center; padding: 40px 20px; color: #888;">
+        <p style="font-size: 14px;">\u23F3 \u6B63\u5728\u52A0\u8F7D\u8D44\u6E90\u5217\u8868...</p>
+      </div>
+      <div id="claw-resource-toolbar" style="display: none; justify-content: flex-end; margin-bottom: 8px;">
+        <button id="claw-resource-btn-refresh" style="
+          padding: 5px 12px;
+          background: white;
+          color: #374151;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 12px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        ">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          \u5237\u65B0
+        </button>
+      </div>
+      <div id="claw-resource-list-content" style="display: none;"></div>
+    </div>
+  `;
+  }
+  async function initManagePanel(bodyElement) {
+    if (!bodyElement) return;
+    const loadingEl = bodyElement.querySelector("#claw-resource-list-loading");
+    const contentEl = bodyElement.querySelector("#claw-resource-list-content");
+    const toastEl = bodyElement.querySelector("#claw-resource-toast");
+    const toolbarEl = bodyElement.querySelector("#claw-resource-toolbar");
+    const refreshBtn = bodyElement.querySelector("#claw-resource-btn-refresh");
+    if (!loadingEl || !contentEl) return;
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.style.opacity = "1";
+      refreshBtn.style.cursor = "pointer";
+    }
+    if (refreshBtn && !refreshBtn.dataset.bound) {
+      refreshBtn.dataset.bound = "true";
+      refreshBtn.addEventListener("click", async () => {
+        refreshBtn.disabled = true;
+        refreshBtn.style.opacity = "0.6";
+        refreshBtn.style.cursor = "not-allowed";
+        loadingEl.style.display = "block";
+        contentEl.style.display = "none";
+        if (toolbarEl) toolbarEl.style.display = "none";
+        await initManagePanel(bodyElement);
+      });
+    }
+    function showToast(msg, type = "info") {
+      if (!toastEl) return;
+      const colors = {
+        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+      };
+      const c = colors[type] || colors.info;
+      toastEl.style.display = "block";
+      toastEl.style.padding = "10px 12px";
+      toastEl.style.borderRadius = "6px";
+      toastEl.style.fontSize = "13px";
+      toastEl.style.marginBottom = "8px";
+      toastEl.style.background = c.bg;
+      toastEl.style.border = `1px solid ${c.border}`;
+      toastEl.style.color = c.text;
+      toastEl.textContent = msg;
+      setTimeout(() => {
+        if (toastEl) {
+          toastEl.style.display = "none";
+          toastEl.textContent = "";
+        }
+      }, 4e3);
+    }
+    try {
+      const config = await getEchoMemConfig();
+      const client2 = createClient(config);
+      const dirUri = getResourceDirUri();
+      const lsResult = await client2.fsLs(dirUri, { output: "agent", absLimit: 128 });
+      console.log("[EchoMem:manage] lsResult type:", typeof lsResult, "isArray:", Array.isArray(lsResult), "raw:", lsResult);
+      let entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
+      entries = entries.filter((e) => {
+        var _a;
+        return (e.name || ((_a = e.uri) == null ? void 0 : _a.split("/").pop()) || "") !== ".idx";
+      });
+      console.log("[EchoMem:manage] entries count:", entries.length, "type:", typeof entries);
+      if (entries.length === 0) {
+        loadingEl.style.display = "none";
+        contentEl.style.display = "block";
+        if (toolbarEl) toolbarEl.style.display = "flex";
+        contentEl.innerHTML = `
+        <div style="text-align: center; padding: 40px 20px; color: #999;">
+          <p style="font-size: 36px; margin-bottom: 12px;">\u{1F4C2}</p>
+          <p style="font-size: 14px;">\u6682\u65E0\u5DF2\u5BFC\u5165\u8D44\u6E90</p>
+          <p style="font-size: 12px; margin-top: 6px;">\u5F53\u524D\u76EE\u5F55: ${dirUri}</p>
+        </div>
+      `;
+        return;
+      }
+      entries.sort((a, b) => {
+        const ta = getEntryUpdatedAt2(a) ? new Date(getEntryUpdatedAt2(a)).getTime() : 0;
+        const tb = getEntryUpdatedAt2(b) ? new Date(getEntryUpdatedAt2(b)).getTime() : 0;
+        return tb - ta;
+      });
+      const itemsHtml = entries.map((entry) => {
+        var _a;
+        const name = entry.name || ((_a = entry.uri) == null ? void 0 : _a.split("/").pop()) || "\u672A\u547D\u540D";
+        const size = formatSize(getEntrySize(entry));
+        const date = formatDate(getEntryUpdatedAt2(entry));
+        const abstractText = entry.abstract || "";
+        const resourceId = getResourceIdFromUri(entry.uri);
+        const contentUri = entry.uri ? `${entry.uri.replace(/\/$/, "")}/content` : "";
+        return `
+        <div class="claw-resource-item" data-uri="${entry.uri}" data-resource-id="${resourceId}" style="
+          padding: 12px;
+          background: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        ">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="min-width: 0; flex: 1;">
+              <p style="font-weight: 600; font-size: 13px; color: #111827; margin-bottom: 2px; word-break: break-all;">${name}</p>
+              <p style="font-size: 11px; color: #6b7280;">
+                <span>${size}</span>
+                <span style="margin: 0 6px;">\xB7</span>
+                <span>${date}</span>
+              </p>
+            </div>
+            <span style="
+              padding: 2px 8px;
+              border-radius: 999px;
+              font-size: 11px;
+              font-weight: 500;
+              background: #15803d15;
+              color: #15803d;
+              white-space: nowrap;
+              margin-left: 8px;
+            ">\u5DF2\u5904\u7406</span>
+          </div>
+          ${abstractText ? `<p style="font-size: 12px; color: #4b5563; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${abstractText}</p>` : ""}
+          <div class="claw-resource-actions" style="display: flex; gap: 6px; margin-top: 4px;">
+            <button class="claw-resource-btn-view" data-uri="${contentUri}" style="
+              padding: 5px 10px;
+              background: #eff6ff;
+              color: #2563eb;
+              border: 1px solid #bfdbfe;
+              border-radius: 5px;
+              font-size: 12px;
+              cursor: pointer;
+            ">\u67E5\u770B\u5185\u5BB9</button>
+            <button class="claw-resource-btn-insert" data-uri="${contentUri}" style="
+              padding: 5px 10px;
+              background: #f0fdf4;
+              color: #15803d;
+              border: 1px solid #bbf7d0;
+              border-radius: 5px;
+              font-size: 12px;
+              cursor: pointer;
+            ">\u63D2\u5165\u5BF9\u8BDD</button>
+            <button class="claw-resource-btn-delete" data-resource-id="${resourceId}" style="
+              padding: 5px 10px;
+              background: #fef2f2;
+              color: #dc2626;
+              border: 1px solid #fecaca;
+              border-radius: 5px;
+              font-size: 12px;
+              cursor: pointer;
+              margin-left: auto;
+            ">\u5220\u9664</button>
+          </div>
+        </div>
+      `;
+      }).join("");
+      loadingEl.style.display = "none";
+      contentEl.style.display = "block";
+      if (toolbarEl) toolbarEl.style.display = "flex";
+      contentEl.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <p style="font-size: 12px; color: #6b7280;">\u5F53\u524D\u76EE\u5F55: <span style="font-family: monospace;">${dirUri}</span></p>
+        <p style="font-size: 12px; color: #6b7280;">\u5171 ${entries.length} \u4E2A\u8D44\u6E90</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        ${itemsHtml}
+      </div>
+    `;
+      contentEl.querySelectorAll(".claw-resource-btn-view").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const uri = btn.dataset.uri;
+          if (!uri) return;
+          btn.textContent = "\u52A0\u8F7D\u4E2D...";
+          try {
+            const client3 = createClient(await getEchoMemConfig());
+            const result = await client3.fsRead(uri);
+            const text = typeof result === "string" ? result : (result == null ? void 0 : result.content) || JSON.stringify(result, null, 2);
+            const name = uri.split("/").pop() || uri;
+            const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+            openCenterOverlay(name, previewHtml, {
+              showBack: true,
+              onBack: () => closeOverlayPanel()
+            });
+          } catch (err) {
+            showToast(`\u274C \u8BFB\u53D6\u5931\u8D25: ${err.message}`, "error");
+          }
+          btn.textContent = "\u67E5\u770B\u5185\u5BB9";
+        });
+      });
+      contentEl.querySelectorAll(".claw-resource-btn-insert").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const uri = btn.dataset.uri;
+          if (!uri) return;
+          btn.textContent = "\u63D2\u5165\u4E2D...";
+          try {
+            const client3 = createClient(await getEchoMemConfig());
+            const result = await client3.fsRead(uri);
+            const text = typeof result === "string" ? result : (result == null ? void 0 : result.content) || JSON.stringify(result, null, 2);
+            injectContent(text, { replace: false });
+          } catch (err) {
+            alert(`\u274C \u63D2\u5165\u5931\u8D25: ${err.message}`);
+          }
+          btn.textContent = "\u63D2\u5165\u5BF9\u8BDD";
+        });
+      });
+      contentEl.querySelectorAll(".claw-resource-btn-delete").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const resourceId = btn.dataset.resourceId;
+          if (!resourceId) return;
+          const dialogHtml = `
+          <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="text-align: center;">
+              <p style="font-size: 24px; margin: 0; line-height: 1;">\u{1F5D1}\uFE0F</p>
+              <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u5220\u9664\u8D44\u6E90</p>
+              <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u786E\u5B9A\u5220\u9664\u8D44\u6E90\u300C<strong style="color: #111;">${resourceId}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+              <button id="claw-resource-manage-del-cancel" style="
+                padding: 8px 20px;
+                background: #f3f4f6;
+                color: #374151;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                font-size: 13px;
+                cursor: pointer;
+                font-weight: 500;
+              ">\u53D6\u6D88</button>
+              <button id="claw-resource-manage-del-ok" style="
+                padding: 8px 20px;
+                background: #ef5350;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 13px;
+                cursor: pointer;
+                font-weight: 500;
+              ">\u786E\u8BA4\u5220\u9664</button>
+            </div>
+          </div>
+        `;
+          openCenterOverlay("\u5220\u9664\u786E\u8BA4", dialogHtml, {
+            width: "360px",
+            maxWidth: "360px",
+            height: "240px",
+            maxHeight: "280px"
+          });
+          setTimeout(() => {
+            const cancelBtn = document.getElementById("claw-resource-manage-del-cancel");
+            const okBtn = document.getElementById("claw-resource-manage-del-ok");
+            cancelBtn == null ? void 0 : cancelBtn.addEventListener("click", () => {
+              closeOverlayPanel();
+            });
+            okBtn == null ? void 0 : okBtn.addEventListener("click", async () => {
+              closeOverlayPanel();
+              btn.textContent = "\u5220\u9664\u4E2D...";
+              btn.disabled = true;
+              try {
+                const client3 = createClient(await getEchoMemConfig());
+                await client3.deleteResource(resourceId);
+                showToast("\u2705 \u8D44\u6E90\u5DF2\u5220\u9664", "success");
+                await initManagePanel(bodyElement);
+              } catch (err) {
+                showToast(`\u274C \u5220\u9664\u5931\u8D25: ${err.message}`, "error");
+                btn.textContent = "\u5220\u9664";
+                btn.disabled = false;
+              }
+            });
+          }, 50);
+        });
+      });
+    } catch (err) {
+      loadingEl.style.display = "none";
+      contentEl.style.display = "block";
+      if (toolbarEl) toolbarEl.style.display = "flex";
+      contentEl.innerHTML = `
+      <div style="text-align: center; padding: 40px 20px; color: #b91c1c; background: #fef2f2; border-radius: 8px;">
+        <p style="font-size: 14px; margin-bottom: 6px;">\u274C \u52A0\u8F7D\u5931\u8D25</p>
+        <p style="font-size: 12px;">${err.message}</p>
+        <p style="font-size: 11px; color: #888; margin-top: 8px;">\u76EE\u5F55: ${getResourceDirUri()}</p>
+      </div>
+    `;
+    }
+  }
+
+  // src/panels/resource/query.js
+  var FILTER_TYPES = [
+    { id: "session", label: "\u6309 Session" },
+    { id: "resourceId", label: "\u6309 Resource ID" },
+    { id: "tag", label: "\u6309 Tag" },
+    { id: "metadata", label: "\u6309 Metadata" }
+  ];
+  function resolveCurrentSessionId() {
+    const { echoMemSessionId } = getRecordingState();
+    if (echoMemSessionId) return echoMemSessionId;
+    const platform = getCurrentPlatform();
+    if (!(platform == null ? void 0 : platform.key)) return null;
+    return extractSessionId(platform.key) || null;
+  }
+  function formatDate2(ts) {
+    if (!ts) return "-";
+    const d = typeof ts === "string" ? new Date(ts) : new Date(ts * 1e3);
+    if (isNaN(d.getTime())) return "-";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  function getResourceQueryContent() {
+    return `
+    <div id="claw-resource-query-root" style="display: flex; flex-direction: column; gap: 14px; color: #333;">
+      <div style="font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em;">\u9009\u62E9\u67E5\u8BE2\u7EF4\u5EA6</div>
+
+      <div id="claw-query-filter-tabs" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        ${FILTER_TYPES.map((f) => `
+          <button class="claw-query-filter-tab" data-filter="${f.id}" style="
+            padding: 10px 8px;
+            border-radius: 14px;
+            border: 1px solid rgba(58, 47, 40, 0.08);
+            background: rgba(255, 255, 255, 0.4);
+            color: #7a6f62;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.35s ease;
+          ">${f.label}</button>
+        `).join("")}
+      </div>
+
+      <div style="font-size: 11px; color: #9a8f80; line-height: 1.4;">
+        \u9009\u62E9\u67E5\u8BE2\u7EF4\u5EA6\u540E\uFF0C\u586B\u5199\u6761\u4EF6\u53EF\u7F29\u5C0F\u8303\u56F4\uFF1B\u7559\u7A7A\u5219\u4EC5\u6309\u5173\u952E\u8BCD\u641C\u7D22\u3002
+      </div>
+
+      <div class="input-group" style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 12px; font-weight: 500; color: #5a5045;">\u641C\u7D22\u5173\u952E\u8BCD <span style="color: #c07070;">*</span></label>
+        <input id="claw-query-keyword-input" type="text" placeholder="\u8F93\u5165\u641C\u7D22\u5173\u952E\u8BCD\uFF0C\u5982\u9879\u76EE\u8BBE\u8BA1\u3001API \u6587\u6863..." style="
+          width: 100%;
+          padding: 12px 14px;
+          border-radius: 14px;
+          border: 1px solid rgba(58, 47, 40, 0.1);
+          background: rgba(255, 255, 255, 0.6);
+          color: #3a2f28;
+          font-size: 13px;
+          font-family: inherit;
+          outline: none;
+          transition: all 0.35s ease;
+        ">
+      </div>
+
+      <div id="claw-query-form-area" style="display: flex; flex-direction: column; gap: 10px;">
+        <!-- form injected by JS -->
+      </div>
+
+      <button id="claw-query-search-btn" style="
+        width: 100%;
+        padding: 13px;
+        border-radius: 16px;
+        border: none;
+        background: linear-gradient(135deg, #8ab0c8 0%, #6a90a8 100%);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.4s ease;
+        box-shadow: 0 4px 16px rgba(122, 158, 181, 0.25);
+        margin-top: 4px;
+      ">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        \u641C\u7D22\u8D44\u6E90
+      </button>
+
+      <div id="claw-query-status" style="display: none; padding: 10px 12px; border-radius: 8px; font-size: 13px;"></div>
+
+      <div id="claw-query-results" style="display: none; flex-direction: column; gap: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em;">\u641C\u7D22\u7ED3\u679C</span>
+          <span id="claw-query-results-count" style="font-size: 12px; color: #888;"></span>
+        </div>
+        <div id="claw-query-results-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+      </div>
+    </div>
+  `;
+  }
+  async function initQueryPanel(bodyElement) {
+    if (!bodyElement) return;
+    const root = bodyElement.querySelector("#claw-resource-query-root");
+    const tabsContainer = bodyElement.querySelector("#claw-query-filter-tabs");
+    const formArea = bodyElement.querySelector("#claw-query-form-area");
+    const searchBtn = bodyElement.querySelector("#claw-query-search-btn");
+    const statusEl = bodyElement.querySelector("#claw-query-status");
+    const resultsArea = bodyElement.querySelector("#claw-query-results");
+    const resultsList = bodyElement.querySelector("#claw-query-results-list");
+    const resultsCount = bodyElement.querySelector("#claw-query-results-count");
+    if (!root || !tabsContainer || !formArea || !searchBtn) return;
+    let currentFilter = "session";
+    const state2 = {
+      query: "",
+      sessionId: resolveCurrentSessionId() || "",
+      resourceId: "",
+      tagInput: "",
+      metadataRows: [{ key: "", value: "" }]
+    };
+    function setActiveTab(filterId) {
+      currentFilter = filterId;
+      tabsContainer.querySelectorAll(".claw-query-filter-tab").forEach((btn) => {
+        const isActive = btn.dataset.filter === filterId;
+        btn.style.background = isActive ? "linear-gradient(135deg, #8ab0c8 0%, #6a90a8 100%)" : "rgba(255, 255, 255, 0.4)";
+        btn.style.color = isActive ? "#fff" : "#7a6f62";
+        btn.style.borderColor = isActive ? "transparent" : "rgba(58, 47, 40, 0.08)";
+        btn.style.boxShadow = isActive ? "0 4px 14px rgba(122, 158, 181, 0.25)" : "none";
+      });
+      renderForm();
+    }
+    function renderInputGroup(label, innerHtml, helperHtml = "") {
+      return `
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 12px; font-weight: 500; color: #5a5045;">${label}</label>
+        ${innerHtml}
+        ${helperHtml ? `<div style="display: flex; gap: 8px; align-items: center;">${helperHtml}</div>` : ""}
+      </div>
+    `;
+    }
+    function renderTextInput(id, placeholder, value) {
+      return `
+      <input id="${id}" type="text" value="${value}" placeholder="${placeholder}" style="
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(58, 47, 40, 0.1);
+        background: rgba(255, 255, 255, 0.6);
+        color: #3a2f28;
+        font-size: 13px;
+        font-family: inherit;
+        outline: none;
+        transition: all 0.35s ease;
+      ">
+    `;
+    }
+    function renderHelperBtn(id, text) {
+      return `
+      <button id="${id}" style="
+        padding: 5px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(122, 158, 181, 0.25);
+        background: rgba(122, 158, 181, 0.08);
+        color: #5a7e95;
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      ">${text}</button>
+    `;
+    }
+    function renderForm() {
+      var _a, _b, _c, _d, _e;
+      if (currentFilter === "session") {
+        formArea.innerHTML = renderInputGroup(
+          "Session ID",
+          renderTextInput("claw-query-session-input", "\u8F93\u5165 session id...", state2.sessionId),
+          renderHelperBtn("claw-query-use-current-session", "\u4F7F\u7528\u5F53\u524D\u4F1A\u8BDD") + renderHelperBtn("claw-query-clear-session", "\u6E05\u7A7A")
+        );
+        (_a = formArea.querySelector("#claw-query-use-current-session")) == null ? void 0 : _a.addEventListener("click", () => {
+          const current = resolveCurrentSessionId() || "";
+          const input = formArea.querySelector("#claw-query-session-input");
+          if (input) input.value = current;
+          state2.sessionId = current;
+        });
+        (_b = formArea.querySelector("#claw-query-clear-session")) == null ? void 0 : _b.addEventListener("click", () => {
+          const input = formArea.querySelector("#claw-query-session-input");
+          if (input) input.value = "";
+          state2.sessionId = "";
+        });
+        (_c = formArea.querySelector("#claw-query-session-input")) == null ? void 0 : _c.addEventListener("input", (e) => {
+          state2.sessionId = e.target.value;
+        });
+        return;
+      }
+      if (currentFilter === "resourceId") {
+        formArea.innerHTML = renderInputGroup(
+          "Resource ID",
+          renderTextInput("claw-query-resourceid-input", "\u8F93\u5165 resource id...", state2.resourceId)
+        );
+        (_d = formArea.querySelector("#claw-query-resourceid-input")) == null ? void 0 : _d.addEventListener("input", (e) => {
+          state2.resourceId = e.target.value;
+        });
+        return;
+      }
+      if (currentFilter === "tag") {
+        formArea.innerHTML = renderInputGroup(
+          "Tags",
+          renderTextInput("claw-query-tag-input", "\u591A\u4E2A tag \u7528\u9017\u53F7\u5206\u9694\uFF0C\u5982 doc,design", state2.tagInput)
+        );
+        (_e = formArea.querySelector("#claw-query-tag-input")) == null ? void 0 : _e.addEventListener("input", (e) => {
+          state2.tagInput = e.target.value;
+        });
+        return;
+      }
+      if (currentFilter === "metadata") {
+        renderMetadataForm();
+      }
+    }
+    function renderMetadataForm() {
+      var _a;
+      const rowsHtml = state2.metadataRows.map((row, idx) => `
+      <div class="claw-query-meta-row" data-idx="${idx}" style="display: grid; grid-template-columns: 1fr 1fr 28px; gap: 8px; align-items: center;">
+        <input class="claw-query-meta-key" type="text" value="${row.key}" placeholder="key" style="
+          padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(58, 47, 40, 0.1);
+          background: rgba(255, 255, 255, 0.6); color: #3a2f28; font-size: 12px; font-family: inherit; outline: none;
+        ">
+        <input class="claw-query-meta-value" type="text" value="${row.value}" placeholder="value" style="
+          padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(58, 47, 40, 0.1);
+          background: rgba(255, 255, 255, 0.6); color: #3a2f28; font-size: 12px; font-family: inherit; outline: none;
+        ">
+        <button class="claw-query-meta-remove" style="
+          width: 28px; height: 28px; border-radius: 50%; border: none;
+          background: rgba(220, 100, 100, 0.08); color: #c07070; cursor: pointer;
+          display: flex; align-items: center; justify-content: center; font-size: 16px;
+        ">\xD7</button>
+      </div>
+    `).join("");
+      formArea.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <label style="font-size: 12px; font-weight: 500; color: #5a5045;">Metadata</label>
+        <div id="claw-query-meta-rows" style="display: flex; flex-direction: column; gap: 8px;">${rowsHtml}</div>
+        <button id="claw-query-add-meta" style="
+          align-self: flex-start; padding: 6px 12px; border-radius: 12px;
+          border: 1px dashed rgba(58, 47, 40, 0.2); background: transparent;
+          color: #7a6f62; font-size: 12px; font-weight: 500; cursor: pointer;
+          transition: all 0.3s ease;
+        ">+ \u6DFB\u52A0\u6761\u4EF6</button>
+      </div>
+    `;
+      formArea.querySelectorAll(".claw-query-meta-key").forEach((input) => {
+        input.addEventListener("input", updateMetadataState);
+      });
+      formArea.querySelectorAll(".claw-query-meta-value").forEach((input) => {
+        input.addEventListener("input", updateMetadataState);
+      });
+      formArea.querySelectorAll(".claw-query-meta-remove").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const row = e.target.closest(".claw-query-meta-row");
+          const idx = Number(row == null ? void 0 : row.dataset.idx);
+          if (!Number.isNaN(idx)) {
+            state2.metadataRows.splice(idx, 1);
+            if (state2.metadataRows.length === 0) state2.metadataRows.push({ key: "", value: "" });
+            renderMetadataForm();
+          }
+        });
+      });
+      (_a = formArea.querySelector("#claw-query-add-meta")) == null ? void 0 : _a.addEventListener("click", () => {
+        state2.metadataRows.push({ key: "", value: "" });
+        renderMetadataForm();
+      });
+    }
+    function updateMetadataState() {
+      const rows = formArea.querySelectorAll(".claw-query-meta-row");
+      state2.metadataRows = Array.from(rows).map((row) => {
+        var _a, _b;
+        return {
+          key: ((_a = row.querySelector(".claw-query-meta-key")) == null ? void 0 : _a.value) || "",
+          value: ((_b = row.querySelector(".claw-query-meta-value")) == null ? void 0 : _b.value) || ""
+        };
+      });
+    }
+    function showStatus(msg, type = "info") {
+      if (!statusEl) return;
+      statusEl.style.display = "block";
+      const colors = {
+        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+      };
+      const c = colors[type] || colors.info;
+      statusEl.style.background = c.bg;
+      statusEl.style.border = `1px solid ${c.border}`;
+      statusEl.style.color = c.text;
+      statusEl.textContent = msg;
+    }
+    function hideStatus() {
+      if (statusEl) statusEl.style.display = "none";
+    }
+    function formatError(err) {
+      var _a, _b, _c, _d;
+      if ((_a = err.message) == null ? void 0 : _a.includes("404")) return "\u8D44\u6E90\u8BB0\u5FC6\u5F15\u64CE\u672A\u542F\u7528\u6216\u67E5\u8BE2\u63A5\u53E3\u4E0D\u5B58\u5728";
+      if ((_b = err.message) == null ? void 0 : _b.includes("Failed to fetch")) return "\u65E0\u6CD5\u8FDE\u63A5\u5230\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE";
+      if (((_c = err.message) == null ? void 0 : _c.includes("401")) || ((_d = err.message) == null ? void 0 : _d.includes("403"))) return "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5 API Key";
+      return err.message;
+    }
+    function groupResultsByResource(results) {
+      const map = /* @__PURE__ */ new Map();
+      for (const item of results) {
+        const resourceId = item.resource_id;
+        if (!map.has(resourceId)) {
+          map.set(resourceId, {
+            resourceId,
+            sourceUri: item.source_uri,
+            chunks: [],
+            tags: [],
+            updatedAt: null
+          });
+        }
+        const entry = map.get(resourceId);
+        entry.chunks.push(item);
+        if (item.updated_at && !entry.updatedAt) entry.updatedAt = item.updated_at;
+      }
+      return Array.from(map.values()).map((entry) => ({
+        ...entry,
+        chunks: entry.chunks.sort((a, b) => (a.rank || 0) - (b.rank || 0))
+      }));
+    }
+    async function fetchResourceName(resourceId) {
+      try {
+        const config = await getEchoMemConfig();
+        const client2 = createClient(config);
+        const meta = await client2.fsRead(`echo://resources/${resourceId}/meta.json`);
+        if (typeof meta === "string") {
+          const parsed = JSON.parse(meta);
+          return parsed.name || resourceId;
+        }
+        return (meta == null ? void 0 : meta.name) || resourceId;
+      } catch {
+        return resourceId;
+      }
+    }
+    async function renderResults(result) {
+      if (!resultsArea || !resultsList || !resultsCount) return;
+      const rawResults = (result == null ? void 0 : result.results) || [];
+      if (rawResults.length === 0) {
+        resultsArea.style.display = "flex";
+        resultsCount.textContent = "\u5171 0 \u4E2A\u8D44\u6E90";
+        resultsList.innerHTML = `
+        <div style="text-align: center; padding: 32px 16px; color: #999;">
+          <p style="font-size: 24px; margin-bottom: 8px;">\u{1F50D}</p>
+          <p style="font-size: 13px;">\u672A\u627E\u5230\u5339\u914D\u8D44\u6E90</p>
+        </div>
+      `;
+        return;
+      }
+      const grouped = groupResultsByResource(rawResults);
+      resultsCount.textContent = `\u5171 ${grouped.length} \u4E2A\u8D44\u6E90`;
+      const cardsHtml = await Promise.all(grouped.map(async (group) => {
+        var _a;
+        const name = await fetchResourceName(group.resourceId);
+        const snippet = ((_a = group.chunks[0]) == null ? void 0 : _a.text) || "";
+        const date = formatDate2(group.updatedAt);
+        const chunkCount = group.chunks.length;
+        return `
+        <div class="claw-query-result-card" data-resource-id="${group.resourceId}" style="
+          padding: 14px; border-radius: 16px; border: 1px solid rgba(58, 47, 40, 0.06);
+          background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(8px);
+          display: flex; flex-direction: column; gap: 8px; cursor: pointer;
+          transition: all 0.35s ease;
+        ">
+          <div style="font-size: 13px; font-weight: 600; color: #3a2f28; word-break: break-all;">${name}</div>
+          <div style="font-size: 11px; color: #8a7f70; display: flex; gap: 10px; flex-wrap: wrap;">
+            <span>${chunkCount} \u4E2A\u7247\u6BB5</span>
+            <span>\xB7</span>
+            <span>${date}</span>
+          </div>
+          ${snippet ? `<div style="font-size: 12px; color: #6a5f52; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${snippet.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+        </div>
+      `;
+      }));
+      resultsList.innerHTML = cardsHtml.join("");
+      resultsArea.style.display = "flex";
+      resultsList.querySelectorAll(".claw-query-result-card").forEach((card) => {
+        card.addEventListener("click", async () => {
+          const resourceId = card.dataset.resourceId;
+          if (!resourceId) return;
+          try {
+            const config = await getEchoMemConfig();
+            const client2 = createClient(config);
+            const result2 = await client2.fsRead(`echo://resources/${resourceId}/content`);
+            const text = typeof result2 === "string" ? result2 : (result2 == null ? void 0 : result2.content) || JSON.stringify(result2, null, 2);
+            const name = await fetchResourceName(resourceId);
+            const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+            openCenterOverlay(name, previewHtml, { showBack: true, onBack: () => closeOverlayPanel() });
+          } catch (err) {
+            showStatus(`\u8BFB\u53D6\u5931\u8D25: ${err.message}`, "error");
+          }
+        });
+      });
+    }
+    async function doSearch() {
+      hideStatus();
+      if (resultsArea) resultsArea.style.display = "none";
+      const query = state2.query.trim();
+      if (!query) {
+        showStatus("\u8BF7\u8F93\u5165\u641C\u7D22\u5173\u952E\u8BCD", "error");
+        return;
+      }
+      const config = await getEchoMemConfig();
+      const client2 = createClient(config);
+      const options = { query, limit: 16 };
+      if (currentFilter === "session") {
+        const value = state2.sessionId.trim();
+        if (value) options.sessionId = value;
+      } else if (currentFilter === "resourceId") {
+        const value = state2.resourceId.trim();
+        if (value) options.resourceIds = [value];
+      } else if (currentFilter === "tag") {
+        const tags = state2.tagInput.split(",").map((t) => t.trim()).filter(Boolean);
+        if (tags.length > 0) options.tags = tags;
+      } else if (currentFilter === "metadata") {
+        const metadata = {};
+        for (const row of state2.metadataRows) {
+          if (row.key.trim()) metadata[row.key.trim()] = row.value.trim();
+        }
+        if (Object.keys(metadata).length > 0) options.metadata = metadata;
+      }
+      searchBtn.disabled = true;
+      searchBtn.style.opacity = "0.7";
+      searchBtn.style.cursor = "not-allowed";
+      const originalBtnText = searchBtn.innerHTML;
+      searchBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><circle cx="12" cy="12" r="10"/></svg> \u641C\u7D22\u4E2D...`;
+      try {
+        const result = await client2.searchResources(options);
+        await renderResults(result);
+      } catch (err) {
+        showStatus(`\u641C\u7D22\u5931\u8D25: ${formatError(err)}`, "error");
+      } finally {
+        searchBtn.disabled = false;
+        searchBtn.style.opacity = "1";
+        searchBtn.style.cursor = "pointer";
+        searchBtn.innerHTML = originalBtnText;
+      }
+    }
+    tabsContainer.querySelectorAll(".claw-query-filter-tab").forEach((btn) => {
+      btn.addEventListener("click", () => setActiveTab(btn.dataset.filter));
+    });
+    const keywordInput = bodyElement.querySelector("#claw-query-keyword-input");
+    if (keywordInput) {
+      keywordInput.addEventListener("input", (e) => {
+        state2.query = e.target.value;
+      });
+    }
+    searchBtn.addEventListener("click", doSearch);
+    setActiveTab("session");
+  }
+
+  // src/services/openview-client.js
+  var AUTH_STORAGE_KEY = "openviewAuth";
+  function normalizeBaseUrl(url) {
+    const trimmed = (url || "").trim();
+    if (!trimmed) return "http://127.0.0.1:31020";
+    return trimmed.replace(/\/$/, "");
+  }
+  function resolveUrl(baseUrl, path) {
+    const normalized = normalizeBaseUrl(baseUrl);
+    const safePath = path.startsWith("/") ? path : `/${path}`;
+    return `${normalized}${safePath}`;
+  }
+  async function parseResponse(response) {
+    const text = await response.text().catch(() => "");
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    const payload = data && typeof data.code === "number" && "data" in data ? data.data : data;
+    return { ok: response.ok, status: response.status, payload, text };
+  }
+  function fetchViaBackground2(url, options = {}) {
+    const isServiceWorker = typeof window === "undefined" && typeof self !== "undefined" && typeof ServiceWorkerGlobalScope !== "undefined" && self instanceof ServiceWorkerGlobalScope;
+    if (isServiceWorker) {
+      return fetch(url, options).then(async (response) => {
+        var _a;
+        const text = await response.text().catch(() => "");
+        let data = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          data = {};
+        }
+        if (!response.ok) {
+          return {
+            success: false,
+            status: response.status,
+            error: data.message || ((_a = data.error) == null ? void 0 : _a.message) || `HTTP ${response.status}`,
+            data,
+            text
+          };
+        }
+        return { success: true, status: response.status, data, text };
+      }).catch((err) => ({ success: false, error: err.message }));
+    }
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        {
+          action: "openViewRequest",
+          url,
+          method: options.method || "GET",
+          headers: options.headers,
+          body: options.body
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          resolve(response);
+        }
+      );
+    });
+  }
+  async function request(baseUrl, path, options = {}) {
+    const url = resolveUrl(baseUrl, path);
+    const response = await fetchViaBackground2(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers || {}
+      }
+    });
+    if (!response || !response.success) {
+      const message = (response == null ? void 0 : response.error) || `HTTP ${(response == null ? void 0 : response.status) || "unknown"}`;
+      const error = new Error(message);
+      error.status = response == null ? void 0 : response.status;
+      error.payload = response == null ? void 0 : response.data;
+      throw error;
+    }
+    const parsed = await parseResponse({
+      ok: response.success,
+      status: response.status,
+      text: async () => response.text || ""
+    });
+    return parsed.payload;
+  }
+  async function getOpenViewAuth() {
+    try {
+      const result = await chrome.storage.local.get(AUTH_STORAGE_KEY);
+      return result[AUTH_STORAGE_KEY] || null;
+    } catch {
+      return null;
+    }
+  }
+  async function setOpenViewAuth(auth) {
+    await chrome.storage.local.set({ [AUTH_STORAGE_KEY]: auth });
+  }
+  async function login({ baseUrl, username, password }) {
+    const payload = await request(baseUrl, "/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password })
+    });
+    if (!payload.accessToken || !payload.refreshToken) {
+      throw new Error("\u767B\u5F55\u54CD\u5E94\u4E2D\u7F3A\u5C11 token");
+    }
+    const auth = {
+      baseUrl: normalizeBaseUrl(baseUrl),
+      accessToken: payload.accessToken,
+      refreshToken: payload.refreshToken,
+      user: payload.user || null,
+      loggedInAt: Date.now()
+    };
+    await setOpenViewAuth(auth);
+    return auth;
+  }
+
   // src/panels/association/suggestions.js
   var MEM_TAG_OPEN2 = "<relevant-memories>";
   var MEM_TAG_CLOSE2 = "</relevant-memories>";
@@ -28423,12 +29178,16 @@ ${MEM_TAG_CLOSE2}`;
   };
   var resourceSubRoutes = {
     import: {
-      title: "\u8D44\u6E90\u5BFC\u5165",
+      title: "\u4E0A\u4F20\u8D44\u6E90",
       render: getResourceImportContent
     },
     manage: {
       title: "\u67E5\u770B\u8D44\u6E90",
       render: getResourceManageContent
+    },
+    query: {
+      title: "\u67E5\u8BE2\u8D44\u6E90",
+      render: getResourceQueryContent
     }
   };
   function openEchoMemHomePanel() {
@@ -28482,10 +29241,6 @@ ${MEM_TAG_CLOSE2}`;
       await loadConfigValues();
       bindConfigUI();
     }
-    if (panel.id === "resources") {
-      const body = getPanelBodyElement();
-      initImportPanel(body);
-    }
   }
   function navigateToSkillSection(sectionId) {
     const route = skillStoreRoutes[sectionId];
@@ -28538,6 +29293,8 @@ ${MEM_TAG_CLOSE2}`;
       initImportPanel(body);
     } else if (sectionId === "manage") {
       initManagePanel(body);
+    } else if (sectionId === "query") {
+      initQueryPanel(body);
     }
   }
   function navigateToConfigPanel() {

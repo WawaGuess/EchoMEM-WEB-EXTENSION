@@ -143,7 +143,8 @@ export async function initManagePanel(bodyElement) {
     // List directory
     const lsResult = await client.fsLs(dirUri, { output: 'agent', absLimit: 128 });
     console.log('[EchoMem:manage] lsResult type:', typeof lsResult, 'isArray:', Array.isArray(lsResult), 'raw:', lsResult);
-    const entries = Array.isArray(lsResult) ? lsResult : (lsResult?.entries || []);
+    let entries = Array.isArray(lsResult) ? lsResult : (lsResult?.entries || []);
+    entries = entries.filter((e) => (e.name || e.uri?.split('/').pop() || '') !== '.idx');
     console.log('[EchoMem:manage] entries count:', entries.length, 'type:', typeof entries);
 
     if (entries.length === 0) {

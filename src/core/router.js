@@ -26,6 +26,10 @@ import {
 import { initImportPanel } from '../panels/resource/import.js';
 import { initManagePanel } from '../panels/resource/manage.js';
 import {
+  getResourceQueryContent,
+  initQueryPanel
+} from '../panels/resource/query.js';
+import {
   getEchoMemConfigContent,
   initConfigPanel
 } from '../panels/echomem/config.js';
@@ -69,12 +73,16 @@ const skillStoreRoutes = {
 
 const resourceSubRoutes = {
   import: {
-    title: '资源导入',
+    title: '上传资源',
     render: getResourceImportContent
   },
   manage: {
     title: '查看资源',
     render: getResourceManageContent
+  },
+  query: {
+    title: '查询资源',
+    render: getResourceQueryContent
   }
 };
 
@@ -137,11 +145,6 @@ export async function navigateToEchoMemPanel(panelIdOrTitle) {
   if (panel.id === 'association') {
     await loadConfigValues();
     bindConfigUI();
-  }
-
-  if (panel.id === 'resources') {
-    const body = getPanelBodyElement();
-    initImportPanel(body);
   }
 }
 
@@ -206,6 +209,8 @@ export function navigateToResourceSection(sectionId) {
     initImportPanel(body);
   } else if (sectionId === 'manage') {
     initManagePanel(body);
+  } else if (sectionId === 'query') {
+    initQueryPanel(body);
   }
 }
 

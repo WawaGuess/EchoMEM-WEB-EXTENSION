@@ -5,6 +5,9 @@
 import { getEchoMemConfig } from '../../services/config.js';
 import { createClient } from '../../services/echomem-client.js';
 import { injectContent } from '../../core/content-injector.js';
+import { getCurrentPlatform } from '../../core/detection.js';
+import { getRecordingState } from '../../core/session-recorder.js';
+import { extractSessionId } from '../../services/session-mapper.js';
 import { openCenterOverlay, closeOverlayPanel } from '../../core/panel-host.js';
 
 function normalizeUri(uri) {
@@ -13,6 +16,17 @@ function normalizeUri(uri) {
 
 function getRootDirUri() {
   return 'echo://resources';
+}
+
+function resolveUploadSessionId() {
+  const { echoMemSessionId } = getRecordingState();
+  if (echoMemSessionId) return echoMemSessionId;
+
+  const platform = getCurrentPlatform();
+  if (!platform?.key) return null;
+
+  const rawSessionId = extractSessionId(platform.key);
+  return rawSessionId || null;
 }
 
 function getParentUri(uri) {
@@ -153,7 +167,10 @@ export async function initImportPanel(bodyElement) {
 
       const lsResult = await client.fsLs(dirUri, { output: 'agent', absLimit: 128, showAllHidden: true });
       let entries = Array.isArray(lsResult) ? lsResult : (lsResult?.entries || []);
-      entries = entries.filter((e) => getEntryName(e) !== '.DS_Store');
+      entries = entries.filter((e) => {
+        const name = getEntryName(e);
+        return name !== '.DS_Store' && name !== '.idx';
+      });
 
       if (entries.length === 0) {
         backupLoadingEl.style.display = 'none';
@@ -465,13 +482,238 @@ export async function initImportPanel(bodyElement) {
     });
   }
 
-  async function doUpload(file) {
+  async function pollResourceIndexStatus(client, resourceId, options = {}) {
+    const { timeoutMs = 30000, intervalMs = 1500 } = options;
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const status = await client.getResourceIndexStatus(resourceId);
+      if (['completed', 'failed'].includes(status?.status)) {
+        return status;
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    return { status: 'timeout' };
+  }
+
+  function openUploadMetadataOverlay(file, onConfirm) {
+    const overlayId = 'claw-upload-meta-overlay';
+    const safeName = file.name.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const dialogHtml = `
+      <div id="${overlayId}" style="
+        padding: 22px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        color: #3a2f28;
+        font-family: inherit;
+      ">
+        <!-- 文件信息卡片 -->
+        <div style="
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 16px;
+          border-radius: 18px;
+          background: linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(250,247,244,0.6) 100%);
+          border: 1px solid rgba(58, 47, 40, 0.08);
+          box-shadow: 0 4px 18px rgba(58, 47, 40, 0.06);
+        ">
+          <div style="
+            width: 42px; height: 42px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #a8c6d8 0%, #8ab0c8 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(138, 176, 200, 0.25);
+          ">📄</div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 13px; font-weight: 600; color: #3a2f28; word-break: break-all;">${safeName}</div>
+            <div style="font-size: 11px; color: #9a8f80; margin-top: 2px;">${(file.size / 1024).toFixed(1)} KB · 上传前补充信息</div>
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label style="font-size: 12px; font-weight: 500; color: #5a5045;">标签 Tags <span style="color: #9a8f80; font-weight: 400;">（可选，逗号分隔）</span></label>
+          <input id="claw-upload-meta-tags" type="text" placeholder="doc, design, API 文档..." style="
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(58, 47, 40, 0.1);
+            background: rgba(255, 255, 255, 0.6);
+            color: #3a2f28;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.35s ease;
+          ">
+        </div>
+
+        <!-- Metadata -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label style="font-size: 12px; font-weight: 500; color: #5a5045;">Metadata <span style="color: #9a8f80; font-weight: 400;">（可选）</span></label>
+            <button id="claw-upload-meta-add" style="
+              padding: 5px 11px;
+              border-radius: 12px;
+              border: 1px dashed rgba(58, 47, 40, 0.2);
+              background: transparent;
+              color: #7a6f62;
+              font-size: 11px;
+              font-weight: 500;
+              cursor: pointer;
+              transition: all 0.3s ease;
+            ">+ 添加条件</button>
+          </div>
+          <div id="claw-upload-meta-rows" style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="claw-upload-meta-row" data-idx="0" style="
+              display: grid;
+              grid-template-columns: 1fr 1fr 28px;
+              gap: 8px;
+              align-items: center;
+            ">
+              <input class="claw-upload-meta-key" type="text" placeholder="key" style="
+                padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(58, 47, 40, 0.1);
+                background: rgba(255, 255, 255, 0.6); color: #3a2f28; font-size: 12px; font-family: inherit; outline: none;
+              ">
+              <input class="claw-upload-meta-value" type="text" placeholder="value" style="
+                padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(58, 47, 40, 0.1);
+                background: rgba(255, 255, 255, 0.6); color: #3a2f28; font-size: 12px; font-family: inherit; outline: none;
+              ">
+              <button class="claw-upload-meta-remove" style="
+                width: 28px; height: 28px; border-radius: 50%; border: none;
+                background: rgba(220, 100, 100, 0.08); color: #c07070; cursor: pointer;
+                display: flex; align-items: center; justify-content: center; font-size: 16px;
+              ">×</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px;">
+          <button id="claw-upload-meta-cancel" style="
+            padding: 10px 18px;
+            background: rgba(255, 255, 255, 0.5);
+            color: #5a5045;
+            border: 1px solid rgba(58, 47, 40, 0.1);
+            border-radius: 14px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+          ">取消</button>
+          <button id="claw-upload-meta-confirm" style="
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #8ab0c8 0%, #6a90a8 100%);
+            color: #fff;
+            border: none;
+            border-radius: 14px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 4px 16px rgba(122, 158, 181, 0.25);
+            transition: all 0.3s ease;
+          ">确认上传</button>
+        </div>
+      </div>
+    `;
+
+    openCenterOverlay('补充资源信息', dialogHtml, {
+      width: '420px',
+      maxWidth: '420px',
+      height: 'auto',
+      maxHeight: '520px'
+    });
+
+    setTimeout(() => {
+      const overlay = document.getElementById(overlayId);
+      if (!overlay) return;
+
+      const tagsInput = overlay.querySelector('#claw-upload-meta-tags');
+      const rowsContainer = overlay.querySelector('#claw-upload-meta-rows');
+      const addBtn = overlay.querySelector('#claw-upload-meta-add');
+      const cancelBtn = overlay.querySelector('#claw-upload-meta-cancel');
+      const confirmBtn = overlay.querySelector('#claw-upload-meta-confirm');
+
+      function collectRows() {
+        return Array.from(rowsContainer.querySelectorAll('.claw-upload-meta-row')).map((row) => ({
+          key: row.querySelector('.claw-upload-meta-key')?.value.trim() || '',
+          value: row.querySelector('.claw-upload-meta-value')?.value.trim() || '',
+        }));
+      }
+
+      function renderRows(rows) {
+        rowsContainer.innerHTML = rows.map((row, idx) => `
+          <div class="claw-upload-meta-row" data-idx="${idx}" style="
+            display: grid;
+            grid-template-columns: 1fr 1fr 28px;
+            gap: 8px;
+            align-items: center;
+          ">
+            <input class="claw-upload-meta-key" type="text" value="${row.key}" placeholder="key" style="
+              padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(58, 47, 40, 0.1);
+              background: rgba(255, 255, 255, 0.6); color: #3a2f28; font-size: 12px; font-family: inherit; outline: none;
+            ">
+            <input class="claw-upload-meta-value" type="text" value="${row.value}" placeholder="value" style="
+              padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(58, 47, 40, 0.1);
+              background: rgba(255, 255, 255, 0.6); color: #3a2f28; font-size: 12px; font-family: inherit; outline: none;
+            ">
+            <button class="claw-upload-meta-remove" style="
+              width: 28px; height: 28px; border-radius: 50%; border: none;
+              background: rgba(220, 100, 100, 0.08); color: #c07070; cursor: pointer;
+              display: flex; align-items: center; justify-content: center; font-size: 16px;
+            ">×</button>
+          </div>
+        `).join('');
+
+        rowsContainer.querySelectorAll('.claw-upload-meta-remove').forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            const row = e.target.closest('.claw-upload-meta-row');
+            const idx = Number(row?.dataset.idx);
+            if (!Number.isNaN(idx)) {
+              const current = collectRows();
+              current.splice(idx, 1);
+              if (current.length === 0) current.push({ key: '', value: '' });
+              renderRows(current);
+            }
+          });
+        });
+      }
+
+      addBtn?.addEventListener('click', () => {
+        renderRows([...collectRows(), { key: '', value: '' }]);
+      });
+
+      cancelBtn?.addEventListener('click', () => {
+        closeOverlayPanel();
+      });
+
+      confirmBtn?.addEventListener('click', () => {
+        const tags = (tagsInput?.value || '')
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
+        const metadataRows = collectRows().filter((r) => r.key);
+        const metadata = {};
+        for (const row of metadataRows) {
+          metadata[row.key] = row.value;
+        }
+        closeOverlayPanel();
+        onConfirm({ tags, metadata });
+      });
+    }, 50);
+  }
+
+  async function executeUpload(file, userMeta = {}) {
     hideResult();
     showStatus('正在读取文件...', 'info');
 
     try {
       const { content, contentType, encoding } = await readFileContent(file);
-      const metadata = encoding ? { encoding, source: 'EchoMem extension' } : { source: 'EchoMem extension' };
+      const metadata = encoding
+        ? { encoding, source: 'EchoMem extension', ...userMeta.metadata }
+        : { source: 'EchoMem extension', ...userMeta.metadata };
 
       showStatus('正在上传...', 'info');
       const config = await getEchoMemConfig();
@@ -481,15 +723,49 @@ export async function initImportPanel(bodyElement) {
         content,
         name: file.name,
         contentType,
-        tags: [],
+        tags: userMeta.tags || [],
         metadata,
+        sessionId: resolveUploadSessionId(),
       });
 
-      showStatus(`✅ 「${file.name}」上传成功`, 'success');
+      const resourceId = result?.resource_id;
+      if (!resourceId) {
+        showStatus(`✅ 「${file.name}」上传成功`, 'success');
+        await loadRemoteFileList();
+        return;
+      }
+
+      showStatus(`⏳ 「${file.name}」正在索引...`, 'info');
+
+      let indexStatus;
+      try {
+        indexStatus = await pollResourceIndexStatus(client, resourceId);
+      } catch (pollErr) {
+        const msg = pollErr.message?.includes('404')
+          ? '资源已保存，但资源记忆引擎未启用，暂无法索引'
+          : '资源已保存，但索引状态获取失败，请稍后刷新查看';
+        showStatus(`⚠️ 「${file.name}」${msg}`, 'info');
+        await loadRemoteFileList();
+        return;
+      }
+
+      if (indexStatus.status === 'completed') {
+        showStatus(`✅ 「${file.name}」索引完成`, 'success');
+      } else if (indexStatus.status === 'failed') {
+        const error = indexStatus.detail?.error || '未知错误';
+        showStatus(`❌ 「${file.name}」索引失败: ${error}`, 'error');
+      } else {
+        showStatus(`⏳ 「${file.name}」索引中，请稍后刷新查看`, 'info');
+      }
+
       await loadRemoteFileList();
     } catch (err) {
       showStatus(`❌ 上传失败: ${formatError(err)}`, 'error');
     }
+  }
+
+  async function doUpload(file) {
+    openUploadMetadataOverlay(file, (userMeta) => executeUpload(file, userMeta));
   }
 
   // Dropzone click -> open file picker

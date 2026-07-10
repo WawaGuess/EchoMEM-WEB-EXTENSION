@@ -4,14 +4,14 @@ export function getResourceHomeContent() {
   const sections = [
     {
       id: 'import',
-      title: '⬆️ 资源导入',
-      desc: '上传本地文件或通过 URL 添加资源',
+      title: '⬆️ 上传资源',
+      desc: '上传本地文件并浏览已导入的资源',
       color: '#2563eb'
     },
     {
-      id: 'manage',
-      title: '📋 查看资源',
-      desc: '浏览、预览和删除已导入的资源',
+      id: 'query',
+      title: '🔍 查询资源',
+      desc: '按 session、resource id、tag、metadata 搜索资源',
       color: '#059669'
     }
   ];
