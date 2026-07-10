@@ -28212,7 +28212,7 @@ ${MEM_TAG_CLOSE2}`;
     const showOpenView = isHigoPlatform2();
     const openViewSection = showOpenView ? `
       <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #eee;">
-        <div style="font-size: 14px; font-weight: 500; margin-bottom: 10px; color: #333;">OpenView \u7EDF\u8BA1\u670D\u52A1</div>
+        <div style="font-size: 14px; font-weight: 500; margin-bottom: 10px; color: #333;">EchoAgent \u7EDF\u8BA1\u670D\u52A1</div>
         <div style="padding: 10px 12px; background: #f6f8fa; border-radius: 6px; border-left: 3px solid #10b981; font-size: 12px; color: #666; margin-bottom: 12px;">
           \u7528\u4E8E\u83B7\u53D6\u7528\u6237\u4F1A\u8BDD Token \u7EDF\u8BA1\u6C47\u603B
         </div>
@@ -28239,7 +28239,7 @@ ${MEM_TAG_CLOSE2}`;
         </div>
 
         <button id="cfg-openview-login-btn" style="width: 100%; padding: 10px; background: #10b981; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;"
-        >\u{1F511} \u767B\u5F55 OpenView</button>
+        >\u{1F511} \u767B\u5F55 EchoAgent</button>
       </div>
   ` : "";
     return `
@@ -28314,7 +28314,7 @@ ${MEM_TAG_CLOSE2}`;
         if (openviewPasswordInput) openviewPasswordInput.value = openviewCfg.password || "";
         const openviewAuth = await getOpenViewAuth();
         if ((openviewAuth == null ? void 0 : openviewAuth.accessToken) && openviewLoginBtn) {
-          openviewLoginBtn.textContent = "\u2705 \u5DF2\u767B\u5F55 OpenView";
+          openviewLoginBtn.textContent = "\u2705 \u5DF2\u767B\u5F55 EchoAgent";
         }
       }
     } catch (err) {
@@ -28376,7 +28376,7 @@ ${MEM_TAG_CLOSE2}`;
     if (showOpenView && openviewLoginBtn) {
       openviewLoginBtn.addEventListener("click", async () => {
         var _a, _b;
-        showFloatingToast("\u6B63\u5728\u767B\u5F55 OpenView...", "info", 0);
+        showFloatingToast("\u6B63\u5728\u767B\u5F55 EchoAgent...", "info", 0);
         try {
           const openviewConfig = {
             baseUrl: normalizeOpenViewUrl(openviewUrlInput == null ? void 0 : openviewUrlInput.value),
@@ -28389,11 +28389,11 @@ ${MEM_TAG_CLOSE2}`;
             username: openviewConfig.username,
             password: openviewConfig.password
           });
-          openviewLoginBtn.textContent = "\u2705 \u5DF2\u767B\u5F55 OpenView";
-          showFloatingToast(`OpenView \u767B\u5F55\u6210\u529F: ${((_b = auth.user) == null ? void 0 : _b.username) || ""}`, "success");
+          openviewLoginBtn.textContent = "\u2705 \u5DF2\u767B\u5F55 EchoAgent";
+          showFloatingToast(`EchoAgent \u767B\u5F55\u6210\u529F: ${((_b = auth.user) == null ? void 0 : _b.username) || ""}`, "success");
         } catch (err) {
-          openviewLoginBtn.textContent = "\u{1F511} \u767B\u5F55 OpenView";
-          showFloatingToast(`OpenView \u767B\u5F55\u5931\u8D25: ${err.message}`, "error");
+          openviewLoginBtn.textContent = "\u{1F511} \u767B\u5F55 EchoAgent";
+          showFloatingToast(`EchoAgent \u767B\u5F55\u5931\u8D25: ${err.message}`, "error");
         }
       });
     }

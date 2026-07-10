@@ -22,7 +22,7 @@ export function getEchoMemConfigContent() {
   const showOpenView = isHigoPlatform();
   const openViewSection = showOpenView ? `
       <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #eee;">
-        <div style="font-size: 14px; font-weight: 500; margin-bottom: 10px; color: #333;">OpenView 统计服务</div>
+        <div style="font-size: 14px; font-weight: 500; margin-bottom: 10px; color: #333;">EchoAgent 统计服务</div>
         <div style="padding: 10px 12px; background: #f6f8fa; border-radius: 6px; border-left: 3px solid #10b981; font-size: 12px; color: #666; margin-bottom: 12px;">
           用于获取用户会话 Token 统计汇总
         </div>
@@ -49,7 +49,7 @@ export function getEchoMemConfigContent() {
         </div>
 
         <button id="cfg-openview-login-btn" style="width: 100%; padding: 10px; background: #10b981; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;"
-        >🔑 登录 OpenView</button>
+        >🔑 登录 EchoAgent</button>
       </div>
   ` : '';
 
@@ -134,7 +134,7 @@ export async function initConfigPanel(bodyElement) {
 
       const openviewAuth = await getOpenViewAuth();
       if (openviewAuth?.accessToken && openviewLoginBtn) {
-        openviewLoginBtn.textContent = '✅ 已登录 OpenView';
+        openviewLoginBtn.textContent = '✅ 已登录 EchoAgent';
       }
     }
   } catch (err) {
@@ -201,7 +201,7 @@ export async function initConfigPanel(bodyElement) {
   // Login OpenView
   if (showOpenView && openviewLoginBtn) {
     openviewLoginBtn.addEventListener('click', async () => {
-      showFloatingToast('正在登录 OpenView...', 'info', 0);
+      showFloatingToast('正在登录 EchoAgent...', 'info', 0);
       try {
         const openviewConfig = {
           baseUrl: normalizeOpenViewUrl(openviewUrlInput?.value),
@@ -216,11 +216,11 @@ export async function initConfigPanel(bodyElement) {
           password: openviewConfig.password,
         });
 
-        openviewLoginBtn.textContent = '✅ 已登录 OpenView';
-        showFloatingToast(`OpenView 登录成功: ${auth.user?.username || ''}`, 'success');
+        openviewLoginBtn.textContent = '✅ 已登录 EchoAgent';
+        showFloatingToast(`EchoAgent 登录成功: ${auth.user?.username || ''}`, 'success');
       } catch (err) {
-        openviewLoginBtn.textContent = '🔑 登录 OpenView';
-        showFloatingToast(`OpenView 登录失败: ${err.message}`, 'error');
+        openviewLoginBtn.textContent = '🔑 登录 EchoAgent';
+        showFloatingToast(`EchoAgent 登录失败: ${err.message}`, 'error');
       }
     });
   }

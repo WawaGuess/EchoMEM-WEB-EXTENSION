@@ -12,11 +12,28 @@
 
 ## 在 Chrome 中加载扩展
 
+### 方式一：手动加载已解压扩展（开发/测试时使用）
+
 1. 打开 Chrome，进入 `chrome://extensions/`
 2. 开启右上角"开发者模式"
 3. 点击"加载已解压的扩展程序"
 4. 选择本项目目录 (`EchoMEM-WEB-EXTENSION/`)
 5. 扩展图标将出现在 Chrome 工具栏中
+
+### 方式二：发行包手动加载（适合不暴露源码的场景）
+
+1. 执行 `npm run package` 生成 `release/EchoMem-Extension/`
+2. 将 `release/EchoMem-Extension/` 压缩为 ZIP 分发
+3. 用户解压后，在 `chrome://extensions/` 页面点击"加载已解压的扩展程序"
+4. 选择解压后的 `EchoMem-Extension` 文件夹
+
+## 发布到 GitHub Releases
+
+1. 在 `main`（或发布分支）上完成代码合并
+2. 打标签：`git tag v1.0.0`
+3. 推标签：`git push origin v1.0.0`
+4. GitHub Actions 自动构建、打包并创建 Release
+5. 用户在仓库右侧 **Releases** 页面下载 `EchoMem-Extension.zip`
 
 ## 项目结构
 
