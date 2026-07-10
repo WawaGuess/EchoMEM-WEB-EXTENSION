@@ -28,3 +28,6 @@ build/
 /.claude/design-reviews/
 /design-examples/
 /.codegraph/
+# Internal/test scripts
+scripts/test-recall.js
+scripts/seed-memory.js
