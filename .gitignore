@@ -31,3 +31,6 @@ build/
 # Internal/test scripts
 scripts/test-recall.js
 scripts/seed-memory.js
+
+# Release output
+release/

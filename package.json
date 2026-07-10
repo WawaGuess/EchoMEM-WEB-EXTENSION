@@ -5,7 +5,8 @@
   "description": "EchoMem Web Extension",
   "scripts": {
     "build": "esbuild src/entry/content.js --bundle --format=iife --target=chrome88 --outfile=dist/content.js",
-    "check": "npm run build && node --check dist/content.js && node --check background.js"
+    "check": "npm run build && node --check dist/content.js && node --check background.js",
+    "package": "./scripts/package-release.sh"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"
