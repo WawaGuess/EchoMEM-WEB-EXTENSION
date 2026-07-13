@@ -10,12 +10,12 @@
         record: false,
         detection: {
           urlPatterns: ["/home/session/", "/home/workspace/"],
-          titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office"],
+          titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
           domFeatures: {
             required: [".MuiDrawer-root", ".MuiPaper-root"],
             optional: ["textarea[id^='_r_']", "[data-testid='ArrowUpwardIcon']", ".MuiDrawer-anchorRight"]
           },
-          contentKeywords: ["higo", "HIGO", "Higo2"]
+          contentKeywords: ["higo", "HIGO", "Higo2", "echo", "Echo"]
         },
         launcher: {
           text: "EchoMem",
