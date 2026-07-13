@@ -1,14 +1,6 @@
 // Background Service Worker
 // 处理扩展的后台逻辑
 
-import {
-  getOpenViewAuth,
-  setOpenViewAuth,
-  clearOpenViewAuth,
-  refreshToken,
-  fetchStatsSummary,
-} from './src/services/openview-client.js';
-
 chrome.runtime.onInstalled.addListener((details) => {
   console.log('Claw Extension installed:', details.reason);
 
@@ -56,14 +48,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'fetchStatsSummary') {
-    handleFetchStatsSummary(sendResponse);
-    return true;
+    // 发布包未包含 src/services/openview-client.js；从 Service Worker 导入它会导致
+    // Manifest V3 注册失败。EchoAgent 也尚未提供当前面板需要的统计接口。
+    sendResponse({
+      success: false,
+      error: '当前 EchoAgent 服务暂不支持会话统计汇总',
+    });
+    return false;
   }
 
   if (request.action === 'openViewRequest') {
-    const { url, method = 'GET', headers = {}, body } = request;
+    const { url, method = 'GET', headers = {}, body, credentials } = request;
 
-    fetch(url, { method, headers, body })
+    fetch(url, { method, headers, body, credentials })
       .then(async (response) => {
         const text = await response.text().catch(() => '');
         let data = {};
@@ -134,53 +131,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 });
-
-async function handleFetchStatsSummary(sendResponse) {
-  const auth = await getOpenViewAuth();
-  if (!auth?.accessToken || !auth?.refreshToken || !auth?.baseUrl) {
-    sendResponse({
-      success: false,
-      error: 'OpenView 未登录，请先在 EchoMem 配置面板登录',
-    });
-    return;
-  }
-
-  try {
-    const data = await fetchStatsSummary({
-      baseUrl: auth.baseUrl,
-      accessToken: auth.accessToken,
-    });
-    sendResponse({ success: true, data });
-    return;
-  } catch (error) {
-    if (error.status !== 401) {
-      sendResponse({
-        success: false,
-        error: error.message || '获取统计失败',
-      });
-      return;
-    }
-  }
-
-  // Token 过期，尝试刷新
-  try {
-    const newAuth = await refreshToken({
-      baseUrl: auth.baseUrl,
-      refreshToken: auth.refreshToken,
-    });
-    const data = await fetchStatsSummary({
-      baseUrl: newAuth.baseUrl,
-      accessToken: newAuth.accessToken,
-    });
-    sendResponse({ success: true, data });
-  } catch (error) {
-    await clearOpenViewAuth();
-    sendResponse({
-      success: false,
-      error: `OpenView 登录已过期，请重新登录: ${error.message}`,
-    });
-  }
-}
 
 // 监听标签页更新
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {

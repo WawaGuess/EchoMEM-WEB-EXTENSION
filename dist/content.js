@@ -26171,7 +26171,8 @@ ${block}` : block;
           url,
           method: options.method || "GET",
           headers: options.headers,
-          body: options.body
+          body: options.body,
+          credentials: options.credentials
         },
         (response) => {
           if (chrome.runtime.lastError) {
@@ -26220,16 +26221,16 @@ ${block}` : block;
   async function login({ baseUrl, username, password }) {
     const payload = await request(baseUrl, "/v1/auth/login", {
       method: "POST",
+      credentials: "include",
       body: JSON.stringify({ username, password })
     });
-    if (!payload.accessToken || !payload.refreshToken) {
-      throw new Error("\u767B\u5F55\u54CD\u5E94\u4E2D\u7F3A\u5C11 token");
+    if (!payload || !payload.user || typeof payload.csrfToken !== "string") {
+      throw new Error("\u767B\u5F55\u54CD\u5E94\u4E2D\u7F3A\u5C11\u7528\u6237\u6216 CSRF \u4F1A\u8BDD\u4FE1\u606F");
     }
     const auth = {
       baseUrl: normalizeBaseUrl(baseUrl),
-      accessToken: payload.accessToken,
-      refreshToken: payload.refreshToken,
-      user: payload.user || null,
+      csrfToken: payload.csrfToken,
+      user: payload.user,
       loggedInAt: Date.now()
     };
     await setOpenViewAuth(auth);
@@ -28313,7 +28314,7 @@ ${MEM_TAG_CLOSE2}`;
         if (openviewUsernameInput) openviewUsernameInput.value = openviewCfg.username || "";
         if (openviewPasswordInput) openviewPasswordInput.value = openviewCfg.password || "";
         const openviewAuth = await getOpenViewAuth();
-        if ((openviewAuth == null ? void 0 : openviewAuth.accessToken) && openviewLoginBtn) {
+        if ((openviewAuth == null ? void 0 : openviewAuth.user) && (openviewAuth == null ? void 0 : openviewAuth.csrfToken) && openviewLoginBtn) {
           openviewLoginBtn.textContent = "\u2705 \u5DF2\u767B\u5F55 EchoAgent";
         }
       }

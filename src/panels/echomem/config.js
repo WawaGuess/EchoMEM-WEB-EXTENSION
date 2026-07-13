@@ -133,7 +133,7 @@ export async function initConfigPanel(bodyElement) {
       if (openviewPasswordInput) openviewPasswordInput.value = openviewCfg.password || '';
 
       const openviewAuth = await getOpenViewAuth();
-      if (openviewAuth?.accessToken && openviewLoginBtn) {
+      if (openviewAuth?.user && openviewAuth?.csrfToken && openviewLoginBtn) {
         openviewLoginBtn.textContent = '✅ 已登录 EchoAgent';
       }
     }

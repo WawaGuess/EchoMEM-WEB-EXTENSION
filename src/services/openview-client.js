@@ -1,5 +1,4 @@
-// OpenView 后端认证与统计客户端
-// 用于从 OpenView agent 拉取用户会话 Token 统计
+// EchoAgent 认证客户端
 
 const AUTH_STORAGE_KEY = 'openviewAuth';
 
@@ -71,6 +70,7 @@ function fetchViaBackground(url, options = {}) {
         method: options.method || 'GET',
         headers: options.headers,
         body: options.body,
+        credentials: options.credentials,
       },
       (response) => {
         if (chrome.runtime.lastError) {
@@ -132,50 +132,20 @@ export async function clearOpenViewAuth() {
 export async function login({ baseUrl, username, password }) {
   const payload = await request(baseUrl, '/v1/auth/login', {
     method: 'POST',
+    credentials: 'include',
     body: JSON.stringify({ username, password }),
   });
 
-  if (!payload.accessToken || !payload.refreshToken) {
-    throw new Error('登录响应中缺少 token');
+  if (!payload || !payload.user || typeof payload.csrfToken !== 'string') {
+    throw new Error('登录响应中缺少用户或 CSRF 会话信息');
   }
 
   const auth = {
     baseUrl: normalizeBaseUrl(baseUrl),
-    accessToken: payload.accessToken,
-    refreshToken: payload.refreshToken,
-    user: payload.user || null,
+    csrfToken: payload.csrfToken,
+    user: payload.user,
     loggedInAt: Date.now(),
   };
   await setOpenViewAuth(auth);
   return auth;
-}
-
-export async function refreshToken({ baseUrl, refreshToken }) {
-  const payload = await request(baseUrl, '/v1/auth/refresh', {
-    method: 'POST',
-    body: JSON.stringify({ refreshToken }),
-  });
-
-  if (!payload.accessToken || !payload.refreshToken) {
-    throw new Error('刷新 token 响应中缺少 token');
-  }
-
-  const auth = {
-    baseUrl: normalizeBaseUrl(baseUrl),
-    accessToken: payload.accessToken,
-    refreshToken: payload.refreshToken,
-    user: payload.user || null,
-    loggedInAt: Date.now(),
-  };
-  await setOpenViewAuth(auth);
-  return auth;
-}
-
-export async function fetchStatsSummary({ baseUrl, accessToken }) {
-  return request(baseUrl, '/v1/stats/summary', {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
 }
