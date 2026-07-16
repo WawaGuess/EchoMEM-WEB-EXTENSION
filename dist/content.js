@@ -26129,6 +26129,15 @@ ${block}` : block;
     const safePath = path.startsWith("/") ? path : `/${path}`;
     return `${normalized}${safePath}`;
   }
+  function resolveLoginPath(baseUrl) {
+    try {
+      const { hostname } = new URL(normalizeBaseUrl(baseUrl));
+      const isLoopback = hostname === "127.0.0.1" || hostname === "localhost" || hostname === "[::1]";
+      return isLoopback ? "/v1/auth/login" : "/api/auth/login";
+    } catch {
+      return "/api/auth/login";
+    }
+  }
   async function parseResponse(response) {
     const text = await response.text().catch(() => "");
     let data = null;
@@ -26219,7 +26228,7 @@ ${block}` : block;
     await chrome.storage.local.set({ [AUTH_STORAGE_KEY]: auth });
   }
   async function login({ baseUrl, username, password }) {
-    const payload = await request(baseUrl, "/v1/auth/login", {
+    const payload = await request(baseUrl, resolveLoginPath(baseUrl), {
       method: "POST",
       credentials: "include",
       body: JSON.stringify({ username, password })
