@@ -1,7 +1,81 @@
 // 按钮注入逻辑
 
 import { detectPlatform, getCurrentPlatform, setCurrentPlatform } from './detection.js';
-import { openEchoMemHomePanel } from './router.js';
+import { ensureEchoMemOverlayOpen } from './router.js';
+
+function openLauncher(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  ensureEchoMemOverlayOpen();
+}
+
+function findHeaderAnchor(headerLauncherConfig) {
+  const selectors = headerLauncherConfig.anchorSelectors || [];
+  const preferredXRatio = headerLauncherConfig.preferredXRatio ?? 0.75;
+  const minXRatio = headerLauncherConfig.minXRatio ?? 0.18;
+  const maxXRatio = headerLauncherConfig.maxXRatio ?? 0.94;
+  const maxTop = headerLauncherConfig.maxTop ?? 120;
+  const candidates = [];
+
+  selectors.forEach((selector, selectorIndex) => {
+    document.querySelectorAll(selector).forEach((icon) => {
+      const anchor = icon.closest('button, [role="button"]') || icon.parentElement;
+      if (!anchor) return;
+
+      const rect = anchor.getBoundingClientRect();
+      const centerXRatio = (rect.left + rect.width / 2) / Math.max(window.innerWidth, 1);
+      const isVisible = rect.width > 0
+        && rect.height > 0
+        && rect.bottom > 0
+        && rect.top < maxTop
+        && centerXRatio >= minXRatio
+        && centerXRatio <= maxXRatio;
+
+      if (!isVisible) return;
+
+      candidates.push({
+        anchor,
+        score: selectorIndex * 1000
+          + Math.abs(centerXRatio - preferredXRatio) * 100
+          + Math.max(rect.top, 0) / 100,
+      });
+    });
+  });
+
+  candidates.sort((left, right) => left.score - right.score);
+  return candidates[0]?.anchor || null;
+}
+
+function addHeaderLauncher(config) {
+  const headerLauncherConfig = config.headerLauncher;
+  if (!headerLauncherConfig) return;
+  if (document.querySelector('.claw-echomem-header-launcher')) return;
+
+  const anchor = findHeaderAnchor(headerLauncherConfig);
+  if (!anchor?.parentNode) return;
+
+  const launcher = document.createElement('button');
+  launcher.type = 'button';
+  launcher.className = 'claw-echomem-header-launcher';
+  launcher.title = headerLauncherConfig.title || '打开 EchoMem';
+  launcher.setAttribute('aria-label', launcher.title);
+
+  const logo = document.createElement('img');
+  logo.className = 'claw-echomem-header-logo';
+  logo.src = chrome.runtime.getURL(
+    headerLauncherConfig.logo || 'assets/echomem-lockup.png'
+  );
+  logo.alt = '';
+  launcher.appendChild(logo);
+  launcher.addEventListener('click', openLauncher);
+
+  anchor.parentNode.insertBefore(launcher, anchor);
+  console.log(`Claw Extension: EchoMem header launcher added for ${config.name}`);
+}
+
+function removeLegacyInputLauncher() {
+  document.querySelectorAll('.claw-echomem-launcher-bar').forEach((launcher) => launcher.remove());
+}
 
 export function addCustomButtons() {
   let platform = getCurrentPlatform();
@@ -17,114 +91,6 @@ export function addCustomButtons() {
   }
 
   const config = platform.config;
-  const launcherConfig = config.launcher || config.buttonBar;
-  if (!launcherConfig) return;
-
-  if (document.querySelector('.claw-echomem-launcher-bar')) return;
-
-  const inputContainers = document.querySelectorAll(launcherConfig.containerSelector);
-
-  for (const container of inputContainers) {
-    if (container.dataset.clawLauncherAdded) continue;
-
-    let isValidContainer = true;
-    for (const [key, selector] of Object.entries(launcherConfig.validateSelectors || {})) {
-      if (!container.querySelector(selector)) {
-        isValidContainer = false;
-        break;
-      }
-    }
-
-    if (!isValidContainer) continue;
-
-    container.dataset.clawLauncherAdded = 'true';
-
-    const launcherBar = document.createElement('div');
-    launcherBar.className = 'claw-echomem-launcher-bar';
-
-    const launcher = document.createElement('button');
-    launcher.className = 'claw-echomem-launcher';
-    launcher.textContent = launcherConfig.text || 'EchoMem';
-
-    const style = {
-      display: 'flex',
-      gap: '8px',
-      padding: '0 12px 8px',
-      background: 'transparent',
-      alignItems: 'center',
-      justifyContent: 'flex-start',
-      ...(launcherConfig.style || {})
-    };
-
-    if (launcherConfig.getBackgroundColor && typeof launcherConfig.getBackgroundColor === 'function') {
-      try {
-        const dynamicBg = launcherConfig.getBackgroundColor();
-        if (dynamicBg) {
-          style.background = dynamicBg;
-        }
-      } catch (e) {
-        console.log('Claw Extension: getBackgroundColor failed, using default', e);
-      }
-    }
-
-    launcherBar.style.cssText = Object.entries(style)
-      .map(([key, value]) => {
-        const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
-        return `${cssKey}: ${value}`;
-      })
-      .join('; ');
-
-    launcher.style.cssText = `
-      height: 28px;
-      padding: 0 10px;
-      border: 1px solid rgba(0, 0, 0, 0.12);
-      border-radius: 6px;
-      background: #fff;
-      color: #1f2937;
-      font-size: 12px;
-      font-weight: 600;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      line-height: 26px;
-      cursor: pointer;
-      transition: all 0.2s;
-      white-space: nowrap;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-    `;
-
-    launcher.addEventListener('mouseenter', () => {
-      launcher.style.borderColor = '#2563eb';
-      launcher.style.color = '#2563eb';
-      launcher.style.boxShadow = '0 2px 6px rgba(37, 99, 235, 0.18)';
-    });
-    launcher.addEventListener('mouseleave', () => {
-      launcher.style.borderColor = 'rgba(0, 0, 0, 0.12)';
-      launcher.style.color = '#1f2937';
-      launcher.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.08)';
-    });
-    launcher.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      openEchoMemHomePanel();
-    });
-
-    launcherBar.appendChild(launcher);
-
-    if (launcherConfig.insertAfter) {
-      const insertTarget = document.querySelector(launcherConfig.insertAfter);
-      if (insertTarget && insertTarget.parentNode) {
-        insertTarget.parentNode.insertBefore(launcherBar, insertTarget.nextSibling);
-      } else {
-        container.parentNode.insertBefore(launcherBar, container);
-      }
-    } else if (launcherConfig.insertPosition === 'after') {
-      container.parentNode.insertBefore(launcherBar, container.nextSibling);
-    } else if (launcherConfig.insertPosition === 'append') {
-      container.appendChild(launcherBar);
-    } else {
-      container.parentNode.insertBefore(launcherBar, container);
-    }
-
-    console.log(`Claw Extension: EchoMem launcher added for ${config.name}`);
-    break;
-  }
+  removeLegacyInputLauncher();
+  addHeaderLauncher(config);
 }

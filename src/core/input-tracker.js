@@ -132,7 +132,8 @@ async function handleInput(textarea, userInput) {
 }
 
 function findInputElement(platformConfig) {
-  const selector = platformConfig.launcher?.validateSelectors?.textarea;
+  const selector = platformConfig.input?.selector
+    || platformConfig.launcher?.validateSelectors?.textarea;
   if (!selector) return null;
   return document.querySelector(selector);
 }

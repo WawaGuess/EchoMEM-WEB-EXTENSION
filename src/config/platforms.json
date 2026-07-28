@@ -15,22 +15,20 @@
         },
         "contentKeywords": ["higo", "HIGO", "Higo2", "echo", "Echo"]
       },
-      "launcher": {
-        "text": "EchoMem",
-        "containerSelector": ".MuiPaper-root",
-        "validateSelectors": {
-          "textarea": "textarea[id^='_r_']",
-          "sendButton": "[data-testid='ArrowUpwardIcon']"
-        },
-        "style": {
-          "display": "flex",
-          "gap": "8px",
-          "padding": "0 12px 8px",
-          "background": "rgb(255, 251, 254)",
-          "alignItems": "center",
-          "justifyContent": "flex-start"
-        },
-        "insertPosition": "before"
+      "headerLauncher": {
+        "anchorSelectors": [
+          "[data-testid='ShareIcon']",
+          "[data-testid='ChevronRightIcon']"
+        ],
+        "preferredXRatio": 0.75,
+        "minXRatio": 0.18,
+        "maxXRatio": 0.94,
+        "maxTop": 120,
+        "logo": "assets/echomem-lockup.png",
+        "title": "打开 EchoMem"
+      },
+      "input": {
+        "selector": "textarea[id^='_r_']"
       },
       "messages": {
         "messageContainers": [
@@ -102,25 +100,8 @@
         },
         "contentKeywords": ["deepseek", "深度思考", "智能搜索"]
       },
-      "launcher": {
-        "text": "EchoMem",
-        "containerSelector": "._77cefa5, ._24fad49",
-        "validateSelectors": {
-          "textarea": "textarea[placeholder*='DeepSeek']"
-        },
-        "style": {
-          "display": "flex",
-          "gap": "8px",
-          "padding": "0 12px 8px",
-          "alignItems": "center",
-          "justifyContent": "flex-start"
-        },
-        "insertPosition": "before",
-        "backgroundColorFrom": {
-          "selector": "._77cefa5",
-          "property": "backgroundColor",
-          "fallback": "#fff"
-        }
+      "input": {
+        "selector": "textarea[placeholder*='DeepSeek']"
       },
       "messages": {
         "messageContainers": [

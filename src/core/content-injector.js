@@ -5,7 +5,8 @@ import { getCurrentPlatform } from './detection.js';
 function findInputElement() {
   const platform = getCurrentPlatform();
   if (!platform) return null;
-  const selector = platform.config?.launcher?.validateSelectors?.textarea;
+  const selector = platform.config?.input?.selector
+    || platform.config?.launcher?.validateSelectors?.textarea;
   if (!selector) return null;
   return document.querySelector(selector);
 }

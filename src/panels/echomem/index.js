@@ -107,7 +107,7 @@ export function getEchoMemHomeContent() {
 
   const configCard = `
     <div class="claw-config-section" data-config="echomem" style="${CARD_STYLE} margin-top: 8px;" ${buildHoverEvents(configStyle)}>
-      ${buildCardBody('记忆后端引擎连接配置', '配置后端地址、API Key 和认证信息', configStyle)}
+      ${buildCardBody('后端连接配置', '配置后端地址、API Key 和认证信息', configStyle)}
     </div>
   `;
 

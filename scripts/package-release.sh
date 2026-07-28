@@ -47,7 +47,9 @@ EchoMem 浏览器扩展（开发版加载包）。
 
 ## 使用
 
-访问支持的平台页面（HIGO Office、DeepSeek），即可看到 EchoMem 入口按钮。
+在支持的平台页面中点击浏览器工具栏的 EchoMem 图标，即可打开网页 overlay。
+
+HIGO Office 顶部标题栏也提供“图形 + EchoMem”组合标入口；聊天输入框附近不再注入按钮。
 EOF
 
 echo "==> 打包完成：${RELEASE_DIR}"

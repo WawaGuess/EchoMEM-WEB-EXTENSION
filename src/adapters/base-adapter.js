@@ -193,20 +193,4 @@ export const BaseAdapter = {
   createStreamingDetector(config) {
     return createStreamingDetector(config?.streaming);
   },
-
-  /**
-   * 启动器背景色：用于 launcher 主题适配。
-   * 默认按 config.launcher.backgroundColorFrom = { selector, property } 读取。
-   * 没配置则返回 null（launcher 自己使用默认值）。
-   */
-  getLauncherBackground(config) {
-    const rule = config?.launcher?.backgroundColorFrom;
-    if (!rule?.selector) return null;
-    const target = safeQuery(rule.selector);
-    if (!target) return null;
-    const style = window.getComputedStyle(target);
-    const value = style[rule.property || 'backgroundColor'];
-    if (!value || value === 'rgba(0, 0, 0, 0)') return null;
-    return value;
-  },
 };
