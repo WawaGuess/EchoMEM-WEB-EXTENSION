@@ -17,7 +17,7 @@
 - 支持缩放、旋转、节点聚焦和关系筛选
 
 ### 4. Skill 管理
-- **我的 Skill**：查看和管理已上传/使用过的 Skill，支持搜索、展开详情、查看完整内容
+- **我的 Skill**：查看和管理已上传/使用过的 Skill，支持搜索、展开详情、查看完整内容、版本历史与版本回退
 - **上传 Skill**：上传 `.md` / `.txt` 格式 SKILL.md 文件，自动解析 frontmatter 并保存到 EchoMem 后端
 - **安装管理**：管理已安装的 Skill，支持删除
 
@@ -67,6 +67,7 @@
 
 ```bash
 npm install
+npm test
 npm run build
 ```
 
@@ -169,17 +170,18 @@ EchoMEM-WEB-EXTENSION/
 - **资源管理**：管理文件资源
 - **输入联想**：开启/关闭智能联想
 - **认知图谱**：查看 3D 记忆实体关系图谱
-- **Skill 管理**：管理、上传和删除 Skill
+- **Skill 管理**：管理、上传和删除 Skill，并在「我的 Skill」中查看版本历史和回退版本
 - **效能**：查看 EchoMem 后端 Token 消耗
 - **后端连接配置**：管理 EchoMem 与 EchoAgent 连接
 
 ### Skill 管理使用
 1. 打开 overlay 后选择「Skill 管理」进入首页
 2. 点击「我的 Skill」查看已上传 Skill 列表，支持搜索和展开详情
-3. 点击「上传 Skill」上传符合 SKILL.md 格式的 `.md` / `.txt` 文件
-4. 点击「安装管理」查看已安装 Skill 并执行删除
-5. 详情页左上角有「← 返回」按钮可返回首页
-6. 右上角「×」按钮关闭整个面板
+3. 展开某个 Skill 后可查看版本历史；历史正文按需加载，非当前版本可确认后恢复为当前版本
+4. 点击「上传 Skill」上传符合 SKILL.md 格式的 `.md` / `.txt` 文件
+5. 点击「安装管理」查看已安装 Skill 并执行删除；该页面不提供版本操作
+6. 详情页左上角有「← 返回」按钮可返回首页
+7. 右上角「×」按钮关闭整个面板
 
 ## 技术说明
 
@@ -200,6 +202,7 @@ EchoMEM-WEB-EXTENSION/
 
 ```bash
 npm install
+npm test
 npm run build
 ```
 

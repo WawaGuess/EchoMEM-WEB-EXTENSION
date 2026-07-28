@@ -767,7 +767,10 @@
             return;
           }
           if (!response || !response.success) {
-            reject(new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error")));
+            const error = new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error"));
+            error.status = response == null ? void 0 : response.status;
+            error.payload = response == null ? void 0 : response.data;
+            reject(error);
             return;
           }
           resolve(response);
@@ -797,7 +800,10 @@
       });
       const data = response.data ?? response.text;
       if (data && data.status === "error") {
-        throw new Error(data.message || ((_a = data.error) == null ? void 0 : _a.message) || "EchoMem error");
+        const error = new Error(data.message || ((_a = data.error) == null ? void 0 : _a.message) || "EchoMem error");
+        error.status = response.status;
+        error.payload = data;
+        throw error;
       }
       return data.result !== void 0 ? data.result : data;
     }
@@ -999,6 +1005,59 @@
       });
       if (this.cfg.debug) {
         log("deleteSkill response", result);
+      }
+      return result;
+    }
+    async listSkillVersions(name) {
+      var _a;
+      if (!name) throw new Error("name is required");
+      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/versions`;
+      if (this.cfg.debug) {
+        log("listSkillVersions request", name);
+      }
+      const result = await this._fetchJson(url, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        log("listSkillVersions response", `name=${name}`, `versions=${((_a = result == null ? void 0 : result.versions) == null ? void 0 : _a.length) || 0}`);
+      }
+      return result;
+    }
+    async readSkillVersion(name, version) {
+      if (!name) throw new Error("name is required");
+      if (!Number.isInteger(version) || version <= 0) {
+        throw new Error("version must be a positive integer");
+      }
+      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/versions/${version}`;
+      if (this.cfg.debug) {
+        log("readSkillVersion request", name, `version=${version}`);
+      }
+      const result = await this._fetchJson(url, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        log("readSkillVersion response", `name=${name}`, `version=${version}`);
+      }
+      return result;
+    }
+    async rollbackSkillVersion(name, version) {
+      if (!name) throw new Error("name is required");
+      if (!Number.isInteger(version) || version <= 0) {
+        throw new Error("version must be a positive integer");
+      }
+      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/rollback`;
+      if (this.cfg.debug) {
+        log("rollbackSkillVersion request", name, `version=${version}`);
+      }
+      const result = await this._fetchJson(url, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify({ version })
+      });
+      if (this.cfg.debug) {
+        log("rollbackSkillVersion response", `name=${name}`, `version=${version}`, `rolled_back=${result == null ? void 0 : result.rolled_back}`);
       }
       return result;
     }
@@ -24843,6 +24902,96 @@ ${block}` : block;
     return "\u672A\u547D\u540D";
   }
 
+  // src/panels/skill-store/version-history.js
+  var SOURCE_LABELS = {
+    manual_upload: "\u624B\u52A8\u4E0A\u4F20",
+    generated: "\u81EA\u52A8\u751F\u6210",
+    optimized: "\u81EA\u52A8\u4F18\u5316",
+    rollback: "\u5386\u53F2\u6062\u590D",
+    current: "\u5F53\u524D\u6587\u4EF6"
+  };
+  function toPositiveInteger(value) {
+    if (value === null || value === void 0 || value === "") return null;
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+  function toText(value) {
+    return value === null || value === void 0 ? "" : String(value);
+  }
+  function escapeHtml(value) {
+    return toText(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function formatVersionLabel(value) {
+    const raw = toText(value).trim();
+    if (!raw) return "\u2014";
+    const prefixed = raw.match(/^v(\d+)$/i);
+    if (prefixed) return `v${Number(prefixed[1])}`;
+    const version = toPositiveInteger(raw);
+    return version === null ? raw : `v${version}`;
+  }
+  function formatVersionDate(value) {
+    if (!value) return "\u2014";
+    const date = typeof value === "number" ? new Date(value * 1e3) : new Date(value);
+    if (Number.isNaN(date.getTime())) return "\u2014";
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+  function getVersionSourceLabel(source) {
+    const normalized = toText(source).trim();
+    return SOURCE_LABELS[normalized] || "\u672A\u77E5\u6765\u6E90";
+  }
+  function getSkillApiName(skill) {
+    const dirName = toText(skill == null ? void 0 : skill.dirName).trim();
+    if (dirName) return dirName;
+    return toText(skill == null ? void 0 : skill.name).trim();
+  }
+  function classifyVersionError(error) {
+    const status = Number(error == null ? void 0 : error.status);
+    if (status === 404 || status === 405) return "unsupported";
+    if (status === 401 || status === 403) return "auth";
+    const message = toText(error == null ? void 0 : error.message).toLowerCase();
+    if ((error == null ? void 0 : error.name) === "AbortError" || message.includes("aborted") || message.includes("timeout")) {
+      return "timeout";
+    }
+    if (message.includes("failed to fetch") || message.includes("network")) {
+      return "network";
+    }
+    return "error";
+  }
+  function normalizeSkillVersionHistory(payload) {
+    var _a;
+    const rawPayload = payload && typeof payload === "object" ? payload : {};
+    const rawVersions = Array.isArray(rawPayload.versions) ? rawPayload.versions : [];
+    const versionsByNumber = /* @__PURE__ */ new Map();
+    for (const item of rawVersions) {
+      if (!item || typeof item !== "object") continue;
+      const version = toPositiveInteger(item.version);
+      if (version === null) continue;
+      versionsByNumber.set(version, {
+        version,
+        parentVersion: toPositiveInteger(item.parent_version),
+        source: toText(item.source),
+        runId: toText(item.run_id),
+        createdAt: toText(item.created_at),
+        current: item.current === true,
+        hash: toText(item.hash),
+        exists: item.exists !== false
+      });
+    }
+    let currentVersion = toPositiveInteger(rawPayload.current_version);
+    if (currentVersion === null) {
+      currentVersion = ((_a = [...versionsByNumber.values()].find((item) => item.current)) == null ? void 0 : _a.version) || null;
+    }
+    const versions = [...versionsByNumber.values()].map((item) => ({
+      ...item,
+      current: currentVersion !== null && item.version === currentVersion
+    })).sort((a, b) => b.version - a.version);
+    return {
+      name: toText(rawPayload.name),
+      currentVersion,
+      versions
+    };
+  }
+
   // src/panels/skill-store/index.js
   var SKILL_ROOT_URI = "echo://skills";
   function isDirectory(entry) {
@@ -25065,6 +25214,7 @@ ${block}` : block;
           tags,
           allowedTools
         });
+        skillCache = null;
         showStatus(`\u2705 Skill\u300C${skillResult.name || finalName || skillName}\u300D\u4E0A\u4F20\u6210\u529F`, "success");
       } catch (err) {
         showStatus(`\u274C \u4E0A\u4F20\u5931\u8D25: ${formatError(err)}`, "error");
@@ -25096,7 +25246,7 @@ ${block}` : block;
         showStatus("\u274C \u65E0\u6CD5\u8BFB\u53D6 Skill \u5185\u5BB9", "error");
         return;
       }
-      const safeName = skillName.replace(/\u0026/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      const safeName = escapeHtml(skillName);
       const dialogId = "claw-skill-confirm-" + Date.now();
       const dialogHtml = `
       <div id="${dialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
@@ -25180,10 +25330,10 @@ ${block}` : block;
   }
   var skillCache = null;
   async function initSkillHistoryPanel(bodyElement) {
-    return initSkillListPanel(bodyElement, { showDelete: false });
+    return initSkillListPanel(bodyElement, { showDelete: false, showVersionHistory: true });
   }
   async function initSkillManagePanel(bodyElement) {
-    return initSkillListPanel(bodyElement, { showDelete: true });
+    return initSkillListPanel(bodyElement, { showDelete: true, showVersionHistory: false });
   }
   async function initSkillListPanel(bodyElement, options = {}) {
     if (!bodyElement) return;
@@ -25195,6 +25345,12 @@ ${block}` : block;
     if (!loadingEl || !contentEl) return;
     let allSkills = [];
     let filteredSkills = [];
+    const skillVersionCache = /* @__PURE__ */ new Map();
+    const skillVersionRequests = /* @__PURE__ */ new Map();
+    const skillVersionContentCache = /* @__PURE__ */ new Map();
+    const skillVersionContentRequests = /* @__PURE__ */ new Map();
+    const rollbackInFlight = /* @__PURE__ */ new Set();
+    let expandedSkillKey = null;
     function showToast(msg, type = "info") {
       if (!toastEl) return;
       const colors = {
@@ -25225,6 +25381,301 @@ ${block}` : block;
       if (isNaN(d.getTime())) return "-";
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     }
+    function getVersionErrorMessage(error) {
+      const kind = classifyVersionError(error);
+      const messages = {
+        unsupported: "\u5F53\u524D EchoMem \u7248\u672C\u6682\u4E0D\u652F\u6301\u7248\u672C\u7BA1\u7406",
+        auth: "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u7684 API Key",
+        timeout: "\u8BF7\u6C42\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u540E\u7AEF\u72B6\u6001\u6216\u7F51\u7EDC\u8FDE\u63A5",
+        network: "\u65E0\u6CD5\u8FDE\u63A5\u5230\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u7F51\u7EDC\u8FDE\u63A5"
+      };
+      return messages[kind] || (error == null ? void 0 : error.message) || "\u52A0\u8F7D\u7248\u672C\u4FE1\u606F\u5931\u8D25";
+    }
+    function getNestedCache(cache, skillKey, version) {
+      var _a;
+      return (_a = cache.get(skillKey)) == null ? void 0 : _a.get(version);
+    }
+    function setNestedCache(cache, skillKey, version, value) {
+      let bucket = cache.get(skillKey);
+      if (!bucket) {
+        bucket = /* @__PURE__ */ new Map();
+        cache.set(skillKey, bucket);
+      }
+      bucket.set(version, value);
+    }
+    function invalidateVersionCaches(skillKey = null) {
+      if (!skillKey) {
+        skillVersionCache.clear();
+        skillVersionRequests.clear();
+        skillVersionContentCache.clear();
+        skillVersionContentRequests.clear();
+        return;
+      }
+      skillVersionCache.delete(skillKey);
+      skillVersionRequests.delete(skillKey);
+      skillVersionContentCache.delete(skillKey);
+      skillVersionContentRequests.delete(skillKey);
+    }
+    function renderVersionLoading(container) {
+      if (!container) return;
+      container.innerHTML = `
+      <div style="padding: 12px; text-align: center; color: #6b7280; font-size: 12px; background: #f9fafb; border-radius: 6px;">
+        \u6B63\u5728\u52A0\u8F7D\u7248\u672C\u5386\u53F2...
+      </div>
+    `;
+    }
+    function renderVersionError(container, skill, error) {
+      var _a;
+      if (!container) return;
+      const kind = classifyVersionError(error);
+      const retryable = !["unsupported", "auth"].includes(kind);
+      container.innerHTML = `
+      <div style="padding: 12px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; font-size: 12px; line-height: 1.5;">
+        <p style="margin: 0;">${escapeHtml(getVersionErrorMessage(error))}</p>
+        ${retryable ? `
+          <button class="claw-skill-version-retry" style="margin-top: 8px; padding: 4px 10px; background: white; color: #b91c1c; border: 1px solid #fecaca; border-radius: 5px; font-size: 11px; cursor: pointer;">\u91CD\u8BD5</button>
+        ` : ""}
+      </div>
+    `;
+      (_a = container.querySelector(".claw-skill-version-retry")) == null ? void 0 : _a.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        loadSkillVersions(skill, container, { force: true });
+      });
+    }
+    function renderVersionHistory(container, skill, history) {
+      if (!container) return;
+      if (history.versions.length === 0) {
+        container.innerHTML = `
+        <div style="padding: 12px; text-align: center; color: #9ca3af; font-size: 12px; background: #f9fafb; border-radius: 6px;">
+          \u6682\u65E0\u7248\u672C\u5386\u53F2
+        </div>
+      `;
+        return;
+      }
+      const rows = history.versions.map((item) => {
+        const details = [];
+        if (item.parentVersion) details.push(`\u57FA\u4E8E ${formatVersionLabel(item.parentVersion)}`);
+        if (item.runId) details.push(item.runId);
+        if (!item.exists) details.push("\u5185\u5BB9\u7F3A\u5931");
+        const viewDisabled = item.exists ? "" : "disabled";
+        const viewStyle = item.exists ? "background: #eff6ff; color: #2563eb; border-color: #bfdbfe; cursor: pointer;" : "background: #f3f4f6; color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed;";
+        const rollbackButton = !item.current ? `<button class="claw-skill-version-rollback" data-version="${item.version}" ${viewDisabled} style="padding: 4px 9px; border: 1px solid ${item.exists ? "#fed7aa" : "#e5e7eb"}; border-radius: 5px; font-size: 11px; ${item.exists ? "background: #fff7ed; color: #c2410c; cursor: pointer;" : "background: #f3f4f6; color: #9ca3af; cursor: not-allowed;"}">\u6062\u590D\u4E3A\u6B64\u7248\u672C</button>` : "";
+        return `
+        <div style="padding: 10px; border: 1px solid ${item.current ? "#a5b4fc" : "#e5e7eb"}; background: ${item.current ? "#f5f3ff" : "#fff"}; border-radius: 7px;">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
+            <div style="min-width: 0; flex: 1;">
+              <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px;">
+                ${item.current ? '<span style="padding: 2px 6px; border-radius: 999px; background: #667eea; color: white; font-size: 10px;">\u5F53\u524D</span>' : ""}
+                <strong style="font-size: 12px; color: #111827;">${escapeHtml(formatVersionLabel(item.version))}</strong>
+                <span style="font-size: 11px; color: #6b7280;">${escapeHtml(getVersionSourceLabel(item.source))}</span>
+                <span style="font-size: 11px; color: #9ca3af;">${escapeHtml(formatVersionDate(item.createdAt))}</span>
+              </div>
+              ${details.length ? `<p style="margin: 5px 0 0; color: #9ca3af; font-size: 10px; line-height: 1.4; word-break: break-all;">${details.map(escapeHtml).join(" \xB7 ")}</p>` : ""}
+            </div>
+            <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px;">
+              <button class="claw-skill-version-view" data-version="${item.version}" ${viewDisabled} style="padding: 4px 9px; border: 1px solid; border-radius: 5px; font-size: 11px; ${viewStyle}">\u67E5\u770B\u5185\u5BB9</button>
+              ${rollbackButton}
+            </div>
+          </div>
+        </div>
+      `;
+      }).join("");
+      container.innerHTML = `<div style="display: flex; flex-direction: column; gap: 7px;">${rows}</div>`;
+      container.querySelectorAll(".claw-skill-version-view").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (button.disabled) return;
+          const version = Number(button.dataset.version);
+          openVersionContent(skill, version, history);
+        });
+      });
+      container.querySelectorAll(".claw-skill-version-rollback").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (button.disabled) return;
+          const version = Number(button.dataset.version);
+          openRollbackDialog(skill, version, history);
+        });
+      });
+    }
+    async function loadSkillVersions(skill, container, requestOptions = {}) {
+      if (!options.showVersionHistory || !container) return null;
+      const skillKey = getSkillApiName(skill);
+      const force = requestOptions.force === true;
+      if (force) {
+        skillVersionCache.delete(skillKey);
+        skillVersionRequests.delete(skillKey);
+      }
+      const cached = skillVersionCache.get(skillKey);
+      if (cached) {
+        renderVersionHistory(container, skill, cached);
+        return cached;
+      }
+      renderVersionLoading(container);
+      let request2 = skillVersionRequests.get(skillKey);
+      if (!request2) {
+        request2 = (async () => {
+          const config = await getEchoMemConfig();
+          const client2 = createClient(config);
+          const payload = await client2.listSkillVersions(skillKey);
+          return normalizeSkillVersionHistory(payload);
+        })();
+        skillVersionRequests.set(skillKey, request2);
+      }
+      try {
+        const history = await request2;
+        const isCurrentRequest = skillVersionRequests.get(skillKey) === request2;
+        if (isCurrentRequest) {
+          skillVersionCache.set(skillKey, history);
+          if (container == null ? void 0 : container.isConnected) {
+            renderVersionHistory(container, skill, history);
+          }
+        }
+        return history;
+      } catch (error) {
+        if (skillVersionRequests.get(skillKey) === request2 && (container == null ? void 0 : container.isConnected)) {
+          renderVersionError(container, skill, error);
+        }
+        return null;
+      } finally {
+        if (skillVersionRequests.get(skillKey) === request2) {
+          skillVersionRequests.delete(skillKey);
+        }
+      }
+    }
+    async function getSkillVersionContent(skill, version, history) {
+      const skillKey = getSkillApiName(skill);
+      const cached = getNestedCache(skillVersionContentCache, skillKey, version);
+      if (cached !== void 0) return cached;
+      if (version === history.currentVersion && skill.fullContent) {
+        setNestedCache(skillVersionContentCache, skillKey, version, skill.fullContent);
+        return skill.fullContent;
+      }
+      let request2 = getNestedCache(skillVersionContentRequests, skillKey, version);
+      if (!request2) {
+        request2 = (async () => {
+          const config = await getEchoMemConfig();
+          const client2 = createClient(config);
+          const payload = await client2.readSkillVersion(skillKey, version);
+          if (typeof (payload == null ? void 0 : payload.text) !== "string") {
+            throw new Error("\u5386\u53F2\u7248\u672C\u5185\u5BB9\u4E3A\u7A7A");
+          }
+          return payload.text;
+        })();
+        setNestedCache(skillVersionContentRequests, skillKey, version, request2);
+      }
+      try {
+        const text = await request2;
+        if (getNestedCache(skillVersionContentRequests, skillKey, version) === request2) {
+          setNestedCache(skillVersionContentCache, skillKey, version, text);
+        }
+        return text;
+      } finally {
+        const requests = skillVersionContentRequests.get(skillKey);
+        if ((requests == null ? void 0 : requests.get(version)) === request2) {
+          requests.delete(version);
+          if (requests.size === 0) skillVersionContentRequests.delete(skillKey);
+        }
+      }
+    }
+    async function openVersionContent(skill, version, history) {
+      const contentId = `claw-skill-version-content-${Date.now()}-${version}`;
+      const title = `${skill.name} \xB7 ${formatVersionLabel(version)}`;
+      openCenterOverlay(escapeHtml(title), `
+      <div id="${contentId}" style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #6b7280; white-space: pre-wrap; word-break: break-word;">\u6B63\u5728\u52A0\u8F7D\u7248\u672C\u5185\u5BB9...</div>
+    `, {
+        showBack: true,
+        onBack: () => closeOverlayPanel()
+      });
+      const contentElement = document.getElementById(contentId);
+      try {
+        const text = await getSkillVersionContent(skill, version, history);
+        if (contentElement == null ? void 0 : contentElement.isConnected) {
+          contentElement.style.color = "#374151";
+          contentElement.textContent = text || "\u65E0\u5185\u5BB9";
+        }
+      } catch (error) {
+        if (contentElement == null ? void 0 : contentElement.isConnected) {
+          contentElement.style.color = "#b91c1c";
+          contentElement.textContent = `\u52A0\u8F7D\u5931\u8D25\uFF1A${getVersionErrorMessage(error)}`;
+        }
+      }
+    }
+    function openRollbackDialog(skill, version, history) {
+      const skillKey = getSkillApiName(skill);
+      if (rollbackInFlight.has(skillKey)) return;
+      const dialogId = `claw-skill-rollback-${Date.now()}`;
+      const currentLabel = formatVersionLabel(history.currentVersion || skill.version);
+      const targetLabel = formatVersionLabel(version);
+      const dialogHtml = `
+      <div id="${dialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="text-align: center;">
+          <p style="font-size: 24px; margin: 0; line-height: 1;">\u21A9\uFE0F</p>
+          <p style="font-size: 15px; color: #333; font-weight: 600; margin: 6px 0 4px;">\u786E\u8BA4\u6062\u590D Skill</p>
+          <p style="font-size: 12px; color: #666; line-height: 1.5; margin: 0;">\u5C06 Skill\u300C<strong style="color: #111;">${escapeHtml(skill.name)}</strong>\u300D\u4ECE ${escapeHtml(currentLabel)} \u6062\u590D\u4E3A ${escapeHtml(targetLabel)}\u3002<br>\u6062\u590D\u540E\uFF0C\u5F53\u524D SKILL.md \u4F1A\u5207\u6362\u5230\u8BE5\u5386\u53F2\u5185\u5BB9\u3002</p>
+        </div>
+        <div class="claw-skill-rollback-status" style="display: none; padding: 8px; border-radius: 6px; font-size: 12px;"></div>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+          <button class="claw-skill-rollback-cancel" style="padding: 8px 20px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 500;">\u53D6\u6D88</button>
+          <button class="claw-skill-rollback-confirm" style="padding: 8px 20px; background: #ea580c; color: white; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 500;">\u786E\u8BA4\u6062\u590D</button>
+        </div>
+      </div>
+    `;
+      openCenterOverlay("\u6062\u590D\u7248\u672C", dialogHtml, {
+        width: "380px",
+        maxWidth: "380px",
+        height: "270px",
+        maxHeight: "320px"
+      });
+      setTimeout(() => {
+        const dialog = document.getElementById(dialogId);
+        const cancelButton = dialog == null ? void 0 : dialog.querySelector(".claw-skill-rollback-cancel");
+        const confirmButton = dialog == null ? void 0 : dialog.querySelector(".claw-skill-rollback-confirm");
+        const statusElement = dialog == null ? void 0 : dialog.querySelector(".claw-skill-rollback-status");
+        if (!dialog || !cancelButton || !confirmButton || !statusElement) return;
+        cancelButton.addEventListener("click", () => closeOverlayPanel());
+        confirmButton.addEventListener("click", async () => {
+          if (rollbackInFlight.has(skillKey)) return;
+          rollbackInFlight.add(skillKey);
+          confirmButton.disabled = true;
+          cancelButton.disabled = true;
+          confirmButton.textContent = "\u6062\u590D\u4E2D...";
+          statusElement.style.display = "block";
+          statusElement.style.background = "#fff7ed";
+          statusElement.style.color = "#c2410c";
+          statusElement.textContent = "\u6B63\u5728\u6062\u590D\u5386\u53F2\u7248\u672C...";
+          try {
+            const config = await getEchoMemConfig();
+            const client2 = createClient(config);
+            const result = await client2.rollbackSkillVersion(skillKey, version);
+            if ((result == null ? void 0 : result.rolled_back) !== true) {
+              throw new Error("\u540E\u7AEF\u672A\u786E\u8BA4\u7248\u672C\u6062\u590D\u6210\u529F");
+            }
+            closeOverlayPanel();
+            invalidateVersionCaches(skillKey);
+            skillCache = null;
+            expandedSkillKey = skillKey;
+            if (searchInput) searchInput.value = "";
+            await loadSkills();
+            showToast(`\u2705 Skill\u300C${skill.name}\u300D\u5DF2\u6062\u590D\u4E3A ${targetLabel}`, "success");
+          } catch (error) {
+            if (statusElement.isConnected) {
+              statusElement.style.background = "#fef2f2";
+              statusElement.style.color = "#b91c1c";
+              statusElement.textContent = `\u6062\u590D\u5931\u8D25\uFF1A${getVersionErrorMessage(error)}`;
+              confirmButton.disabled = false;
+              cancelButton.disabled = false;
+              confirmButton.textContent = "\u91CD\u65B0\u6062\u590D";
+            }
+          } finally {
+            rollbackInFlight.delete(skillKey);
+          }
+        });
+      }, 50);
+    }
     function renderSkills(skills) {
       if (skills.length === 0) {
         contentEl.innerHTML = `
@@ -25238,11 +25689,11 @@ ${block}` : block;
       }
       const itemsHtml = skills.map((skill, index) => {
         const desc = skill.description || "\u6682\u65E0\u63CF\u8FF0";
-        const version = skill.version ? `v${skill.version}` : "";
+        const version = skill.version ? formatVersionLabel(skill.version) : "";
         const author = skill.author || "";
         const metaParts = [version, author, formatDate2(skill.modifiedAt)].filter(Boolean);
         const meta = metaParts.join(" \xB7 ") || "-";
-        const deleteBtnHtml = options.showDelete ? `<button class="claw-skill-btn-delete" data-name="${skill.name}" style="
+        const deleteBtnHtml = options.showDelete ? `<button class="claw-skill-btn-delete" data-index="${index}" style="
             padding: 4px 10px;
             background: #fef2f2;
             color: #dc2626;
@@ -25264,9 +25715,9 @@ ${block}` : block;
         >
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
             <div style="flex: 1; min-width: 0;">
-              <p style="font-weight: 600; font-size: 13px; color: #111827; margin-bottom: 2px; word-break: break-all;">${skill.name}</p>
-              <p style="font-size: 12px; color: #6b7280; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px;">${desc}</p>
-              <p style="font-size: 11px; color: #9ca3af;">${meta}</p>
+              <p style="font-weight: 600; font-size: 13px; color: #111827; margin-bottom: 2px; word-break: break-all;">${escapeHtml(skill.name)}</p>
+              <p style="font-size: 12px; color: #6b7280; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px;">${escapeHtml(desc)}</p>
+              <p style="font-size: 11px; color: #9ca3af;">${escapeHtml(meta)}</p>
             </div>
             <div style="display: flex; align-items: flex-start; gap: 6px; flex-shrink: 0;">
               ${deleteBtnHtml}
@@ -25276,7 +25727,7 @@ ${block}` : block;
             </div>
           </div>
           <div class="claw-skill-detail" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
-            ${renderDetail(skill)}
+            ${renderDetail(skill, index)}
           </div>
         </div>
       `;
@@ -25286,28 +25737,47 @@ ${block}` : block;
         ${itemsHtml}
       </div>
     `;
+      function openSkillItem(item, skill) {
+        const detail = item.querySelector(".claw-skill-detail");
+        const icon = item.querySelector(".claw-skill-toggle-icon");
+        if (!detail) return;
+        contentEl.querySelectorAll(".claw-skill-detail").forEach((element) => element.style.display = "none");
+        contentEl.querySelectorAll(".claw-skill-toggle-icon").forEach((element) => element.style.transform = "none");
+        detail.style.display = "block";
+        if (icon) icon.style.transform = "rotate(180deg)";
+        expandedSkillKey = getSkillApiName(skill);
+        if (options.showVersionHistory) {
+          const versionContainer = detail.querySelector(".claw-skill-version-history");
+          loadSkillVersions(skill, versionContainer);
+        }
+      }
       contentEl.querySelectorAll(".claw-skill-item").forEach((item) => {
         item.addEventListener("click", (e) => {
-          if (e.target.closest(".claw-skill-btn-delete")) return;
+          if (e.target.closest("button")) return;
           const detail = item.querySelector(".claw-skill-detail");
           const icon = item.querySelector(".claw-skill-toggle-icon");
           if (!detail) return;
           const isOpen = detail.style.display === "block";
-          contentEl.querySelectorAll(".claw-skill-detail").forEach((d) => d.style.display = "none");
-          contentEl.querySelectorAll(".claw-skill-toggle-icon").forEach((i) => i.style.transform = "none");
-          if (!isOpen) {
-            detail.style.display = "block";
-            if (icon) icon.style.transform = "rotate(180deg)";
+          if (isOpen) {
+            detail.style.display = "none";
+            if (icon) icon.style.transform = "none";
+            expandedSkillKey = null;
+            return;
           }
+          const index = Number(item.dataset.index);
+          const skill = skills[index];
+          if (skill) openSkillItem(item, skill);
         });
       });
       if (options.showDelete) {
         contentEl.querySelectorAll(".claw-skill-btn-delete").forEach((btn) => {
           btn.addEventListener("click", async (e) => {
             e.stopPropagation();
-            const name = btn.dataset.name;
-            if (!name) return;
-            const safeDelName = name.replace(/\u0026/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+            const skill = skills[Number(btn.dataset.index)];
+            const apiName = getSkillApiName(skill);
+            const displayName = (skill == null ? void 0 : skill.name) || apiName;
+            if (!apiName) return;
+            const safeDelName = escapeHtml(displayName);
             const delDialogHtml = `
             <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
               <div style="text-align: center;">
@@ -25358,9 +25828,10 @@ ${block}` : block;
                 try {
                   const config = await getEchoMemConfig();
                   const client2 = createClient(config);
-                  await client2.deleteSkill(name);
-                  showToast(`\u2705 Skill\u300C${name || "\u672A\u547D\u540D"}\u300D\u5DF2\u5220\u9664`, "success");
+                  await client2.deleteSkill(apiName);
+                  showToast(`\u2705 Skill\u300C${displayName || "\u672A\u547D\u540D"}\u300D\u5DF2\u5220\u9664`, "success");
                   skillCache = null;
+                  invalidateVersionCaches(apiName);
                   await loadSkills();
                 } catch (err) {
                   showToast(`\u274C \u5220\u9664\u5931\u8D25: ${err.message}`, "error");
@@ -25376,27 +25847,41 @@ ${block}` : block;
       contentEl.querySelectorAll(".claw-skill-btn-view-full").forEach((btn) => {
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
-          const name = btn.dataset.name;
-          const skill = allSkills.find((s) => s.name === name);
+          const skill = skills[Number(btn.dataset.index)];
           if (!skill) return;
           const text = skill.fullContent || skill.rawContent || "\u65E0\u5185\u5BB9";
-          const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
-          openCenterOverlay(skill.name, previewHtml, {
+          const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${escapeHtml(text)}</div>`;
+          openCenterOverlay(escapeHtml(skill.name), previewHtml, {
             showBack: true,
             onBack: () => closeOverlayPanel()
           });
         });
       });
+      if (expandedSkillKey) {
+        const expandedIndex = skills.findIndex((skill) => getSkillApiName(skill) === expandedSkillKey);
+        const expandedItem = expandedIndex >= 0 ? contentEl.querySelector(`.claw-skill-item[data-index="${expandedIndex}"]`) : null;
+        if (expandedItem) {
+          openSkillItem(expandedItem, skills[expandedIndex]);
+        }
+      }
     }
-    function renderDetail(skill) {
-      const descHtml = skill.description ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">${skill.description.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : `<div style="font-size: 12px; color: #9ca3af; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #f3f4f6; border-radius: 6px;">\u6682\u65E0\u63CF\u8FF0</div>`;
+    function renderDetail(skill, index) {
+      const descHtml = skill.description ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">${escapeHtml(skill.description)}</div>` : `<div style="font-size: 12px; color: #9ca3af; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #f3f4f6; border-radius: 6px;">\u6682\u65E0\u63CF\u8FF0</div>`;
       const previewText = skill.rawContent || skill.fullContent || "";
-      const bodyPreview = previewText ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; max-height: 200px; overflow-y: auto; padding: 8px; background: #f3f4f6; border-radius: 6px; white-space: pre-wrap; word-break: break-word;">${previewText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : `<div style="font-size: 12px; color: #9ca3af; padding: 8px; background: #f3f4f6; border-radius: 6px;">\u6682\u65E0\u6B63\u6587</div>`;
+      const bodyPreview = previewText ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; max-height: 200px; overflow-y: auto; padding: 8px; background: #f3f4f6; border-radius: 6px; white-space: pre-wrap; word-break: break-word;">${escapeHtml(previewText)}</div>` : `<div style="font-size: 12px; color: #9ca3af; padding: 8px; background: #f3f4f6; border-radius: 6px;">\u6682\u65E0\u6B63\u6587</div>`;
+      const versionHistoryHtml = options.showVersionHistory ? `
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+          <p style="font-size: 12px; color: #374151; font-weight: 600; margin: 0 0 8px;">\u7248\u672C\u5386\u53F2</p>
+          <div class="claw-skill-version-history" data-index="${index}">
+            <div style="padding: 10px; color: #9ca3af; font-size: 12px; background: #f9fafb; border-radius: 6px;">\u5C55\u5F00\u540E\u52A0\u8F7D\u7248\u672C\u5386\u53F2</div>
+          </div>
+        </div>
+      ` : "";
       return `
       ${descHtml}
       ${bodyPreview}
       <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
-        <button class="claw-skill-btn-view-full" data-name="${skill.name}" style="
+        <button class="claw-skill-btn-view-full" data-index="${index}" style="
           padding: 5px 10px;
           background: #eff6ff;
           color: #2563eb;
@@ -25406,12 +25891,14 @@ ${block}` : block;
           cursor: pointer;
         ">\u67E5\u770B\u5B8C\u6574\u5185\u5BB9</button>
       </div>
+      ${versionHistoryHtml}
       <div style="margin-top: 8px;">
-        <span style="font-size: 11px; color: #9ca3af; font-family: monospace; word-break: break-all;">${skill.uri}</span>
+        <span style="font-size: 11px; color: #9ca3af; font-family: monospace; word-break: break-all;">${escapeHtml(skill.uri)}</span>
       </div>
     `;
     }
     function filterSkills(keyword) {
+      expandedSkillKey = null;
       if (!keyword.trim()) {
         filteredSkills = allSkills;
       } else {
@@ -25506,7 +25993,7 @@ ${block}` : block;
         contentEl.innerHTML = `
         <div style="text-align: center; padding: 40px 20px; color: #b91c1c; background: #fef2f2; border-radius: 8px;">
           <p style="font-size: 14px; margin-bottom: 6px;">\u274C \u52A0\u8F7D\u5931\u8D25</p>
-          <p style="font-size: 12px;">${err.message}</p>
+          <p style="font-size: 12px;">${escapeHtml(err.message)}</p>
         </div>
       `;
       }
@@ -25523,6 +26010,8 @@ ${block}` : block;
     if (refreshBtn) {
       refreshBtn.addEventListener("click", async () => {
         skillCache = null;
+        expandedSkillKey = null;
+        invalidateVersionCaches();
         if (searchInput) searchInput.value = "";
         await loadSkills();
       });
@@ -26402,7 +26891,7 @@ ${block}` : block;
     }
     return exactMatch + partialMatch;
   }
-  function escapeHtml(str) {
+  function escapeHtml2(str) {
     if (!str) return "";
     const div = document.createElement("div");
     div.textContent = String(str);
@@ -27628,9 +28117,9 @@ ${block}` : block;
       return `
       <div class="echomem-suggestion-item ${isActive ? "echomem-suggestion-active" : ""}"
            data-index="${i}"
-           data-key="${escapeHtml(key)}">
+           data-key="${escapeHtml2(key)}">
         <input type="checkbox" class="echomem-suggestion-check" tabindex="-1" />
-        <span class="suggestion-text">${escapeHtml(c.displayText || "")}</span>
+        <span class="suggestion-text">${escapeHtml2(c.displayText || "")}</span>
         <div class="suggestion-meta">
           ${sourceBadge}
           <span class="suggestion-score">${(c.score || 0).toFixed(2)}</span>
