@@ -4,7 +4,7 @@
 
 ## 项目概述
 
-这是一个 **Chrome Extension (Manifest V3)** 项目，名为 "EchoMem Web Extension"。它在支持的 Claw/AI 聊天工作流页面中注入一个 `EchoMem` 入口按钮，点击后打开右侧功能导航面板，包含资源管理、输入联想、认知反馈、Skill 商店、效能概览等功能。
+这是一个 **Chrome Extension (Manifest V3)** 项目，名为 "EchoMem Web Extension"。用户通过浏览器工具栏图标在支持的 Claw/AI 聊天工作流页面中打开 EchoMem 网页 overlay；HIGO Office 顶部标题栏还提供独立的“图形 + EchoMem”入口。overlay 包含资源管理、输入联想、认知反馈、Skill 商店、效能概览等功能，聊天输入框附近不再注入 EchoMem 按钮。
 
 当前支持的平台：
 - HIGO Office
@@ -40,10 +40,8 @@
 ```
 EchoMEM-WEB-EXTENSION/
 ├── manifest.json          # 扩展清单 (Manifest V3)
-├── popup.html             # 弹出窗口 UI
-├── popup.css              # 弹出窗口样式
-├── popup.js               # 弹出窗口逻辑
-├── background.js          # Service Worker (后台脚本)
+├── popup.*                # 保留的旧 Popup 文件，不作为工具栏入口
+├── background.js          # Service Worker：工具栏入口、存储初始化、请求代理
 ├── content.css            # 注入页面的样式
 ├── dist/
 │   └── content.js         # 构建后的内容脚本，Chrome 实际加载
@@ -70,19 +68,21 @@ EchoMEM-WEB-EXTENSION/
 ### Manifest V3
 - 使用 `manifest_version: 3`
 - 后台脚本以 **Service Worker** 形式运行（事件驱动，非持久化）
+- 工具栏 `action` 没有配置 `default_popup`；点击事件由 `background.js` 的 `chrome.action.onClicked` 直接处理
 - 内容脚本通过 `<all_urls>` 注入所有页面，经平台检测后决定是否注入 EchoMem UI
 - 权限：`activeTab`, `storage`, `scripting`
 
 ### 运行入口
-- 运行时源码入口为 `src/entry/content.js`
-- Chrome 通过 `manifest.json` 加载构建产物 `dist/content.js`
-- 修改 `src/` 下的运行逻辑后，需执行 `npm run build` 重新构建
+- 内容脚本源码入口为 `src/entry/content.js`，Chrome 通过 `manifest.json` 加载构建产物 `dist/content.js`
+- Background Service Worker 入口为根目录 `background.js`，Chrome 直接加载该文件，不经过内容脚本构建
+- 修改 `src/` 下的内容脚本运行逻辑后，需执行 `npm run build` 重新构建；修改 `background.js` 时直接编辑该文件
 - 保持 `dist/content.js` 已提交，以便无需本地构建即可直接加载扩展
 
 ### 通信流程
-- **Popup** (`popup.js`) 当前为纯信息展示 UI
-- **Content Script** (`src/entry/content.js` -> `dist/content.js`) 在支持的页面注入 EchoMem 入口和面板
-- **Background** (`background.js`) 初始化存储，提供 `getTabInfo`、`saveToHistory` 等基础消息处理，并代理内容脚本发起的跨域请求（如 EchoMem 后端、OpenView 接口）
+- **Toolbar Action**：`background.js` 监听 `chrome.action.onClicked`，向活动标签页发送 `openEchoMemOverlay` 消息
+- **Content Script** (`src/entry/content.js` -> `dist/content.js`)：确认当前页面属于受支持平台，再通过现有路由打开 EchoMem 网页 overlay；HIGO 标题栏入口复用同一路由
+- **Background** (`background.js`)：除工具栏入口外，还负责初始化存储、处理 `getTabInfo`、`saveToHistory` 等基础消息，并代理内容脚本发起的跨域请求（如 EchoMem 后端、OpenView 接口）
+- **Legacy Popup** (`popup.*`)：仅作为历史文件保留，`manifest.json` 未配置 `action.default_popup`，工具栏不会加载这些文件
 
 ### 平台适配器
 - `src/adapters/` 提供配置驱动的 `BaseAdapter`，统一处理消息容器查找、角色判定、噪音过滤、文本提取、流式检测器创建等行为
@@ -102,29 +102,26 @@ EchoMEM-WEB-EXTENSION/
 ### 数据流
 1. 内容脚本通过 `MutationObserver` 监听 DOM 变化
 2. 平台检测校验 URL、标题、DOM 特征和内容关键字
-3. 在支持的页面注入 EchoMem 入口按钮
-4. 点击入口打开右侧浮层面板
+3. 用户点击浏览器工具栏图标时，Background 向活动标签页发送打开 overlay 的消息；HIGO 标题栏组合标复用相同的内容脚本路由
+4. 内容脚本确认平台已识别后打开右侧浮层面板
 5. 菜单项打开对应功能面板，支持返回导航到首页
 6. 会话录制器（`src/core/session-recorder.js`）基于适配器抽象和流式检测，自动提取当前页面的聊天消息，供认知反馈和效能面板使用
 
 ## 常见开发任务
 
 ### 修改后重新加载扩展
-修改 `src/` 下的文件后，执行 `npm run build`，然后到 `chrome://extensions/` 点击扩展卡片上的刷新图标，或使用"更新"按钮。
+修改 `src/` 下的内容脚本源码后，先执行 `npm run build`。修改 `background.js`、`manifest.json` 或其他直接加载文件时无需单独构建内容脚本。完成任何运行时修改后，都要到 `chrome://extensions/` 点击扩展卡片上的刷新图标或使用“更新”按钮；提交前执行 `npm run check`。
 
-### 调试 Popup
-- 右键点击扩展图标 → "检查弹出窗口"
-- 打开 Popup 上下文的 DevTools
+### 调试工具栏入口与 Background Script
+- 进入 `chrome://extensions/`
+- 点击扩展卡片上的 "service worker" 链接，打开 Background 上下文的 DevTools
+- 在受支持页面点击浏览器工具栏中的 EchoMem 图标，观察 Service Worker 是否发送 `openEchoMemOverlay`，并在页面 Console 检查 Content Script 的接收和打开结果
+- 不要使用“检查弹出窗口”调试工具栏入口；`popup.*` 不由当前 `manifest.json` 加载
 
 ### 调试 Content Script
 - 在任意网页打开 DevTools
 - 在 Console 中查找来自 `dist/content.js` 的消息
 - 内容脚本运行在页面的隔离环境中
-
-### 调试 Background Script
-- 进入 `chrome://extensions/`
-- 点击扩展卡片上的 "service worker" 链接
-- 打开 Background 上下文的 DevTools
 
 ### 添加新权限
 如需新权限（如 `tabs`、`bookmarks`），在 `manifest.json` 的 `permissions` 数组中添加，然后重新加载扩展。
@@ -132,7 +129,7 @@ EchoMEM-WEB-EXTENSION/
 ## 扩展功能
 
 当前已实现的功能：
-- **EchoMem 入口**：聊天输入框附近的单一入口按钮
+- **EchoMem 入口**：浏览器工具栏图标打开网页 overlay；HIGO Office 顶部标题栏提供“图形 + EchoMem”组合标入口，聊天输入框附近不再注入按钮
 - **功能导航**：右侧 EchoMem 首页面板，包含 5 个功能入口
 - **资源管理**：上传区域和资源列表
 - **输入联想**：可开关的输入联想功能
