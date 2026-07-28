@@ -44,8 +44,8 @@ EchoMem Web Extension 是一个基于 Manifest V3 的 Chrome/Edge 扩展。它�
 
 ## 架构边界
 
-- 运行逻辑应修改 `src/`，不要手工编辑 `dist/content.js`。内容脚本源码变更后必须重新构建，并让生成的 bundle 与源码一起进入变更集。
-- Chrome 加载的是 `dist/content.js`，不是 `src/entry/content.js`；只改源码而未重新构建，任务不算完成。
+- 内容脚本运行逻辑应修改 `src/`，不要手工编辑 `dist/content.js`。根目录的 `background.js` 是 Chrome 直接加载的 Background Service Worker；修改工具栏入口、存储初始化、消息处理或跨域请求代理时，可以直接编辑该文件。内容脚本源码变更后必须重新构建，并让生成的 bundle 与源码一起进入变更集。
+- Chrome 为内容脚本加载 `dist/content.js`，并直接加载根目录的 `background.js` 作为 Background Service Worker；只改内容脚本源码而未重新构建，任务不算完成。
 - 平台差异优先声明在 `src/config/platforms.json`；只有 JSON 无法表达时才覆盖 adapter。不得在 `src/adapters/base-adapter.js` 中加入 HIGO 或 DeepSeek 专属字面量。
 - 平台适配器、流式检测器、功能面板和服务客户端应遵守现有注册表与模块边界。跨面板能力应放入合适的共享模块，不要在各面板重复实现。
 - 跨域后端请求统一通过 Background Service Worker 代理；内容脚本不得绕过既有消息链路直接建立另一套调用方式。

@@ -44,8 +44,8 @@ Before changing code, read `CLAUDE.md` and the directly relevant source, configu
 
 ## Architecture Boundaries
 
-- Edit runtime logic in `src/`; do not hand-edit `dist/content.js`. After changing content-script source, run the build and commit the regenerated bundle with the source change.
-- Chrome loads `dist/content.js`, not `src/entry/content.js`. A source-only change is incomplete until the bundle is rebuilt.
+- Edit content-script runtime logic in `src/`; do not hand-edit `dist/content.js`. Root-level `background.js` is the directly loaded Background Service Worker and may be edited directly for toolbar entry, storage initialization, message handling, or cross-origin request proxy changes. After changing content-script source, run the build and commit the regenerated bundle with the source change.
+- Chrome loads `dist/content.js` for the content script and loads root-level `background.js` directly for the Background Service Worker. A content-script source-only change is incomplete until the bundle is rebuilt.
 - Prefer declarative platform differences in `src/config/platforms.json`. Override an adapter only when JSON cannot express the behavior. Do not place HIGO- or DeepSeek-specific literals in `src/adapters/base-adapter.js`.
 - Keep platform adapters, streaming detectors, panels, and service clients behind their existing registries and boundaries. Add cross-panel behavior to the appropriate shared module instead of duplicating it in a panel.
 - Keep cross-origin backend requests in the Background Service Worker proxy. Do not bypass the established message path from content scripts.
