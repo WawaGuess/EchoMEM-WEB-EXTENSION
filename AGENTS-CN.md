@@ -38,7 +38,7 @@ EchoMem Web Extension 是一个基于 Manifest V3 的 Chrome/Edge 扩展。它�
 - 只处理用户要求的任务；没有明确原因时，不要顺手重构无关模块。
 - 编辑前先确认真实运行入口、相似实现、平台配置、代码到文档的锚点，以及可能受影响的公开行为。
 - 保留无关的本地改动，不得覆盖用户已有工作。
-- 不要提交诊断代码、临时脚本、本地缓存、日志、发行输出或其他运行产物；唯一常规例外是仓库要求提交的 `dist/content.js`。
+- 不要提交诊断代码、临时脚本、本地缓存、日志、发行输出或非预期生成产物。内容脚本变更必须同步提交仓库跟踪的 `dist/content.js`；有意修改依赖时，必须同步提交 `package-lock.json` 等依赖锁文件。
 - 只有在实际执行并观察到结果后，才能声称某项行为、构建或测试通过。
 - 保持实现、`manifest.json`、构建产物、README/CLAUDE 指引和当前文档之间的一致性。
 
@@ -91,6 +91,7 @@ npm run check
 
 - 内容脚本源码：执行 `npm run check`，确认生成的 `dist/content.js` 符合预期，重新加载未打包扩展，并在受影响的平台上验证；
 - Background 或消息通信：执行 `npm run check`，同时检查 Service Worker 控制台和内容页面控制台；
+- 依赖变更：同步更新 `package.json` 与 `package-lock.json`，然后基于一致的锁文件执行 `npm ci` 和 `npm run check`；
 - 平台检测或 adapter：按需人工验证目标平台、不支持页面、重复 DOM 更新、消息提取与流式完成检测；
 - manifest、资源、打包或发布：执行 `npm run package` 并校验 `release/EchoMem-Extension/`，但不要提交 `release/`；
 - 纯文档变更：对照当前 checkout 核实路径、命令、API 名称和行为；除非同时修改了生成文件或运行文件，否则无需执行前端构建。

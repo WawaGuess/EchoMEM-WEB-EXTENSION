@@ -38,7 +38,7 @@ Before changing code, read `CLAUDE.md` and the directly relevant source, configu
 - Keep the change focused on the user-requested task. Do not refactor unrelated modules without a concrete need.
 - Before editing, identify the real runtime entry, similar implementations, platform configuration, source-to-document anchors, and affected public behavior.
 - Preserve unrelated local changes and do not overwrite user work.
-- Do not commit diagnostic code, temporary scripts, local caches, logs, release output, or generated artifacts other than the required committed `dist/content.js`.
+- Do not commit diagnostic code, temporary scripts, local caches, logs, release output, or unintended generated artifacts. The tracked `dist/content.js` must accompany content-script changes, and dependency lockfiles such as `package-lock.json` must accompany intentional dependency changes.
 - Do not claim that a behavior, build, or test passed unless it was actually verified and the result was observed.
 - Keep implementation, `manifest.json`, generated output, README/CLAUDE guidance, and current docs consistent.
 
@@ -91,6 +91,7 @@ npm run check
 
 - content-script source: run `npm run check`, confirm the generated `dist/content.js` changed as expected, reload the unpacked extension, and test the affected supported platform;
 - Background or messaging behavior: run `npm run check` and inspect the Service Worker console plus the content-page console;
+- dependency change: update `package.json` and `package-lock.json` together, then run `npm ci` and `npm run check` from the synchronized lockfile;
 - platform detection or adapter change: manually verify the affected platform, unsupported-page behavior, repeated DOM updates, message extraction, and streaming completion as applicable;
 - manifest, assets, packaging, or release change: run `npm run package` and validate `release/EchoMem-Extension/`; do not commit `release/`;
 - docs-only change: verify paths, commands, API names, and described behavior against the current checkout; a frontend build is not required unless generated or runtime files also changed.
