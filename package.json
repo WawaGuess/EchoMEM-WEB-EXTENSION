@@ -4,9 +4,10 @@
   "private": true,
   "description": "EchoMem Web Extension",
   "scripts": {
-    "build": "esbuild src/entry/content.js --bundle --format=iife --target=chrome88 --outfile=dist/content.js",
-    "check": "npm run build && node --check dist/content.js && node --check background.js",
-    "package": "./scripts/package-release.sh"
+    "build:content": "esbuild src/entry/content.js --bundle --format=iife --target=chrome88 --outfile=dist/content.js",
+    "build": "npm run build:content",
+    "check": "npm run build && node --check dist/content.js && node --check background.js && node scripts/validate-extension.js",
+    "package": "npm run build && ./scripts/package-release.sh && node scripts/validate-extension.js release/EchoMem-Extension"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"

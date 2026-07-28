@@ -20,8 +20,8 @@ export const panelRegistry = {
   },
   feedback: {
     id: 'feedback',
-    title: '认知反馈',
-    description: '查看会话分析与反馈报告',
+    title: '认知图谱',
+    description: '查看记忆实体与关系图谱',
     render: getFeedbackContent
   },
   skillStore: {

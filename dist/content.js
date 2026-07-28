@@ -17,22 +17,20 @@
           },
           contentKeywords: ["higo", "HIGO", "Higo2", "echo", "Echo"]
         },
-        launcher: {
-          text: "EchoMem",
-          containerSelector: ".MuiPaper-root",
-          validateSelectors: {
-            textarea: "textarea[id^='_r_']",
-            sendButton: "[data-testid='ArrowUpwardIcon']"
-          },
-          style: {
-            display: "flex",
-            gap: "8px",
-            padding: "0 12px 8px",
-            background: "rgb(255, 251, 254)",
-            alignItems: "center",
-            justifyContent: "flex-start"
-          },
-          insertPosition: "before"
+        headerLauncher: {
+          anchorSelectors: [
+            "[data-testid='ShareIcon']",
+            "[data-testid='ChevronRightIcon']"
+          ],
+          preferredXRatio: 0.75,
+          minXRatio: 0.18,
+          maxXRatio: 0.94,
+          maxTop: 120,
+          logo: "assets/echomem-lockup.png",
+          title: "\u6253\u5F00 EchoMem"
+        },
+        input: {
+          selector: "textarea[id^='_r_']"
         },
         messages: {
           messageContainers: [
@@ -104,25 +102,8 @@
           },
           contentKeywords: ["deepseek", "\u6DF1\u5EA6\u601D\u8003", "\u667A\u80FD\u641C\u7D22"]
         },
-        launcher: {
-          text: "EchoMem",
-          containerSelector: "._77cefa5, ._24fad49",
-          validateSelectors: {
-            textarea: "textarea[placeholder*='DeepSeek']"
-          },
-          style: {
-            display: "flex",
-            gap: "8px",
-            padding: "0 12px 8px",
-            alignItems: "center",
-            justifyContent: "flex-start"
-          },
-          insertPosition: "before",
-          backgroundColorFrom: {
-            selector: "._77cefa5",
-            property: "backgroundColor",
-            fallback: "#fff"
-          }
+        input: {
+          selector: "textarea[placeholder*='DeepSeek']"
         },
         messages: {
           messageContainers: [
@@ -187,37 +168,9 @@
   };
 
   // src/config/loader.js
-  function buildLauncherBackgroundFn(launcher) {
-    const rule = launcher == null ? void 0 : launcher.backgroundColorFrom;
-    if (!(rule == null ? void 0 : rule.selector)) return null;
-    const property = rule.property || "backgroundColor";
-    const fallback = rule.fallback || null;
-    return () => {
-      try {
-        const target = document.querySelector(rule.selector);
-        if (target) {
-          const style = window.getComputedStyle(target);
-          const value = style[property];
-          if (value && value !== "rgba(0, 0, 0, 0)") return value;
-        }
-      } catch {
-      }
-      return fallback;
-    };
-  }
-  function enrichConfig(config) {
-    const enriched = { ...config };
-    if (enriched.launcher) {
-      const bgFn = buildLauncherBackgroundFn(enriched.launcher);
-      if (bgFn) {
-        enriched.launcher = { ...enriched.launcher, getBackgroundColor: bgFn };
-      }
-    }
-    return enriched;
-  }
   var PLATFORM_CONFIGS = {};
   for (const config of platforms_default.platforms || []) {
-    PLATFORM_CONFIGS[config.id] = enrichConfig(config);
+    PLATFORM_CONFIGS[config.id] = { ...config };
   }
   function shouldRecord(platformId) {
     const config = PLATFORM_CONFIGS[platformId];
@@ -389,6 +342,9 @@
   }
   function getPanelContainer() {
     return currentOverlayPanel;
+  }
+  function isPanelOpen() {
+    return isCustomPanelOpen;
   }
   function buildPanelHeader(title, showBack, onBack, compact = false) {
     if (showBack) {
@@ -1160,10 +1116,10 @@
 
   // src/core/content-injector.js
   function findInputElement() {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     const platform = getCurrentPlatform();
     if (!platform) return null;
-    const selector = (_c = (_b = (_a = platform.config) == null ? void 0 : _a.launcher) == null ? void 0 : _b.validateSelectors) == null ? void 0 : _c.textarea;
+    const selector = ((_b = (_a = platform.config) == null ? void 0 : _a.input) == null ? void 0 : _b.selector) || ((_e = (_d = (_c = platform.config) == null ? void 0 : _c.launcher) == null ? void 0 : _d.validateSelectors) == null ? void 0 : _e.textarea);
     if (!selector) return null;
     return document.querySelector(selector);
   }
@@ -6634,13 +6590,13 @@ ${block}` : block;
         object.reservedRanges = this._reservedRanges;
         object.visibility = this._visibility;
         object.active = this._active;
-        object.bounds = this._bounds.map((bound) => ({
-          boxInitialized: bound.boxInitialized,
-          boxMin: bound.box.min.toArray(),
-          boxMax: bound.box.max.toArray(),
-          sphereInitialized: bound.sphereInitialized,
-          sphereRadius: bound.sphere.radius,
-          sphereCenter: bound.sphere.center.toArray()
+        object.bounds = this._bounds.map((bound2) => ({
+          boxInitialized: bound2.boxInitialized,
+          boxMin: bound2.box.min.toArray(),
+          boxMax: bound2.box.max.toArray(),
+          sphereInitialized: bound2.sphereInitialized,
+          sphereRadius: bound2.sphere.radius,
+          sphereCenter: bound2.sphere.center.toArray()
         }));
         object.maxGeometryCount = this._maxGeometryCount;
         object.maxVertexCount = this._maxVertexCount;
@@ -25590,8 +25546,8 @@ ${block}` : block;
     },
     feedback: {
       id: "feedback",
-      title: "\u8BA4\u77E5\u53CD\u9988",
-      description: "\u67E5\u770B\u4F1A\u8BDD\u5206\u6790\u4E0E\u53CD\u9988\u62A5\u544A",
+      title: "\u8BA4\u77E5\u56FE\u8C31",
+      description: "\u67E5\u770B\u8BB0\u5FC6\u5B9E\u4F53\u4E0E\u5173\u7CFB\u56FE\u8C31",
       render: getFeedbackContent
     },
     skillStore: {
@@ -25725,7 +25681,7 @@ ${block}` : block;
     }).join("");
     const configCard = `
     <div class="claw-config-section" data-config="echomem" style="${CARD_STYLE} margin-top: 8px;" ${buildHoverEvents(configStyle)}>
-      ${buildCardBody("\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u8FDE\u63A5\u914D\u7F6E", "\u914D\u7F6E\u540E\u7AEF\u5730\u5740\u3001API Key \u548C\u8BA4\u8BC1\u4FE1\u606F", configStyle)}
+      ${buildCardBody("\u540E\u7AEF\u8FDE\u63A5\u914D\u7F6E", "\u914D\u7F6E\u540E\u7AEF\u5730\u5740\u3001API Key \u548C\u8BA4\u8BC1\u4FE1\u606F", configStyle)}
     </div>
   `;
     return `<div style="display: flex; flex-direction: column;">${cards}${configCard}</div>`;
@@ -27003,22 +26959,6 @@ ${block}` : block;
      */
     createStreamingDetector(config) {
       return createStreamingDetector(config == null ? void 0 : config.streaming);
-    },
-    /**
-     * 启动器背景色：用于 launcher 主题适配。
-     * 默认按 config.launcher.backgroundColorFrom = { selector, property } 读取。
-     * 没配置则返回 null（launcher 自己使用默认值）。
-     */
-    getLauncherBackground(config) {
-      var _a;
-      const rule = (_a = config == null ? void 0 : config.launcher) == null ? void 0 : _a.backgroundColorFrom;
-      if (!(rule == null ? void 0 : rule.selector)) return null;
-      const target = safeQuery(rule.selector);
-      if (!target) return null;
-      const style = window.getComputedStyle(target);
-      const value = style[rule.property || "backgroundColor"];
-      if (!value || value === "rgba(0, 0, 0, 0)") return null;
-      return value;
     }
   };
 
@@ -28206,8 +28146,8 @@ ${MEM_TAG_CLOSE2}`;
     }
   }
   function findInputElement2(platformConfig) {
-    var _a, _b;
-    const selector = (_b = (_a = platformConfig.launcher) == null ? void 0 : _a.validateSelectors) == null ? void 0 : _b.textarea;
+    var _a, _b, _c;
+    const selector = ((_a = platformConfig.input) == null ? void 0 : _a.selector) || ((_c = (_b = platformConfig.launcher) == null ? void 0 : _b.validateSelectors) == null ? void 0 : _c.textarea);
     if (!selector) return null;
     return document.querySelector(selector);
   }
@@ -28451,6 +28391,20 @@ ${MEM_TAG_CLOSE2}`;
     }
     bindPanelNavigation();
   }
+  function findVisibleOverlay() {
+    const currentPanel = getPanelContainer();
+    if (isPanelOpen() && (currentPanel == null ? void 0 : currentPanel.isConnected) && currentPanel.style.display !== "none") {
+      return currentPanel;
+    }
+    return Array.from(document.querySelectorAll(".claw-overlay-panel")).find((panel) => panel.isConnected && panel.style.display !== "none") || null;
+  }
+  function ensureEchoMemOverlayOpen() {
+    if (findVisibleOverlay()) {
+      return { opened: false, alreadyOpen: true };
+    }
+    openEchoMemHomePanel();
+    return { opened: true, alreadyOpen: false };
+  }
   async function navigateToEchoMemPanel(panelIdOrTitle) {
     const panel = getPanelDefinition(panelIdOrTitle);
     if (!panel) return;
@@ -28620,6 +28574,61 @@ ${MEM_TAG_CLOSE2}`;
   }
 
   // src/core/buttons.js
+  function openLauncher(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    ensureEchoMemOverlayOpen();
+  }
+  function findHeaderAnchor(headerLauncherConfig) {
+    var _a;
+    const selectors = headerLauncherConfig.anchorSelectors || [];
+    const preferredXRatio = headerLauncherConfig.preferredXRatio ?? 0.75;
+    const minXRatio = headerLauncherConfig.minXRatio ?? 0.18;
+    const maxXRatio = headerLauncherConfig.maxXRatio ?? 0.94;
+    const maxTop = headerLauncherConfig.maxTop ?? 120;
+    const candidates = [];
+    selectors.forEach((selector, selectorIndex) => {
+      document.querySelectorAll(selector).forEach((icon) => {
+        const anchor = icon.closest('button, [role="button"]') || icon.parentElement;
+        if (!anchor) return;
+        const rect = anchor.getBoundingClientRect();
+        const centerXRatio = (rect.left + rect.width / 2) / Math.max(window.innerWidth, 1);
+        const isVisible = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < maxTop && centerXRatio >= minXRatio && centerXRatio <= maxXRatio;
+        if (!isVisible) return;
+        candidates.push({
+          anchor,
+          score: selectorIndex * 1e3 + Math.abs(centerXRatio - preferredXRatio) * 100 + Math.max(rect.top, 0) / 100
+        });
+      });
+    });
+    candidates.sort((left, right) => left.score - right.score);
+    return ((_a = candidates[0]) == null ? void 0 : _a.anchor) || null;
+  }
+  function addHeaderLauncher(config) {
+    const headerLauncherConfig = config.headerLauncher;
+    if (!headerLauncherConfig) return;
+    if (document.querySelector(".claw-echomem-header-launcher")) return;
+    const anchor = findHeaderAnchor(headerLauncherConfig);
+    if (!(anchor == null ? void 0 : anchor.parentNode)) return;
+    const launcher = document.createElement("button");
+    launcher.type = "button";
+    launcher.className = "claw-echomem-header-launcher";
+    launcher.title = headerLauncherConfig.title || "\u6253\u5F00 EchoMem";
+    launcher.setAttribute("aria-label", launcher.title);
+    const logo = document.createElement("img");
+    logo.className = "claw-echomem-header-logo";
+    logo.src = chrome.runtime.getURL(
+      headerLauncherConfig.logo || "assets/echomem-lockup.png"
+    );
+    logo.alt = "";
+    launcher.appendChild(logo);
+    launcher.addEventListener("click", openLauncher);
+    anchor.parentNode.insertBefore(launcher, anchor);
+    console.log(`Claw Extension: EchoMem header launcher added for ${config.name}`);
+  }
+  function removeLegacyInputLauncher() {
+    document.querySelectorAll(".claw-echomem-launcher-bar").forEach((launcher) => launcher.remove());
+  }
   function addCustomButtons() {
     let platform = getCurrentPlatform();
     if (!platform) {
@@ -28633,98 +28642,8 @@ ${MEM_TAG_CLOSE2}`;
       }
     }
     const config = platform.config;
-    const launcherConfig = config.launcher || config.buttonBar;
-    if (!launcherConfig) return;
-    if (document.querySelector(".claw-echomem-launcher-bar")) return;
-    const inputContainers = document.querySelectorAll(launcherConfig.containerSelector);
-    for (const container of inputContainers) {
-      if (container.dataset.clawLauncherAdded) continue;
-      let isValidContainer = true;
-      for (const [key, selector] of Object.entries(launcherConfig.validateSelectors || {})) {
-        if (!container.querySelector(selector)) {
-          isValidContainer = false;
-          break;
-        }
-      }
-      if (!isValidContainer) continue;
-      container.dataset.clawLauncherAdded = "true";
-      const launcherBar = document.createElement("div");
-      launcherBar.className = "claw-echomem-launcher-bar";
-      const launcher = document.createElement("button");
-      launcher.className = "claw-echomem-launcher";
-      launcher.textContent = launcherConfig.text || "EchoMem";
-      const style = {
-        display: "flex",
-        gap: "8px",
-        padding: "0 12px 8px",
-        background: "transparent",
-        alignItems: "center",
-        justifyContent: "flex-start",
-        ...launcherConfig.style || {}
-      };
-      if (launcherConfig.getBackgroundColor && typeof launcherConfig.getBackgroundColor === "function") {
-        try {
-          const dynamicBg = launcherConfig.getBackgroundColor();
-          if (dynamicBg) {
-            style.background = dynamicBg;
-          }
-        } catch (e) {
-          console.log("Claw Extension: getBackgroundColor failed, using default", e);
-        }
-      }
-      launcherBar.style.cssText = Object.entries(style).map(([key, value]) => {
-        const cssKey = key.replace(/([A-Z])/g, "-$1").toLowerCase();
-        return `${cssKey}: ${value}`;
-      }).join("; ");
-      launcher.style.cssText = `
-      height: 28px;
-      padding: 0 10px;
-      border: 1px solid rgba(0, 0, 0, 0.12);
-      border-radius: 6px;
-      background: #fff;
-      color: #1f2937;
-      font-size: 12px;
-      font-weight: 600;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      line-height: 26px;
-      cursor: pointer;
-      transition: all 0.2s;
-      white-space: nowrap;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-    `;
-      launcher.addEventListener("mouseenter", () => {
-        launcher.style.borderColor = "#2563eb";
-        launcher.style.color = "#2563eb";
-        launcher.style.boxShadow = "0 2px 6px rgba(37, 99, 235, 0.18)";
-      });
-      launcher.addEventListener("mouseleave", () => {
-        launcher.style.borderColor = "rgba(0, 0, 0, 0.12)";
-        launcher.style.color = "#1f2937";
-        launcher.style.boxShadow = "0 1px 2px rgba(0, 0, 0, 0.08)";
-      });
-      launcher.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openEchoMemHomePanel();
-      });
-      launcherBar.appendChild(launcher);
-      if (launcherConfig.insertAfter) {
-        const insertTarget = document.querySelector(launcherConfig.insertAfter);
-        if (insertTarget && insertTarget.parentNode) {
-          insertTarget.parentNode.insertBefore(launcherBar, insertTarget.nextSibling);
-        } else {
-          container.parentNode.insertBefore(launcherBar, container);
-        }
-      } else if (launcherConfig.insertPosition === "after") {
-        container.parentNode.insertBefore(launcherBar, container.nextSibling);
-      } else if (launcherConfig.insertPosition === "append") {
-        container.appendChild(launcherBar);
-      } else {
-        container.parentNode.insertBefore(launcherBar, container);
-      }
-      console.log(`Claw Extension: EchoMem launcher added for ${config.name}`);
-      break;
-    }
+    removeLegacyInputLauncher();
+    addHeaderLauncher(config);
   }
 
   // src/core/lifecycle.js
@@ -28766,9 +28685,19 @@ ${MEM_TAG_CLOSE2}`;
   }
 
   // src/services/messaging.js
+  var bound = false;
   function bindRuntimeMessages() {
+    if (bound) return;
+    bound = true;
     chrome.runtime.onMessage.addListener((request2, sender, sendResponse) => {
-      return true;
+      if ((request2 == null ? void 0 : request2.action) !== "openEchoMemOverlay") return false;
+      if (!getCurrentPlatform()) {
+        sendResponse({ success: false, error: "\u5F53\u524D\u9875\u9762\u4E0D\u662F EchoMem \u652F\u6301\u7684\u5E73\u53F0" });
+        return false;
+      }
+      const result = ensureEchoMemOverlayOpen();
+      sendResponse({ success: true, ...result });
+      return false;
     });
   }
 

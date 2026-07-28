@@ -1,6 +1,22 @@
 // Background Service Worker
 // 处理扩展的后台逻辑
 
+// 文档：docs/flows/panel-system/工具栏打开浮层.md
+// 工具栏图标与网页标题栏入口统一打开活动页面中的 EchoMem overlay。
+chrome.action.onClicked.addListener((tab) => {
+  if (!tab?.id) return;
+
+  chrome.tabs.sendMessage(tab.id, { action: 'openEchoMemOverlay' }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.warn('EchoMem: unable to open overlay in the active tab', chrome.runtime.lastError.message);
+      return;
+    }
+    if (!response?.success) {
+      console.warn('EchoMem: active tab did not open the overlay', response?.error || 'unknown error');
+    }
+  });
+});
+
 chrome.runtime.onInstalled.addListener((details) => {
   console.log('Claw Extension installed:', details.reason);
 

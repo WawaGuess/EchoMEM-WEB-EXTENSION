@@ -1,6 +1,6 @@
 # EchoMem Web Extension
 
-一个 Chrome 浏览器扩展，为多种 Claw/AI 聊天工作流提供统一增强入口。目前支持 HIGO Office 和 DeepSeek。
+一个 Chrome/Edge 浏览器扩展，通过网页 overlay 提供 EchoMem 功能，并在 HIGO Office 标题栏提供独立的“图形 + EchoMem”入口。
 
 ## 功能介绍
 
@@ -12,20 +12,22 @@
 - 支持开启/关闭输入联想功能
 - 智能补全、代码片段联想、历史记录联想
 
-### 3. 认知反馈
-- 当前会话分析（对话轮次、响应时间、Token 消耗）
-- 3D 认知知识图谱：基于 Three.js 渲染实体关系，支持缩放、旋转、节点聚焦和关系筛选
+### 3. 认知图谱
+- 基于 Three.js 渲染记忆实体关系
+- 支持缩放、旋转、节点聚焦和关系筛选
 
-### 4. Skill 商店
+### 4. Skill 管理
 - **我的 Skill**：查看和管理已上传/使用过的 Skill，支持搜索、展开详情、查看完整内容
 - **上传 Skill**：上传 `.md` / `.txt` 格式 SKILL.md 文件，自动解析 frontmatter 并保存到 EchoMem 后端
 - **安装管理**：管理已安装的 Skill，支持删除
 
 ### 5. 效能
-- **Token 消耗概览**：展示当前页面会话及 EchoMem 后端的 Token 消耗统计
-- HIGO Office 平台显示完整会话指标：总 Token、会话数、轮次数、Input/Output Tokens
-- 其他平台展示 EchoMem 后端消耗
+- 网页 overlay 保留现有平台相关展示逻辑
 - 支持手动刷新和定时轮询
+
+### 6. 后端连接配置
+- 配置 EchoMem 服务地址、认证密钥和 Agent ID
+- 配置并登录 EchoAgent
 
 ## 安装方法
 
@@ -79,13 +81,11 @@ npm run package
 ```
 EchoMEM-WEB-EXTENSION/
 ├── manifest.json          # 扩展配置文件（Manifest V3）
-├── popup.html             # 弹窗界面
-├── popup.css              # 弹窗样式
-├── popup.js               # 弹窗逻辑
+├── popup.*                # 保留的旧 popup 文件，不作为工具栏入口
 ├── background.js          # 后台服务脚本
 ├── content.css            # 注入页面的样式
 ├── dist/
-│   └── content.js         # 构建后的内容脚本，Chrome 实际加载
+│   └── content.js         # 构建后的内容脚本
 ├── icons/                 # 扩展图标
 │   ├── icon16.png
 │   ├── icon48.png
@@ -112,12 +112,12 @@ EchoMEM-WEB-EXTENSION/
 
 | 路径 | 说明 |
 |------|------|
-| `manifest.json` | Chrome 扩展配置，声明权限、后台脚本、弹窗和实际加载的内容脚本 |
-| `background.js` | Manifest V3 后台 Service Worker，负责初始化存储、代理跨域请求和处理基础消息 |
-| `popup.html` / `popup.css` / `popup.js` | 扩展工具栏弹窗，目前主要作为信息展示入口 |
+| `manifest.json` | Manifest V3 配置，声明工具栏 action、后台脚本和内容脚本 |
+| `background.js` | Manifest V3 后台 Service Worker，负责工具栏入口、初始化存储、请求代理和基础消息 |
+| `popup.html` / `popup.css` / `popup.js` | 保留的旧文件，不由工具栏图标打开 |
 | `content.css` | 注入到目标页面的通用样式 |
 | `dist/content.js` | 构建后的内容脚本，Chrome 实际加载和执行的文件，不建议手动修改 |
-| `src/entry/` | 内容脚本源码入口，当前入口为 `src/entry/content.js` |
+| `src/entry/` | 内容脚本源码入口 |
 | `src/core/` | 核心运行逻辑，包括平台检测、入口注入、DOM 监听、路由、状态、面板承载和会话录制 |
 | `src/platforms/` | 平台配置注册，目前包含 HIGO Office 和 DeepSeek |
 | `src/adapters/` | 平台适配器抽象。`BaseAdapter` 提供配置驱动的默认实现，`DeepseekAdapter` / `HigoAdapter` 按需覆盖 |
@@ -129,7 +129,7 @@ EchoMEM-WEB-EXTENSION/
 | `icons/` | 扩展图标资源 |
 | `docs/` | 文档目录，按功能域分为架构决策、流程、参考和历史归档 |
 
-运行逻辑修改应优先改 `src/`，再执行 `npm run build` 生成新的 `dist/content.js`。
+运行逻辑修改应优先改 `src/`，再执行 `npm run build` 生成 `dist/content.js`。
 
 ### 面板目录说明
 
@@ -139,39 +139,42 @@ EchoMEM-WEB-EXTENSION/
 | `src/panels/echomem/` | EchoMem 首页 | 展示主功能导航入口 |
 | `src/panels/resource/` | 资源管理 | 资源上传区域和资源列表入口 |
 | `src/panels/association/` | 输入联想 | 输入联想开关和状态展示 |
-| `src/panels/feedback/` | 认知反馈 | 3D 认知知识图谱和会话分析入口 |
-| `src/panels/skill-store/` | Skill 商店 | Skill 列表、上传、安装管理 |
+| `src/panels/feedback/` | 认知图谱 | 3D 记忆实体关系图谱 |
+| `src/panels/skill-store/` | Skill 管理 | Skill 列表、上传、安装管理 |
 | `src/panels/performance/` | 效能 | Token 消耗概览：会话级统计（HIGO）+ EchoMem 后端 Usage |
 
 ## 使用说明
 
 ### 基本使用
-1. 点击 Chrome 工具栏中的扩展图标，查看扩展信息
-2. 访问支持的页面后，扩展会自动注入增强功能
+1. 打开支持的平台页面
+2. 点击浏览器工具栏中的 EchoMem 图标，打开当前页面的 EchoMem overlay
+3. 在 HIGO Office 中也可以点击顶部标题栏的“图形 + EchoMem”组合标
 
 ### 支持的平台
 
 #### HIGO Office
 1. 访问 HIGO Office 页面（`http://localhost:31010`）
-2. 聊天框上方会出现 `EchoMem` 入口按钮
-3. 点击 `EchoMem` 会在右侧边栏打开功能导航
-4. 点击面板右上角「×」关闭并恢复原始边栏
+2. 顶部标题栏会出现 EchoMem 组合标入口；未进入会话时也可使用
+3. 聊天框附近不再注入 EchoMem 按钮
+4. 点击标题栏组合标或浏览器工具栏图标都会打开原有右侧 overlay 功能导航
+5. 点击面板右上角「×」或遮罩层关闭面板
 
 #### DeepSeek
 1. 访问 DeepSeek 聊天页面（`https://chat.deepseek.com`）
-2. 聊天框上方会出现 `EchoMem` 入口按钮
-3. 点击 `EchoMem` 会从右侧滑出功能导航浮层
+2. 点击浏览器工具栏中的 EchoMem 图标
+3. 页面从右侧打开功能导航浮层；聊天框附近不注入入口按钮
 4. 点击面板右上角「×」或遮罩层关闭面板
 
-### EchoMem 功能导航
+### Overlay 功能导航
 - **资源管理**：管理文件资源
 - **输入联想**：开启/关闭智能联想
-- **认知反馈**：查看 3D 认知知识图谱和会话分析
-- **Skill 商店**：管理、上传和删除 Skill
-- **效能**：查看 Token 消耗概览
+- **认知图谱**：查看 3D 记忆实体关系图谱
+- **Skill 管理**：管理、上传和删除 Skill
+- **效能**：查看 EchoMem 后端 Token 消耗
+- **后端连接配置**：管理 EchoMem 与 EchoAgent 连接
 
-### Skill 商店使用
-1. 点击 `EchoMem` 后选择「Skill 商店」打开商店首页
+### Skill 管理使用
+1. 打开 overlay 后选择「Skill 管理」进入首页
 2. 点击「我的 Skill」查看已上传 Skill 列表，支持搜索和展开详情
 3. 点击「上传 Skill」上传符合 SKILL.md 格式的 `.md` / `.txt` 文件
 4. 点击「安装管理」查看已安装 Skill 并执行删除
@@ -181,8 +184,9 @@ EchoMEM-WEB-EXTENSION/
 ## 技术说明
 
 - **Manifest V3**：使用 Chrome 扩展最新版本规范
-- **Content Script**：源码入口为 `src/entry/content.js`，构建后通过 `dist/content.js` 向页面注入自定义 UI
-- **构建工具**：使用 esbuild 将 `src/` 模块打包为 Chrome 可加载的内容脚本
+- **Content Script**：源码入口为 `src/entry/content.js`，构建后通过 `dist/content.js` 向支持页面注入自定义 UI
+- **工具栏入口**：Background 向活动标签页发送消息，由 Content Script 打开现有 overlay
+- **构建工具**：使用 esbuild 生成内容脚本 bundle
 - **MutationObserver**：监听页面动态变化，确保 UI 正确挂载
 - **事件委托**：处理动态生成的元素点击事件
 - **平台适配器**：`src/adapters/` 提供配置驱动的 `BaseAdapter`，平台差异优先通过 `platforms.json` 声明；未注册平台自动回退到默认实现
@@ -202,7 +206,6 @@ npm run build
 修改 `src/` 下的内容脚本源码后，需要重新执行 `npm run build`，再到 `chrome://extensions/` 刷新扩展。
 
 ### 查看控制台日志
-- **Popup**：右键扩展图标 → 「检查弹出内容」
 - **Content Script**：在网页的 DevTools Console 中查看
 - **Background**：在 `chrome://extensions/` 点击「Service Worker」
 
@@ -211,15 +214,13 @@ npm run build
 
 ## 浏览器兼容性
 
-- Chrome 88+（支持 Manifest V3）
-- Edge 88+（基于 Chromium）
-- 其他基于 Chromium 的浏览器
+- 支持 Manifest V3 的 Chrome、Edge 和其他 Chromium 浏览器
 
 ## 注意事项
 
 1. 扩展需要「读取和更改网站数据」权限以注入内容脚本
-2. 功能仅在支持的平台页面可用（HIGO Office、DeepSeek）
-3. 图标文件需要自行替换为自定义图标（当前为自动生成）
+2. 工具栏入口、输入联想、会话录制和插入对话要求活动标签页是受支持的平台页面
+3. 工具栏图标与网页入口使用同一套 EchoMem 独立品牌资产
 
 ## 许可证
 

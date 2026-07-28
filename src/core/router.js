@@ -1,6 +1,8 @@
 // 文档：docs/flows/panel-system/生命周期.md
 import {
   getPanelBodyElement,
+  getPanelContainer,
+  isPanelOpen,
   openCustomPanel,
   openCenterOverlay,
   closeOverlayPanel,
@@ -88,6 +90,29 @@ export function openEchoMemHomePanel() {
     delete customPanel.dataset.clawEventsBound;
   }
   bindPanelNavigation();
+}
+
+function findVisibleOverlay() {
+  const currentPanel = getPanelContainer();
+  if (isPanelOpen() && currentPanel?.isConnected && currentPanel.style.display !== 'none') {
+    return currentPanel;
+  }
+
+  return Array.from(document.querySelectorAll('.claw-overlay-panel'))
+    .find((panel) => panel.isConnected && panel.style.display !== 'none') || null;
+}
+
+/**
+ * 浏览器工具栏和网页标题栏共享的幂等入口。
+ * 已有 overlay 时保持当前实例与路由，避免重复创建破坏遮罩和关闭状态。
+ */
+export function ensureEchoMemOverlayOpen() {
+  if (findVisibleOverlay()) {
+    return { opened: false, alreadyOpen: true };
+  }
+
+  openEchoMemHomePanel();
+  return { opened: true, alreadyOpen: false };
 }
 
 export async function navigateToEchoMemPanel(panelIdOrTitle) {
