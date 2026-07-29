@@ -54,6 +54,11 @@ export function getSkillApiName(skill) {
   return toText(skill?.name).trim();
 }
 
+export function formatSkillCommand(skill) {
+  const apiName = getSkillApiName(skill).replace(/^\/+/, '');
+  return apiName ? `/${apiName}` : '';
+}
+
 export function classifyVersionError(error) {
   const status = Number(error?.status);
   if (status === 404 || status === 405) return 'unsupported';

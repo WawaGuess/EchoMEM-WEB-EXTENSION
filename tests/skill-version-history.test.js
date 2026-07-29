@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   classifyVersionError,
   escapeHtml,
+  formatSkillCommand,
   formatVersionDate,
   formatVersionLabel,
   getSkillApiName,
@@ -77,4 +78,11 @@ test('getSkillApiName prefers the real directory name over the display name', ()
   assert.equal(getSkillApiName({ dirName: 'actual-skill', name: '展示名称' }), 'actual-skill');
   assert.equal(getSkillApiName({ name: 'fallback-name' }), 'fallback-name');
   assert.equal(getSkillApiName(null), '');
+});
+
+test('formatSkillCommand uses the canonical Skill directory name', () => {
+  assert.equal(formatSkillCommand({ dirName: 'actual-skill', name: '展示名称' }), '/actual-skill');
+  assert.equal(formatSkillCommand({ name: 'fallback-name' }), '/fallback-name');
+  assert.equal(formatSkillCommand({ dirName: '/already-prefixed' }), '/already-prefixed');
+  assert.equal(formatSkillCommand(null), '');
 });

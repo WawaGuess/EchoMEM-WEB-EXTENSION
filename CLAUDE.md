@@ -134,7 +134,7 @@ EchoMEM-WEB-EXTENSION/
 - **资源管理**：上传区域和资源列表
 - **输入联想**：可开关的输入联想功能
 - **认知反馈**：基于 Three.js 的 3D 认知知识图谱，以及会话统计分析
-- **Skill 商店**：Skill 列表（我的 Skill）、上传 Skill、安装管理
+- **Skill 商店**：Skill 列表（「我的 Skill」卡片点击写入 `/dirName`，独立详情入口承载版本历史）、上传 Skill、安装管理
 - **效能概览**：Token 消耗概览，支持 HIGO 平台会话级统计与 EchoMem 后端 Usage 统计
 
 功能面板源码模块位于 `src/panels/`，每个主要 EchoMem 入口一个目录：

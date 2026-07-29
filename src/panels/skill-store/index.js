@@ -4,10 +4,12 @@
 import { getEchoMemConfig } from '../../services/config.js';
 import { createClient } from '../../services/echomem-client.js';
 import { parseSkillMd, getEntryName } from '../../utils/skill-parser.js';
+import { insertPlainText } from '../../core/content-injector.js';
 import { openCenterOverlay, closeOverlayPanel } from '../../core/panel-host.js';
 import {
   classifyVersionError,
   escapeHtml,
+  formatSkillCommand,
   formatVersionDate,
   formatVersionLabel,
   getSkillApiName,
@@ -401,7 +403,11 @@ export async function initSkillUploadPanel(bodyElement) {
 let skillCache = null;
 
 export async function initSkillHistoryPanel(bodyElement) {
-  return initSkillListPanel(bodyElement, { showDelete: false, showVersionHistory: true });
+  return initSkillListPanel(bodyElement, {
+    showDelete: false,
+    showVersionHistory: true,
+    useOnCardClick: true,
+  });
 }
 
 export async function initSkillManagePanel(bodyElement) {
@@ -788,6 +794,21 @@ async function initSkillListPanel(bodyElement, options = {}) {
     }, 50);
   }
 
+  function useSkill(skill) {
+    const command = formatSkillCommand(skill);
+    if (!command) {
+      showToast('无法识别该 Skill 的调用名称', 'error');
+      return;
+    }
+
+    if (!insertPlainText(command)) {
+      showToast('未找到当前页面的聊天输入框', 'error');
+      return;
+    }
+
+    closeOverlayPanel();
+  }
+
   function renderSkills(skills) {
     if (skills.length === 0) {
       contentEl.innerHTML = `
@@ -820,6 +841,25 @@ async function initSkillListPanel(bodyElement, options = {}) {
           ">删除</button>`
         : '';
 
+      const detailControlHtml = options.useOnCardClick
+        ? `<button class="claw-skill-btn-detail" data-index="${index}" style="
+            padding: 4px 10px;
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+            border-radius: 5px;
+            font-size: 11px;
+            cursor: pointer;
+            flex-shrink: 0;
+          ">详情</button>`
+        : `<svg class="claw-skill-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 4px; transition: transform 0.2s;">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>`;
+
+      const useHintHtml = options.useOnCardClick
+        ? `<span style="font-size: 11px; color: #15803d; white-space: nowrap; margin-top: 5px;">点击使用</span>`
+        : '';
+
       return `
         <div class="claw-skill-item" data-index="${index}" style="
           padding: 12px;
@@ -837,10 +877,9 @@ async function initSkillListPanel(bodyElement, options = {}) {
               <p style="font-size: 11px; color: #9ca3af;">${escapeHtml(meta)}</p>
             </div>
             <div style="display: flex; align-items: flex-start; gap: 6px; flex-shrink: 0;">
+              ${useHintHtml}
               ${deleteBtnHtml}
-              <svg class="claw-skill-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 4px; transition: transform 0.2s;">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
+              ${detailControlHtml}
             </div>
           </div>
           <div class="claw-skill-detail" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
@@ -859,12 +898,15 @@ async function initSkillListPanel(bodyElement, options = {}) {
     function openSkillItem(item, skill) {
       const detail = item.querySelector('.claw-skill-detail');
       const icon = item.querySelector('.claw-skill-toggle-icon');
+      const detailButton = item.querySelector('.claw-skill-btn-detail');
       if (!detail) return;
 
       contentEl.querySelectorAll('.claw-skill-detail').forEach(element => element.style.display = 'none');
       contentEl.querySelectorAll('.claw-skill-toggle-icon').forEach(element => element.style.transform = 'none');
+      contentEl.querySelectorAll('.claw-skill-btn-detail').forEach(element => element.textContent = '详情');
       detail.style.display = 'block';
       if (icon) icon.style.transform = 'rotate(180deg)';
+      if (detailButton) detailButton.textContent = '收起';
       expandedSkillKey = getSkillApiName(skill);
 
       if (options.showVersionHistory) {
@@ -873,10 +915,20 @@ async function initSkillListPanel(bodyElement, options = {}) {
       }
     }
 
-    // Bind click to toggle detail
+    // 「我的 Skill」点击卡片直接使用；管理页继续沿用卡片展开详情。
     contentEl.querySelectorAll('.claw-skill-item').forEach(item => {
       item.addEventListener('click', (e) => {
         if (e.target.closest('button')) return;
+        if (e.target.closest('.claw-skill-detail')) return;
+
+        const index = Number(item.dataset.index);
+        const skill = skills[index];
+        if (!skill) return;
+
+        if (options.useOnCardClick) {
+          useSkill(skill);
+          return;
+        }
 
         const detail = item.querySelector('.claw-skill-detail');
         const icon = item.querySelector('.claw-skill-toggle-icon');
@@ -890,9 +942,26 @@ async function initSkillListPanel(bodyElement, options = {}) {
           return;
         }
 
-        const index = Number(item.dataset.index);
-        const skill = skills[index];
-        if (skill) openSkillItem(item, skill);
+        openSkillItem(item, skill);
+      });
+    });
+
+    contentEl.querySelectorAll('.claw-skill-btn-detail').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = btn.closest('.claw-skill-item');
+        const skill = skills[Number(btn.dataset.index)];
+        const detail = item?.querySelector('.claw-skill-detail');
+        if (!item || !skill || !detail) return;
+
+        if (detail.style.display === 'block') {
+          detail.style.display = 'none';
+          btn.textContent = '详情';
+          expandedSkillKey = null;
+          return;
+        }
+
+        openSkillItem(item, skill);
       });
     });
 
@@ -1018,7 +1087,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
         <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
           <p style="font-size: 12px; color: #374151; font-weight: 600; margin: 0 0 8px;">版本历史</p>
           <div class="claw-skill-version-history" data-index="${index}">
-            <div style="padding: 10px; color: #9ca3af; font-size: 12px; background: #f9fafb; border-radius: 6px;">展开后加载版本历史</div>
+            <div style="padding: 10px; color: #9ca3af; font-size: 12px; background: #f9fafb; border-radius: 6px;">打开详情后加载版本历史</div>
           </div>
         </div>
       `

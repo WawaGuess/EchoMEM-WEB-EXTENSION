@@ -1173,6 +1173,27 @@
     return new EchoMemClient(config);
   }
 
+  // src/core/text-insertion.js
+  function composePlainTextInsertion(existingValue, content, selectionStart, selectionEnd) {
+    const existing = String(existingValue ?? "");
+    const cleanContent = String(content ?? "").trim();
+    if (!cleanContent) return null;
+    const clamp2 = (value) => Math.max(0, Math.min(existing.length, value));
+    const start2 = Number.isInteger(selectionStart) ? clamp2(selectionStart) : existing.length;
+    const end = Number.isInteger(selectionEnd) ? clamp2(selectionEnd) : start2;
+    const from = Math.min(start2, end);
+    const to = Math.max(start2, end);
+    const before = existing.slice(0, from);
+    const after = existing.slice(to);
+    const prefix = before && !/\s$/.test(before) ? " " : "";
+    const suffix = after && /^\s/.test(after) ? "" : " ";
+    const inserted = `${prefix}${cleanContent}${suffix}`;
+    return {
+      value: `${before}${inserted}${after}`,
+      cursor: before.length + inserted.length
+    };
+  }
+
   // src/core/content-injector.js
   function findInputElement() {
     var _a, _b, _c, _d, _e;
@@ -1191,6 +1212,43 @@
     if (end === -1) return text.trim();
     return (text.slice(0, start2) + text.slice(end + MEM_TAG_CLOSE.length)).trim();
   }
+  function setTextControlValue(control, value) {
+    var _a, _b, _c, _d;
+    const view = (_a = control.ownerDocument) == null ? void 0 : _a.defaultView;
+    const prototype = control.tagName === "TEXTAREA" ? (_b = view == null ? void 0 : view.HTMLTextAreaElement) == null ? void 0 : _b.prototype : (_c = view == null ? void 0 : view.HTMLInputElement) == null ? void 0 : _c.prototype;
+    const nativeSetter = prototype ? (_d = Object.getOwnPropertyDescriptor(prototype, "value")) == null ? void 0 : _d.set : null;
+    if (nativeSetter) {
+      nativeSetter.call(control, value);
+    } else {
+      control.value = value;
+    }
+  }
+  function insertPlainText(content, options = {}) {
+    var _a, _b;
+    const textarea = findInputElement();
+    if (!textarea) {
+      console.warn("EchoMem: \u672A\u627E\u5230\u8F93\u5165\u6846\uFF0C\u65E0\u6CD5\u63D2\u5165\u6587\u672C");
+      return false;
+    }
+    const result = composePlainTextInsertion(
+      textarea.value,
+      content,
+      textarea.selectionStart,
+      textarea.selectionEnd
+    );
+    if (!result) return false;
+    setTextControlValue(textarea, result.value);
+    try {
+      textarea.selectionStart = textarea.selectionEnd = result.cursor;
+    } catch (_) {
+    }
+    const EventConstructor = ((_b = (_a = textarea.ownerDocument) == null ? void 0 : _a.defaultView) == null ? void 0 : _b.Event) || Event;
+    textarea.dispatchEvent(new EventConstructor("input", { bubbles: true }));
+    if (options.focus !== false) {
+      textarea.focus();
+    }
+    return true;
+  }
   function injectContent(content, options = {}) {
     const textarea = findInputElement();
     if (!textarea) {
@@ -1207,7 +1265,7 @@ ${MEM_TAG_CLOSE}`;
     const next = base ? `${base}
 
 ${block}` : block;
-    textarea.value = next;
+    setTextControlValue(textarea, next);
     try {
       textarea.selectionStart = textarea.selectionEnd = next.length;
     } catch (_) {
@@ -24944,6 +25002,10 @@ ${block}` : block;
     if (dirName) return dirName;
     return toText(skill == null ? void 0 : skill.name).trim();
   }
+  function formatSkillCommand(skill) {
+    const apiName = getSkillApiName(skill).replace(/^\/+/, "");
+    return apiName ? `/${apiName}` : "";
+  }
   function classifyVersionError(error) {
     const status = Number(error == null ? void 0 : error.status);
     if (status === 404 || status === 405) return "unsupported";
@@ -25330,7 +25392,11 @@ ${block}` : block;
   }
   var skillCache = null;
   async function initSkillHistoryPanel(bodyElement) {
-    return initSkillListPanel(bodyElement, { showDelete: false, showVersionHistory: true });
+    return initSkillListPanel(bodyElement, {
+      showDelete: false,
+      showVersionHistory: true,
+      useOnCardClick: true
+    });
   }
   async function initSkillManagePanel(bodyElement) {
     return initSkillListPanel(bodyElement, { showDelete: true, showVersionHistory: false });
@@ -25676,6 +25742,18 @@ ${block}` : block;
         });
       }, 50);
     }
+    function useSkill(skill) {
+      const command = formatSkillCommand(skill);
+      if (!command) {
+        showToast("\u65E0\u6CD5\u8BC6\u522B\u8BE5 Skill \u7684\u8C03\u7528\u540D\u79F0", "error");
+        return;
+      }
+      if (!insertPlainText(command)) {
+        showToast("\u672A\u627E\u5230\u5F53\u524D\u9875\u9762\u7684\u804A\u5929\u8F93\u5165\u6846", "error");
+        return;
+      }
+      closeOverlayPanel();
+    }
     function renderSkills(skills) {
       if (skills.length === 0) {
         contentEl.innerHTML = `
@@ -25703,6 +25781,19 @@ ${block}` : block;
             cursor: pointer;
             flex-shrink: 0;
           ">\u5220\u9664</button>` : "";
+        const detailControlHtml = options.useOnCardClick ? `<button class="claw-skill-btn-detail" data-index="${index}" style="
+            padding: 4px 10px;
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+            border-radius: 5px;
+            font-size: 11px;
+            cursor: pointer;
+            flex-shrink: 0;
+          ">\u8BE6\u60C5</button>` : `<svg class="claw-skill-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 4px; transition: transform 0.2s;">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>`;
+        const useHintHtml = options.useOnCardClick ? `<span style="font-size: 11px; color: #15803d; white-space: nowrap; margin-top: 5px;">\u70B9\u51FB\u4F7F\u7528</span>` : "";
         return `
         <div class="claw-skill-item" data-index="${index}" style="
           padding: 12px;
@@ -25720,10 +25811,9 @@ ${block}` : block;
               <p style="font-size: 11px; color: #9ca3af;">${escapeHtml(meta)}</p>
             </div>
             <div style="display: flex; align-items: flex-start; gap: 6px; flex-shrink: 0;">
+              ${useHintHtml}
               ${deleteBtnHtml}
-              <svg class="claw-skill-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 4px; transition: transform 0.2s;">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
+              ${detailControlHtml}
             </div>
           </div>
           <div class="claw-skill-detail" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
@@ -25740,11 +25830,14 @@ ${block}` : block;
       function openSkillItem(item, skill) {
         const detail = item.querySelector(".claw-skill-detail");
         const icon = item.querySelector(".claw-skill-toggle-icon");
+        const detailButton = item.querySelector(".claw-skill-btn-detail");
         if (!detail) return;
         contentEl.querySelectorAll(".claw-skill-detail").forEach((element) => element.style.display = "none");
         contentEl.querySelectorAll(".claw-skill-toggle-icon").forEach((element) => element.style.transform = "none");
+        contentEl.querySelectorAll(".claw-skill-btn-detail").forEach((element) => element.textContent = "\u8BE6\u60C5");
         detail.style.display = "block";
         if (icon) icon.style.transform = "rotate(180deg)";
+        if (detailButton) detailButton.textContent = "\u6536\u8D77";
         expandedSkillKey = getSkillApiName(skill);
         if (options.showVersionHistory) {
           const versionContainer = detail.querySelector(".claw-skill-version-history");
@@ -25754,6 +25847,14 @@ ${block}` : block;
       contentEl.querySelectorAll(".claw-skill-item").forEach((item) => {
         item.addEventListener("click", (e) => {
           if (e.target.closest("button")) return;
+          if (e.target.closest(".claw-skill-detail")) return;
+          const index = Number(item.dataset.index);
+          const skill = skills[index];
+          if (!skill) return;
+          if (options.useOnCardClick) {
+            useSkill(skill);
+            return;
+          }
           const detail = item.querySelector(".claw-skill-detail");
           const icon = item.querySelector(".claw-skill-toggle-icon");
           if (!detail) return;
@@ -25764,9 +25865,23 @@ ${block}` : block;
             expandedSkillKey = null;
             return;
           }
-          const index = Number(item.dataset.index);
-          const skill = skills[index];
-          if (skill) openSkillItem(item, skill);
+          openSkillItem(item, skill);
+        });
+      });
+      contentEl.querySelectorAll(".claw-skill-btn-detail").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const item = btn.closest(".claw-skill-item");
+          const skill = skills[Number(btn.dataset.index)];
+          const detail = item == null ? void 0 : item.querySelector(".claw-skill-detail");
+          if (!item || !skill || !detail) return;
+          if (detail.style.display === "block") {
+            detail.style.display = "none";
+            btn.textContent = "\u8BE6\u60C5";
+            expandedSkillKey = null;
+            return;
+          }
+          openSkillItem(item, skill);
         });
       });
       if (options.showDelete) {
@@ -25873,7 +25988,7 @@ ${block}` : block;
         <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
           <p style="font-size: 12px; color: #374151; font-weight: 600; margin: 0 0 8px;">\u7248\u672C\u5386\u53F2</p>
           <div class="claw-skill-version-history" data-index="${index}">
-            <div style="padding: 10px; color: #9ca3af; font-size: 12px; background: #f9fafb; border-radius: 6px;">\u5C55\u5F00\u540E\u52A0\u8F7D\u7248\u672C\u5386\u53F2</div>
+            <div style="padding: 10px; color: #9ca3af; font-size: 12px; background: #f9fafb; border-radius: 6px;">\u6253\u5F00\u8BE6\u60C5\u540E\u52A0\u8F7D\u7248\u672C\u5386\u53F2</div>
           </div>
         </div>
       ` : "";
