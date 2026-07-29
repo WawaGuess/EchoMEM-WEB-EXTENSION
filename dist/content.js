@@ -349,54 +349,55 @@
   function buildPanelHeader(title, showBack, onBack, compact = false) {
     if (showBack) {
       return `
-      <div style="
+      <div class="claw-panel-header claw-panel-header--with-back${compact ? " claw-panel-header--compact" : ""}" style="
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: ${compact ? "12px 16px" : "20px 24px"};
+        min-height: ${compact ? "56px" : "64px"};
+        padding: 0 ${compact ? "16px" : "20px"};
       ">
-        <div style="display: flex; align-items: center; gap: ${compact ? "8px" : "12px"};">
-          <button class="claw-back-btn" style="
-            width: ${compact ? "28px" : "32px"};
-            height: ${compact ? "28px" : "32px"};
+        <div class="claw-panel-header-leading" style="display: flex; align-items: center; gap: ${compact ? "8px" : "12px"};">
+          <button type="button" class="claw-back-btn" style="
+            width: ${compact ? "36px" : "40px"};
+            height: ${compact ? "36px" : "40px"};
             border-radius: 50%;
             border: none;
-            background: rgba(58, 47, 40, 0.06);
+            background: transparent;
             cursor: pointer;
             padding: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #9a8b7a;
-            transition: all 0.4s ease;
+            color: #49454f;
+            transition: background-color 200ms ease, color 200ms ease, transform 200ms ease;
           " title="\u8FD4\u56DE">
             <svg width="${compact ? "16" : "18"}" height="${compact ? "16" : "18"}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"></line>
               <polyline points="12 19 5 12 12 5"></polyline>
             </svg>
           </button>
-          <h6 style="
+          <h6 class="claw-panel-title" style="
             margin: 0;
             font-size: ${compact ? "16px" : "18px"};
-            font-weight: 600;
-            color: #3a2f28;
+            font-weight: 500;
+            color: #21005d;
             font-family: Roboto, 'Noto Sans SC', sans-serif;
             letter-spacing: -0.01em;
           ">${title}</h6>
         </div>
-        <button class="claw-close-panel" style="
-          width: ${compact ? "28px" : "32px"};
-          height: ${compact ? "28px" : "32px"};
+        <button type="button" class="claw-close-panel" style="
+          width: ${compact ? "36px" : "40px"};
+          height: ${compact ? "36px" : "40px"};
           border-radius: 50%;
           border: none;
-          background: rgba(58, 47, 40, 0.06);
+          background: transparent;
           cursor: pointer;
           padding: 0;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #9a8b7a;
-          transition: all 0.4s ease;
+          color: #49454f;
+          transition: background-color 200ms ease, color 200ms ease, transform 200ms ease;
         " title="\u5173\u95ED">
           <svg width="${compact ? "16" : "18"}" height="${compact ? "16" : "18"}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -407,33 +408,34 @@
     `;
     } else {
       return `
-      <div style="
+      <div class="claw-panel-header" style="
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 28px 28px 20px;
+        min-height: 64px;
+        padding: 0 20px;
       ">
-        <h6 style="
+        <h6 class="claw-panel-title" style="
           margin: 0;
-          font-size: 22px;
-          font-weight: 700;
-          color: #3a2f28;
+          font-size: 18px;
+          font-weight: 500;
+          color: #21005d;
           font-family: Roboto, 'Noto Sans SC', sans-serif;
           letter-spacing: -0.01em;
         ">${title}</h6>
-        <button class="claw-close-panel" style="
-          width: 36px;
-          height: 36px;
+        <button type="button" class="claw-close-panel" style="
+          width: 40px;
+          height: 40px;
           border-radius: 50%;
           border: none;
-          background: rgba(58, 47, 40, 0.06);
-          color: #9a8b7a;
+          background: transparent;
+          color: #49454f;
           cursor: pointer;
           padding: 0;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: all 0.4s ease;
+          transition: background-color 200ms ease, color 200ms ease, transform 200ms ease;
         " title="\u5173\u95ED">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -449,12 +451,12 @@
       const backBtn = container.querySelector(".claw-back-btn");
       if (backBtn) {
         backBtn.addEventListener("mouseenter", () => {
-          backBtn.style.background = "rgba(58, 47, 40, 0.12)";
-          backBtn.style.color = "#5a4f42";
+          backBtn.style.background = "#EADDFF";
+          backBtn.style.color = "#21005D";
         });
         backBtn.addEventListener("mouseleave", () => {
-          backBtn.style.background = "rgba(58, 47, 40, 0.06)";
-          backBtn.style.color = "#9a8b7a";
+          backBtn.style.background = "transparent";
+          backBtn.style.color = "#49454F";
         });
         backBtn.addEventListener("click", (e) => {
           e.preventDefault();
@@ -466,12 +468,12 @@
     const closeBtn = container.querySelector(".claw-close-panel");
     if (closeBtn) {
       closeBtn.addEventListener("mouseenter", () => {
-        closeBtn.style.background = "rgba(58, 47, 40, 0.12)";
-        closeBtn.style.color = "#5a4f42";
+        closeBtn.style.background = "#EADDFF";
+        closeBtn.style.color = "#21005D";
       });
       closeBtn.addEventListener("mouseleave", () => {
-        closeBtn.style.background = "rgba(58, 47, 40, 0.06)";
-        closeBtn.style.color = "#9a8b7a";
+        closeBtn.style.background = "transparent";
+        closeBtn.style.color = "#49454F";
       });
       closeBtn.addEventListener("click", (e) => {
         e.preventDefault();
@@ -496,13 +498,13 @@
       display: flex;
       flex-direction: column;
       height: 100%;
-      background: linear-gradient(180deg, #f5f0eb 0%, #ede7e0 100%);
+      background: linear-gradient(180deg, #FFFBFE 0%, #FEF7FF 100%);
     ">
       ${headerHtml}
       <div class="claw-custom-panel-body" style="
         flex: 1;
         overflow-y: auto;
-        padding: 8px 20px 28px;
+        padding: 20px 20px 28px;
       ">
         ${contentHtml}
       </div>
@@ -530,6 +532,8 @@
       right: 0;
       bottom: 0;
       background: rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      transition: opacity 200ms ease;
       z-index: 9998;
     `;
       backdrop.addEventListener("click", restoreOriginalPanel);
@@ -539,6 +543,7 @@
     overlay.className = "claw-overlay-panel";
     const position = overlayConfig.position || "right";
     const width = overlayConfig.width || "400px";
+    overlay.classList.add(`claw-overlay-panel--${position}`);
     let positionStyles = "";
     if (position === "right") {
       positionStyles = `
@@ -569,15 +574,18 @@
     overlay.style.cssText = `
     position: fixed;
     ${positionStyles}
-    background: #f5f0eb;
+    background: #FFFBFE;
     z-index: 9999;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    transition: transform 0.3s ease;
+    box-shadow: 0 12px 36px rgba(33, 0, 93, 0.16);
+    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
     overflow: hidden;
   `;
     overlay.innerHTML = panelHtml;
     document.body.appendChild(overlay);
     requestAnimationFrame(() => {
+      if (backdrop) {
+        backdrop.style.opacity = "1";
+      }
       if (position === "right" || position === "left") {
         overlay.style.transform = "translateX(0)";
       } else if (position === "center") {
@@ -630,7 +638,16 @@
     return (container == null ? void 0 : container.querySelector(".claw-custom-panel-body")) || null;
   }
   function openCenterOverlay(title, contentHtml, options = {}) {
-    const { showBack = false, onBack = null, width, height, maxWidth, maxHeight, compactHeader = false } = options;
+    const {
+      showBack = false,
+      onBack = null,
+      width,
+      height,
+      maxWidth,
+      maxHeight,
+      compactHeader = false,
+      panelClass = ""
+    } = options;
     const existingOverlay = currentOverlayPanel;
     if (existingOverlay) {
       existingOverlay.style.display = "none";
@@ -643,7 +660,7 @@
       display: flex;
       flex-direction: column;
       height: 100%;
-      background: linear-gradient(180deg, #f5f0eb 0%, #ede7e0 100%);
+      background: linear-gradient(180deg, #FFFBFE 0%, #FEF7FF 100%);
     ">
       ${headerHtml}
       <div class="claw-custom-panel-body" style="
@@ -661,6 +678,9 @@
       backdrop: true
     });
     if (currentOverlayPanel) {
+      if (typeof panelClass === "string" && panelClass.trim()) {
+        currentOverlayPanel.classList.add(...panelClass.trim().split(/\s+/));
+      }
       currentOverlayPanel.style.maxWidth = maxWidth || "1000px";
       currentOverlayPanel.style.height = height || "80vh";
       currentOverlayPanel.style.maxHeight = maxHeight || "700px";
@@ -695,7 +715,8 @@
   async function getEchoMemConfig() {
     try {
       const result = await chrome.storage.local.get("echomemConfig");
-      return { ...DEFAULT_ECHOMEM_CONFIG, ...result.echomemConfig || {} };
+      const stored = result.echomemConfig || {};
+      return { ...DEFAULT_ECHOMEM_CONFIG, ...stored };
     } catch {
       return { ...DEFAULT_ECHOMEM_CONFIG };
     }
@@ -1175,23 +1196,278 @@ ${block}` : block;
   }
   function getResourceImportContent() {
     return `
-    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+    <style>
+      #claw-resource-import-root {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        color: #1D1B20;
+        font-family: Roboto, "Noto Sans SC", sans-serif;
+      }
+      #claw-resource-import-root, #claw-resource-import-root * { box-sizing: border-box; }
+      #claw-resource-import-root .resource-import-card {
+        padding: 15px;
+        border: 1px solid #E7E0EC;
+        border-radius: 18px;
+        background: #FFFFFF;
+      }
+      #claw-resource-import-root .resource-section-heading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 10px;
+        color: #1D1B20;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.45;
+      }
+      #claw-resource-import-root .resource-section-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 10px;
+        background: #F3EDF7;
+        color: #6750A4;
+        flex: 0 0 auto;
+      }
+      #claw-resource-import-root #claw-resource-dropzone {
+        min-height: 118px;
+        padding: 18px 14px;
+        border-color: #B9AFC2;
+        border-radius: 16px;
+        background: #FEF7FF;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+      }
+      #claw-resource-import-root #claw-resource-dropzone:hover {
+        border-color: #6750A4;
+        background: #F3EDF7;
+        box-shadow: 0 0 0 3px rgba(103, 80, 164, 0.08);
+      }
+      #claw-resource-import-root #claw-resource-dropzone:focus-visible,
+      #claw-resource-import-root button:focus-visible {
+        outline: 3px solid rgba(103, 80, 164, 0.22);
+        outline-offset: 2px;
+      }
+      #claw-resource-import-root .resource-drop-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 14px;
+        background: #EADDFF;
+        color: #6750A4;
+      }
+      #claw-resource-import-root .resource-drop-title {
+        margin: 1px 0 0;
+        color: #1D1B20;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.45;
+      }
+      #claw-resource-import-root .resource-drop-meta {
+        margin: 0;
+        color: #79747E;
+        font-size: 10px;
+        line-height: 1.45;
+      }
+      #claw-resource-import-root #claw-resource-import-status {
+        padding: 11px 13px !important;
+        border-radius: 12px !important;
+        font-size: 12px !important;
+        line-height: 1.5;
+      }
+      #claw-resource-import-root .resource-remote-card { background: #FFFBFE; }
+      #claw-resource-import-root .resource-remote-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      #claw-resource-import-root .resource-remote-header .resource-section-heading { margin: 0; }
+      #claw-resource-import-root #claw-remote-path {
+        min-width: 0;
+        max-width: 54%;
+        overflow: hidden;
+        padding: 5px 8px;
+        border-radius: 8px;
+        background: #F3EDF7;
+        color: #625B71;
+        font: 500 10px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #claw-resource-import-root #claw-remote-back {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 6px 12px !important;
+        border: 1px solid #E0D4F1 !important;
+        border-radius: 999px !important;
+        background: #F3EDF7 !important;
+        color: #6750A4 !important;
+        font-family: inherit !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        line-height: 1.3 !important;
+        cursor: pointer;
+      }
+      #claw-resource-import-root #claw-remote-back:hover { background: #EADDFF !important; }
+      #claw-resource-import-root .resource-loading,
+      #claw-resource-import-root .resource-empty-state,
+      #claw-resource-import-root .resource-error-state {
+        padding: 22px 14px !important;
+        border: 1px dashed #D8D0DC;
+        border-radius: 14px;
+        background: #FFFFFF;
+        color: #79747E !important;
+        text-align: center;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      #claw-resource-import-root .resource-loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        margin-bottom: 7px;
+        border: 2px solid #E7E0EC;
+        border-top-color: #6750A4;
+        border-radius: 50%;
+        animation: resource-import-spin 0.8s linear infinite;
+      }
+      @keyframes resource-import-spin { to { transform: rotate(360deg); } }
+      #claw-resource-import-root .resource-empty-icon,
+      #claw-resource-import-root .resource-error-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        margin-bottom: 8px;
+        border-radius: 14px;
+        background: #F3EDF7;
+        color: #6750A4;
+      }
+      #claw-resource-import-root .resource-error-state {
+        border-color: #F2B8B5;
+        background: #FFF8F7;
+        color: #B3261E !important;
+      }
+      #claw-resource-import-root .resource-error-icon {
+        background: #F9DEDC;
+        color: #B3261E;
+      }
+      #claw-resource-import-root .resource-file-list {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+      #claw-resource-import-root .claw-remote-folder,
+      #claw-resource-import-root .claw-remote-file {
+        min-width: 0;
+        padding: 10px 11px !important;
+        border: 1px solid #E7E0EC !important;
+        border-radius: 13px !important;
+        background: #FFFFFF !important;
+        gap: 8px !important;
+        transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+      }
+      #claw-resource-import-root .claw-remote-folder:hover {
+        border-color: #C9B8DE !important;
+        background: #FEF7FF !important;
+        box-shadow: 0 3px 10px rgba(103, 80, 164, 0.08);
+      }
+      #claw-resource-import-root .resource-entry-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 9px;
+        background: #F3EDF7;
+        font-size: 14px !important;
+        flex: 0 0 auto;
+      }
+      #claw-resource-import-root .resource-entry-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        color: #1D1B20 !important;
+        font-weight: 500 !important;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #claw-resource-import-root .resource-entry-size,
+      #claw-resource-import-root .resource-entry-date {
+        color: #79747E !important;
+        font-size: 10px;
+      }
+      #claw-resource-import-root .claw-remote-btn-view,
+      #claw-resource-import-root .claw-remote-btn-delete {
+        min-height: 30px;
+        padding: 5px 10px !important;
+        border-radius: 999px !important;
+        font-family: inherit !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        line-height: 1.25 !important;
+      }
+      #claw-resource-import-root .claw-remote-btn-view {
+        border: 1px solid #E0D4F1 !important;
+        background: #F3EDF7 !important;
+        color: #6750A4 !important;
+      }
+      #claw-resource-import-root .claw-remote-btn-delete {
+        border: 1px solid #F2B8B5 !important;
+        background: #F9DEDC !important;
+        color: #B3261E !important;
+      }
+      #claw-resource-import-root button:disabled { cursor: wait !important; opacity: 0.58; }
+      @media (max-width: 360px) {
+        #claw-resource-import-root .resource-import-card { padding: 13px; border-radius: 16px; }
+        #claw-resource-import-root .resource-remote-header { align-items: flex-start; flex-direction: column; }
+        #claw-resource-import-root #claw-remote-path { max-width: 100%; width: 100%; }
+        #claw-resource-import-root .resource-entry-date { display: none; }
+        #claw-resource-import-root .claw-remote-folder,
+        #claw-resource-import-root .claw-remote-file { padding: 9px !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #claw-resource-import-root .resource-loading-spinner { animation: none; }
+        #claw-resource-import-root .claw-remote-folder,
+        #claw-resource-import-root .claw-remote-file { transition: none; }
+      }
+    </style>
+    <div id="claw-resource-import-root">
       <!-- \u672C\u5730\u6587\u4EF6\u4E0A\u4F20 -->
-      <div>
-        <p style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">\u{1F4C1} \u672C\u5730\u6587\u4EF6\u4E0A\u4F20</p>
+      <div class="resource-import-card">
+        <p class="resource-section-heading">
+          <span class="resource-section-icon" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+          </span>
+          \u672C\u5730\u6587\u4EF6\u4E0A\u4F20
+        </p>
         <div id="claw-resource-dropzone" style="
-          border: 1.5px dashed #ccc;
-          border-radius: 8px;
-          padding: 0px 16px;
+          border: 1.5px dashed #B9AFC2;
+          border-radius: 16px;
+          padding: 18px 14px;
           text-align: center;
           cursor: pointer;
           transition: all 0.2s;
-          background: #fafafa;
-        " onmouseenter="this.style.borderColor='#2563eb';this.style.background='#f0f7ff'"
-           onmouseleave="this.style.borderColor='#ccc';this.style.background='#fafafa'">
-          <p style="font-size: 14px; margin: 0;">\u{1F4E4}</p>
-          <p style="font-size: 11px; font-weight: 500; margin: 0;">\u70B9\u51FB\u6216\u62D6\u62FD\u6587\u4EF6\u5230\u6B64\u5904</p>
-          <p style="font-size: 9px; color: #888; margin: 0;">\u652F\u6301 PDF, DOC, TXT, MD</p>
+          background: #FEF7FF;
+        " onmouseenter="this.style.borderColor='#6750A4';this.style.background='#F3EDF7'"
+           onmouseleave="this.style.borderColor='#B9AFC2';this.style.background='#FEF7FF'">
+          <span class="resource-drop-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+          </span>
+          <p class="resource-drop-title">\u70B9\u51FB\u6216\u62D6\u62FD\u6587\u4EF6\u5230\u6B64\u5904</p>
+          <p class="resource-drop-meta">\u652F\u6301 PDF\u3001DOC\u3001TXT \u4E0E MD</p>
           <input type="file" id="claw-resource-file-input" style="display: none;" />
         </div>
       </div>
@@ -1203,25 +1479,33 @@ ${block}` : block;
       <div id="claw-resource-import-result" style="display: none;"></div>
 
       <!-- \u8FDC\u7A0B\u6587\u4EF6\u5217\u8868 -->
-      <div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <p style="font-weight: 600; font-size: 14px; margin: 0;">\u{1F4C2} \u8FDC\u7A0B\u6587\u4EF6</p>
-          <p id="claw-remote-path" style="font-size: 10px; color: #888; margin: 0; font-family: monospace;">echo://resources</p>
+      <div class="resource-import-card resource-remote-card">
+        <div class="resource-remote-header">
+          <p class="resource-section-heading">
+            <span class="resource-section-icon" aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5h6l2 2h10v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-11Z"/></svg>
+            </span>
+            \u8FDC\u7A0B\u6587\u4EF6
+          </p>
+          <p id="claw-remote-path" style="margin: 0;">echo://resources</p>
         </div>
         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
           <div id="claw-remote-back-btn" style="display: none;">
             <button id="claw-remote-back" style="
               padding: 4px 10px;
-              background: #f3f4f6;
-              border: 1px solid #d1d5db;
+              background: #F3EDF7;
+              border: 1px solid #E0D4F1;
               border-radius: 4px;
               font-size: 12px;
               cursor: pointer;
-              color: #374151;
+              color: #6750A4;
             ">\u2190 \u8FD4\u56DE\u4E0A\u7EA7</button>
           </div>
         </div>
-        <div id="claw-backup-list-loading" style="text-align: center; padding: 16px; color: #888; font-size: 12px;">\u23F3 \u6B63\u5728\u52A0\u8F7D...</div>
+        <div id="claw-backup-list-loading" class="resource-loading">
+          <span class="resource-loading-spinner" aria-hidden="true"></span>
+          <div>\u6B63\u5728\u52A0\u8F7D\u8FDC\u7A0B\u6587\u4EF6\u2026</div>
+        </div>
         <div id="claw-backup-list-content" style="display: none;"></div>
       </div>
     </div>
@@ -1293,9 +1577,12 @@ ${block}` : block;
           backupLoadingEl.style.display = "none";
           backupContentEl.style.display = "block";
           backupContentEl.innerHTML = `
-          <div style="text-align: center; padding: 24px 16px; color: #999; font-size: 12px;">
-            <p style="font-size: 24px; margin-bottom: 8px;">\u{1F4C2}</p>
-            <p>\u6682\u65E0\u6587\u4EF6</p>
+          <div class="resource-empty-state">
+            <span class="resource-empty-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5h6l2 2h10v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-11Z"/></svg>
+            </span>
+            <p style="margin: 0; color: #49454F; font-weight: 500;">\u6682\u65E0\u6587\u4EF6</p>
+            <p style="margin: 3px 0 0; font-size: 11px;">\u4E0A\u4F20\u6587\u4EF6\u540E\u5C06\u5728\u6B64\u5904\u663E\u793A</p>
           </div>
         `;
           return;
@@ -1313,17 +1600,17 @@ ${block}` : block;
         const itemsHtml = allEntries.map((entry) => {
           const name = getEntryName2(entry);
           const isDir = isDirectory2(entry);
-          const icon = isDir ? "\u{1F4C1}" : "\u{1F4C4}";
+          const icon = isDir ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6750A4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5h6l2 2h10v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-11Z"/></svg>' : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6750A4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>';
           const size = isDir ? "" : formatSize2(getEntrySize2(entry));
           const date = formatDate2(getEntryUpdatedAt3(entry));
           const atRoot = isRootDir(currentDirUri);
           if (isDir) {
             const deleteBtn = atRoot ? `<button class="claw-remote-btn-delete" data-resource-id="${name}" style="
                 padding: 3px 8px;
-                background: #fef2f2;
-                color: #dc2626;
-                border: 1px solid #fecaca;
-                border-radius: 4px;
+                background: #F9DEDC;
+                color: #B3261E;
+                border: 1px solid #F2B8B5;
+                border-radius: 999px;
                 font-size: 11px;
                 cursor: pointer;
                 white-space: nowrap;
@@ -1332,19 +1619,19 @@ ${block}` : block;
             return `
             <div class="claw-remote-folder" data-uri="${entry.uri}" style="
               padding: 8px 10px;
-              background: #f0f9ff;
-              border: 1px solid #bae6fd;
-              border-radius: 6px;
+              background: #FFFFFF;
+              border: 1px solid #E7E0EC;
+              border-radius: 13px;
               display: flex;
               align-items: center;
               gap: 8px;
               font-size: 12px;
               cursor: pointer;
             " title="\u70B9\u51FB\u8FDB\u5165\u6587\u4EF6\u5939">
-              <span style="font-size: 14px;">${icon}</span>
-              <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0369a1; font-weight: 500;"
+              <span class="resource-entry-icon">${icon}</span>
+              <span class="resource-entry-name" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1D1B20; font-weight: 500;"
                 >${name}</span>
-              <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
+              <span class="resource-entry-date" style="color: #79747E; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
               ${deleteBtn}
             </div>
           `;
@@ -1352,25 +1639,25 @@ ${block}` : block;
           return `
           <div class="claw-remote-file" data-uri="${entry.uri}" style="
             padding: 8px 10px;
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
+            background: #FFFFFF;
+            border: 1px solid #E7E0EC;
+            border-radius: 13px;
             display: flex;
             align-items: center;
             gap: 8px;
             font-size: 12px;
           ">
-            <span style="font-size: 14px;">${icon}</span>
-            <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #111827;"
+            <span class="resource-entry-icon">${icon}</span>
+            <span class="resource-entry-name" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1D1B20;"
               title="${name}">${name}</span>
-            <span style="color: #6b7280; white-space: nowrap; width: 60px; text-align: right;">${size}</span>
-            <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
+            <span class="resource-entry-size" style="color: #79747E; white-space: nowrap; width: 60px; text-align: right;">${size}</span>
+            <span class="resource-entry-date" style="color: #79747E; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
             <button class="claw-remote-btn-view" data-uri="${entry.uri}" style="
               padding: 3px 8px;
-              background: #eff6ff;
-              color: #2563eb;
-              border: 1px solid #bfdbfe;
-              border-radius: 4px;
+              background: #F3EDF7;
+              color: #6750A4;
+              border: 1px solid #E0D4F1;
+              border-radius: 999px;
               font-size: 11px;
               cursor: pointer;
               white-space: nowrap;
@@ -1381,7 +1668,7 @@ ${block}` : block;
         backupLoadingEl.style.display = "none";
         backupContentEl.style.display = "block";
         backupContentEl.innerHTML = `
-        <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div class="resource-file-list">
           ${itemsHtml}
         </div>
       `;
@@ -1403,7 +1690,7 @@ ${block}` : block;
               const result = await client3.fsRead(uri);
               const text = typeof result === "string" ? result : (result == null ? void 0 : result.content) || JSON.stringify(result, null, 2);
               const name = uri.split("/").pop() || uri;
-              const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+              const previewHtml = `<div style="padding: 18px; border-radius: 14px; background: #FFFBFE; color: #49454F; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.72; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
               openCenterOverlay(name, previewHtml, {
                 showBack: true,
                 onBack: () => closeOverlayPanel()
@@ -1423,39 +1710,45 @@ ${block}` : block;
               return;
             }
             const dialogHtml = `
-            <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <div class="echomem-confirm-dialog" style="padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; color: #1D1B20; font-family: Roboto, 'Noto Sans SC', sans-serif;">
               <div style="text-align: center;">
-                <p style="font-size: 24px; margin: 0; line-height: 1;">\u{1F5D1}\uFE0F</p>
-                <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u5220\u9664\u8D44\u6E90</p>
-                <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u786E\u5B9A\u5220\u9664\u8D44\u6E90\u300C<strong style="color: #111;">${resourceId}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; border-radius: 16px; background: #F9DEDC; color: #B3261E;" aria-hidden="true">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 10v6M14 10v6"/></svg>
+                </span>
+                <p style="font-size: 15px; color: #1D1B20; font-weight: 600; margin: 8px 0 4px;">\u786E\u8BA4\u5220\u9664\u8D44\u6E90</p>
+                <p style="font-size: 12px; color: #625F66; line-height: 1.55; margin: 0;">\u786E\u5B9A\u5220\u9664\u8D44\u6E90\u300C<strong style="color: #1D1B20; word-break: break-all;">${resourceId}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
               </div>
-              <div style="display: flex; gap: 10px; justify-content: center;">
+              <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">
                 <button id="claw-resource-del-cancel" style="
-                  padding: 8px 20px;
-                  background: #f3f4f6;
-                  color: #374151;
-                  border: 1px solid #d1d5db;
-                  border-radius: 8px;
+                  min-width: 104px;
+                  min-height: 40px;
+                  padding: 8px 18px;
+                  background: #F3EDF7;
+                  color: #6750A4;
+                  border: 1px solid #E0D4F1;
+                  border-radius: 999px;
                   font-size: 13px;
                   cursor: pointer;
-                  font-weight: 500;
+                  font-weight: 600;
                 ">\u53D6\u6D88</button>
                 <button id="claw-resource-del-ok" style="
-                  padding: 8px 20px;
-                  background: #ef5350;
-                  color: white;
-                  border: none;
-                  border-radius: 8px;
+                  min-width: 104px;
+                  min-height: 40px;
+                  padding: 8px 18px;
+                  background: #B3261E;
+                  color: #FFFFFF;
+                  border: 1px solid #B3261E;
+                  border-radius: 999px;
                   font-size: 13px;
                   cursor: pointer;
-                  font-weight: 500;
+                  font-weight: 600;
                 ">\u786E\u8BA4\u5220\u9664</button>
               </div>
             </div>
           `;
             openCenterOverlay("\u5220\u9664\u786E\u8BA4", dialogHtml, {
-              width: "360px",
-              maxWidth: "360px",
+              width: "min(360px, calc(100vw - 24px))",
+              maxWidth: "calc(100vw - 24px)",
               height: "240px",
               maxHeight: "280px"
             });
@@ -1486,9 +1779,12 @@ ${block}` : block;
         backupLoadingEl.style.display = "none";
         backupContentEl.style.display = "block";
         backupContentEl.innerHTML = `
-        <div style="text-align: center; padding: 16px; color: #b91c1c; font-size: 12px;">
-          <p>\u274C \u52A0\u8F7D\u6587\u4EF6\u5217\u8868\u5931\u8D25</p>
-          <p style="color: #888;">${err.message}</p>
+        <div class="resource-error-state">
+          <span class="resource-error-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg>
+          </span>
+          <p style="margin: 0; font-weight: 600;">\u52A0\u8F7D\u6587\u4EF6\u5217\u8868\u5931\u8D25</p>
+          <p style="margin: 4px 0 0; color: #79747E; word-break: break-word;">${err.message}</p>
         </div>
       `;
       }
@@ -1504,9 +1800,9 @@ ${block}` : block;
       if (!statusEl) return;
       statusEl.style.display = "block";
       const colors = {
-        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
-        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
-        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+        info: { bg: "#F3EDF7", border: "#E0D4F1", text: "#6750A4" },
+        success: { bg: "#E8F5E9", border: "#B7DDB9", text: "#1B5E20" },
+        error: { bg: "#F9DEDC", border: "#F2B8B5", text: "#B3261E" }
       };
       const c = colors[type] || colors.info;
       statusEl.style.background = c.bg;
@@ -1601,19 +1897,19 @@ ${block}` : block;
     });
     dropzone.addEventListener("dragover", (e) => {
       e.preventDefault();
-      dropzone.style.borderColor = "#2563eb";
-      dropzone.style.background = "#f0f7ff";
+      dropzone.style.borderColor = "#6750A4";
+      dropzone.style.background = "#F3EDF7";
     });
     dropzone.addEventListener("dragleave", (e) => {
       e.preventDefault();
-      dropzone.style.borderColor = "#ccc";
-      dropzone.style.background = "#fafafa";
+      dropzone.style.borderColor = "#B9AFC2";
+      dropzone.style.background = "#FEF7FF";
     });
     dropzone.addEventListener("drop", (e) => {
       var _a, _b;
       e.preventDefault();
-      dropzone.style.borderColor = "#ccc";
-      dropzone.style.background = "#fafafa";
+      dropzone.style.borderColor = "#B9AFC2";
+      dropzone.style.background = "#FEF7FF";
       const file = (_b = (_a = e.dataTransfer) == null ? void 0 : _a.files) == null ? void 0 : _b[0];
       if (file) doUpload(file);
     });
@@ -1679,90 +1975,255 @@ ${block}` : block;
   function getInputAssociationContent() {
     const inputAssociationEnabled = getAssociationEnabled();
     const btnText = inputAssociationEnabled ? "\u5173\u95ED\u8054\u60F3" : "\u786E\u8BA4\u5F00\u542F";
-    const btnBg = inputAssociationEnabled ? "#ffebee" : "#667eea";
-    const btnColor = inputAssociationEnabled ? "#c62828" : "#fff";
+    const btnBg = inputAssociationEnabled ? "#F9DEDC" : "#6750A4";
+    const btnColor = inputAssociationEnabled ? "#B3261E" : "#FFFFFF";
     const statusText = inputAssociationEnabled ? "\u2705 \u8F93\u5165\u8054\u60F3\u5DF2\u5F00\u542F" : "\u274C \u8F93\u5165\u8054\u60F3\u672A\u5F00\u542F";
-    const statusColor = inputAssociationEnabled ? "#2e7d32" : "#888";
+    const statusColor = inputAssociationEnabled ? "#1B5E20" : "#625B71";
+    const statusBg = inputAssociationEnabled ? "#E8F5E9" : "#F3EDF7";
+    const statusBorder = inputAssociationEnabled ? "#B7DDB9" : "#E7E0EC";
     return `
-    <div style="color: #666;">
-      <div style="margin-bottom: 20px;">
-        <button id="claw-toggle-association" style="
+    <style>
+      .echomem-association {
+        color: #1D1B20;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        font-family: Roboto, "Noto Sans SC", sans-serif;
+      }
+      .echomem-association, .echomem-association * { box-sizing: border-box; }
+      .echomem-association .association-action,
+      .echomem-association .association-card,
+      .echomem-association .association-config {
+        border: 1px solid #E7E0EC;
+        border-radius: 16px;
+        background: #FFFFFF;
+      }
+      .echomem-association .association-action { padding: 14px; }
+      .echomem-association .association-status {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 10px 12px;
+        border: 1px solid ${statusBorder};
+        border-radius: 12px;
+        background: ${statusBg};
+        text-align: center;
+      }
+      .echomem-association .association-toggle,
+      .echomem-association .association-primary-button {
+        min-height: 42px;
+        border-radius: 999px;
+        font-family: inherit;
+        letter-spacing: 0.01em;
+        transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+      }
+      .echomem-association .association-toggle:hover,
+      .echomem-association .association-primary-button:hover {
+        filter: brightness(0.97);
+        box-shadow: 0 4px 12px rgba(103, 80, 164, 0.18);
+      }
+      .echomem-association button:active { transform: scale(0.985); }
+      .echomem-association button:focus-visible,
+      .echomem-association a:focus-visible,
+      .echomem-association input:focus-visible {
+        outline: 3px solid rgba(103, 80, 164, 0.22);
+        outline-offset: 2px;
+      }
+      .echomem-association .association-card { padding: 15px 16px; }
+      .echomem-association .association-heading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 10px;
+        color: #1D1B20;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.45;
+      }
+      .echomem-association .association-heading-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 10px;
+        background: #F3EDF7;
+        color: #6750A4;
+        flex: 0 0 auto;
+      }
+      .echomem-association .association-feature-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        color: #49454F;
+        font-size: 12px;
+        line-height: 1.65;
+      }
+      .echomem-association .association-feature-list li {
+        position: relative;
+        padding: 7px 0 7px 18px;
+        border-top: 1px solid #F1ECF4;
+      }
+      .echomem-association .association-feature-list li:first-child {
+        padding-top: 2px;
+        border-top: 0;
+      }
+      .echomem-association .association-feature-list li::before {
+        content: '';
+        position: absolute;
+        top: 14px;
+        left: 2px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #6750A4;
+      }
+      .echomem-association .association-feature-list li:first-child::before { top: 9px; }
+      .echomem-association .association-config {
+        padding: 15px 16px;
+        background: #FEF7FF;
+      }
+      .echomem-association .association-label {
+        display: block;
+        margin-bottom: 8px;
+        color: #49454F;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.5;
+      }
+      .echomem-association .association-label span {
+        display: block;
+        margin-top: 2px;
+        color: #79747E;
+        font-size: 11px;
+        font-weight: 400;
+      }
+      .echomem-association .association-range { accent-color: #6750A4; }
+      .echomem-association .association-number {
+        width: 68px;
+        min-height: 36px;
+        padding: 6px 8px;
+        border: 1px solid #CAC4D0;
+        border-radius: 10px;
+        background: #FFFFFF;
+        color: #1D1B20;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.4;
+        text-align: center;
+      }
+      .echomem-association .association-number:hover { border-color: #79747E; }
+      .echomem-association .association-config-toggle {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        color: #6750A4;
+        font-size: 12px;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .echomem-association .association-config-toggle:hover { background: #F3EDF7; }
+      .echomem-association .association-tip {
+        padding: 12px 14px;
+        border: 1px solid #E7E0EC;
+        border-radius: 14px;
+        background: #F3EDF7;
+        color: #49454F;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      @media (max-width: 360px) {
+        .echomem-association .association-action,
+        .echomem-association .association-card,
+        .echomem-association .association-config { padding: 13px; }
+        .echomem-association .association-threshold-row { gap: 8px !important; }
+        .echomem-association .association-number { width: 62px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .echomem-association button { transition: none !important; }
+      }
+    </style>
+    <div class="echomem-association">
+      <div class="association-action">
+        <div class="association-status">
+          <p id="claw-association-status" style="
+            margin: 0;
+            color: ${statusColor};
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.5;
+          ">${statusText}</p>
+        </div>
+        <button id="claw-toggle-association" class="association-toggle" style="
           width: 100%;
-          padding: 12px;
+          margin-top: 10px;
+          padding: 10px 18px;
           background: ${btnBg};
           color: ${btnColor};
-          border: none;
-          border-radius: 8px;
-          font-size: 14px;
+          border: 1px solid ${inputAssociationEnabled ? "#F2B8B5" : "#6750A4"};
+          font-size: 13px;
           font-weight: 600;
           cursor: pointer;
-          transition: all 0.2s;
         "
         >${btnText}</button>
       </div>
-      <div style="
-        padding: 12px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        text-align: center;
-      ">
-        <p id="claw-association-status" style="
-          margin: 0;
-          font-size: 14px;
-          font-weight: 500;
-          color: ${statusColor};
-        ">${statusText}</p>
-      </div>
-      <div style="margin-bottom: 16px;">
-        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u{1F4A1} \u529F\u80FD\u8BF4\u660E</p>
-        <ul style="font-size: 13px; color: #666; padding-left: 18px; line-height: 1.8; margin: 0;">
+
+      <div class="association-card">
+        <p class="association-heading">
+          <span class="association-heading-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M8.4 15.5A7 7 0 1 1 15.6 15.5C14.6 16.2 14 17 14 18h-4c0-1-.6-1.8-1.6-2.5Z"/></svg>
+          </span>
+          \u529F\u80FD\u8BF4\u660E
+        </p>
+        <ul class="association-feature-list">
           <li>\u5386\u53F2\u8BB0\u5FC6\u53EC\u56DE\uFF1A\u6839\u636E\u8F93\u5165\u5B9E\u65F6\u53EC\u56DE\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u4E2D\u7684\u76F8\u5173\u8BB0\u5FC6</li>
           <li>\u8BED\u4E49\u641C\u7D22\uFF1A\u652F\u6301\u8FD1\u4E49\u8BCD\u548C\u8BED\u4E49\u76F8\u5173\u5185\u5BB9\u7684\u53EC\u56DE</li>
           <li>\u70B9\u51FB\u63D2\u5165\uFF1A\u70B9\u51FB\u5EFA\u8BAE\u5FEB\u901F\u63D2\u5165\u5230\u8F93\u5165\u6846</li>
         </ul>
       </div>
-      <div id="echomem-ov-config" style="display: none;">
-        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">\u{1F9E0} \u8865\u5168\u7B97\u6CD5\u914D\u7F6E</p>
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">
+
+      <div id="echomem-ov-config" class="association-config" style="display: none;">
+        <p class="association-heading">
+          <span class="association-heading-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.36.35.7.6 1 .3.28.7.42 1.1.4H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg>
+          </span>
+          \u8865\u5168\u7B97\u6CD5\u914D\u7F6E
+        </p>
+        <div style="margin-bottom: 12px;">
+          <label class="association-label">
             \u77ED\u8BED\u8FC7\u6EE4\u9608\u503C
-            <span style="color: #bbb; font-size: 11px;">\uFF08\u8D8A\u5C0F\u663E\u793A\u8D8A\u591A\uFF0C\u8D8A\u5927\u8D8A\u4E25\u683C\uFF09</span>
+            <span>\u8D8A\u5C0F\u663E\u793A\u8D8A\u591A\uFF0C\u8D8A\u5927\u8D8A\u4E25\u683C</span>
           </label>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <input id="completion-threshold" type="range" min="0.2" max="0.8" step="0.01" value="0.2"
+          <div class="association-threshold-row" style="display: flex; align-items: center; gap: 12px;">
+            <input id="completion-threshold" class="association-range" type="range" min="0.2" max="0.8" step="0.01" value="0.2"
               style="flex: 1; cursor: pointer;"
             />
-            <input id="completion-threshold-number" type="number" min="0.2" max="0.8" step="0.01" value="0.2"
-              style="width: 60px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; text-align: center;"
-            />
+            <input id="completion-threshold-number" class="association-number" type="number" min="0.2" max="0.8" step="0.01" value="0.2" />
           </div>
         </div>
 
-        <button id="ov-save-config" style="
+        <button id="ov-save-config" class="association-primary-button" style="
           width: 100%;
-          padding: 10px;
-          background: #667eea;
-          color: #fff;
+          padding: 10px 18px;
+          background: #6750A4;
+          color: #FFFFFF;
           border: none;
-          border-radius: 6px;
           font-size: 13px;
+          font-weight: 600;
           cursor: pointer;
         ">\u4FDD\u5B58\u914D\u7F6E</button>
       </div>
-      <div style="margin-top: 12px; text-align: center;">
-        <a id="echomem-toggle-config" href="#" style="font-size: 12px; color: #667eea; text-decoration: none;">\u663E\u793A\u9AD8\u7EA7\u914D\u7F6E</a>
+
+      <div style="text-align: center;">
+        <a id="echomem-toggle-config" class="association-config-toggle" href="#">\u663E\u793A\u9AD8\u7EA7\u914D\u7F6E</a>
       </div>
-      <div style="
-        padding: 12px;
-        background: #f0f7ff;
-        border-radius: 6px;
-        font-size: 13px;
-        border-left: 3px solid #667eea;
-        color: #666;
-        margin-top: 12px;
-      ">
-        \u{1F4A1} \u63D0\u793A\uFF1A\u8F93\u5165\u65F6\u81EA\u52A8\u53EC\u56DE\u76F8\u5173\u8BB0\u5FC6\uFF0C\u70B9\u51FB\u5EFA\u8BAE\u5373\u53EF\u63D2\u5165
+
+      <div class="association-tip">
+        <strong style="color: #6750A4; font-weight: 600;">\u4F7F\u7528\u63D0\u793A</strong>\uFF1A\u8F93\u5165\u65F6\u4F1A\u81EA\u52A8\u53EC\u56DE\u76F8\u5173\u8BB0\u5FC6\uFF0C\u70B9\u51FB\u5EFA\u8BAE\u5373\u53EF\u63D2\u5165\u3002
       </div>
     </div>
   `;
@@ -1923,7 +2384,7 @@ ${block}` : block;
     return { nodes, links, categories: CATEGORY_CONFIG };
   }
 
-  // node_modules/three/build/three.module.js
+  // ../EchoMEM-WEB-EXTENSION/node_modules/three/build/three.module.js
   var REVISION = "160";
   var MOUSE = { LEFT: 0, MIDDLE: 1, RIGHT: 2, ROTATE: 0, DOLLY: 1, PAN: 2 };
   var TOUCH = { ROTATE: 0, PAN: 1, DOLLY_PAN: 2, DOLLY_ROTATE: 3 };
@@ -23016,7 +23477,7 @@ ${block}` : block;
     }
   }
 
-  // node_modules/three/examples/jsm/controls/OrbitControls.js
+  // ../EchoMEM-WEB-EXTENSION/node_modules/three/examples/jsm/controls/OrbitControls.js
   var _changeEvent = { type: "change" };
   var _startEvent = { type: "start" };
   var _endEvent = { type: "end" };
@@ -24559,90 +25020,233 @@ ${block}` : block;
     return ((_a = platform == null ? void 0 : platform.config) == null ? void 0 : _a.id) === "higo" || (platform == null ? void 0 : platform.key) === "higo";
   }
   function skeletonValue(width = "60px") {
-    return `<span class="perf-skeleton" style="
-    display: inline-block;
-    width: ${width}; height: 20px;
-    background: #e5e7eb;
-    border-radius: 4px;
-    animation: perf-skeleton-pulse 1.5s ease-in-out infinite;
-  "></span>`;
+    return `<span class="perf-skeleton" style="width: ${width};"></span>`;
   }
   function getPerformanceContent() {
     const showSessionStats = isHigoPlatform();
     const totalSection = showSessionStats ? `
       <!-- \u6838\u5FC3\u6307\u6807\uFF1A\u603B Token \u6D88\u8017 -->
-      <div style="
-        padding: 18px 16px;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-        border: 1px solid #bfdbfe;
-        text-align: center;
-      ">
-        <div style="font-size: 12px; color: #2563eb; font-weight: 500; margin-bottom: 6px;">\u603B Token \u6D88\u8017</div>
-        <div id="perf-total" style="font-size: 32px; font-weight: 800; color: #1d4ed8; line-height: 1;">${skeletonValue("100px")}</div>
+      <div class="perf-hero-card">
+        <div class="perf-hero-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
+        </div>
+        <div class="perf-label perf-hero-label">\u603B Token \u6D88\u8017</div>
+        <div id="perf-total" class="perf-total-value">${skeletonValue("100px")}</div>
+        <div class="perf-unit perf-hero-unit">tokens</div>
       </div>
   ` : "";
     const sessionStatsSection = showSessionStats ? `
       <!-- \u4F1A\u8BDD\u7EDF\u8BA1 -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">\u4F1A\u8BDD\u6570</p>
-          <p id="perf-sessions" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("60px")}</p>
+      <div class="perf-grid">
+        <div class="perf-metric-card">
+          <p class="perf-label">\u4F1A\u8BDD\u6570</p>
+          <p id="perf-sessions" class="perf-metric-value">${skeletonValue("60px")}</p>
         </div>
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">\u8F6E\u6B21\u6570</p>
-          <p id="perf-turns" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("60px")}</p>
+        <div class="perf-metric-card">
+          <p class="perf-label">\u8F6E\u6B21\u6570</p>
+          <p id="perf-turns" class="perf-metric-value">${skeletonValue("60px")}</p>
         </div>
       </div>
 
       <!-- Input / Output \u62C6\u5206 -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">Input Tokens</p>
-          <p id="perf-input" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
-          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
+      <div class="perf-grid">
+        <div class="perf-metric-card">
+          <p class="perf-label">Input Tokens</p>
+          <p id="perf-input" class="perf-metric-value">${skeletonValue("80px")}</p>
+          <p class="perf-unit">tokens</p>
         </div>
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">Output Tokens</p>
-          <p id="perf-output" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
-          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
+        <div class="perf-metric-card">
+          <p class="perf-label">Output Tokens</p>
+          <p id="perf-output" class="perf-metric-value">${skeletonValue("80px")}</p>
+          <p class="perf-unit">tokens</p>
         </div>
       </div>
   ` : "";
     return `
     <style>
       @keyframes perf-skeleton-pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.4; }
+        0%, 100% { opacity: 0.95; }
+        50% { opacity: 0.42; }
+      }
+      #perf-root {
+        color: #1D1B20;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        font-family: Roboto, "Noto Sans SC", sans-serif;
+      }
+      #perf-root, #perf-root * { box-sizing: border-box; }
+      #perf-root .perf-hero-card {
+        position: relative;
+        overflow: hidden;
+        padding: 20px 16px 18px;
+        border: 1px solid #D8CCE7;
+        border-radius: 20px;
+        background: linear-gradient(145deg, #F3E9FF 0%, #EADDFF 58%, #F8F2FF 100%);
+        box-shadow: 0 6px 20px rgba(103, 80, 164, 0.12);
+        text-align: center;
+      }
+      #perf-root .perf-hero-card::after {
+        content: '';
+        position: absolute;
+        top: -34px;
+        right: -30px;
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.38);
+        pointer-events: none;
+      }
+      #perf-root .perf-hero-icon {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.64);
+        color: #6750A4;
+      }
+      #perf-root .perf-label {
+        margin: 0 0 6px;
+        color: #625F66;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+      #perf-root .perf-hero-label { color: #6750A4; }
+      #perf-root .perf-total-value {
+        position: relative;
+        z-index: 1;
+        color: #21005D;
+        font-size: 32px;
+        font-weight: 750;
+        letter-spacing: -0.025em;
+        line-height: 1.08;
+      }
+      #perf-root .perf-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      #perf-root .perf-metric-card {
+        min-width: 0;
+        padding: 14px;
+        border: 1px solid #E7E0EC;
+        border-radius: 16px;
+        background: #FFFFFF;
+        box-shadow: 0 1px 2px rgba(29, 27, 32, 0.04);
+      }
+      #perf-root .perf-backend-card {
+        background: #FEF7FF;
+        border-color: #E0D4F1;
+      }
+      #perf-root .perf-metric-value {
+        margin: 0;
+        overflow: hidden;
+        color: #1D1B20;
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+      }
+      #perf-root .perf-unit {
+        margin: 4px 0 0;
+        color: #79747E;
+        font-size: 10px;
+        line-height: 1.4;
+      }
+      #perf-root .perf-hero-unit { color: #625B71; }
+      #perf-root .perf-skeleton {
+        display: inline-block;
+        height: 20px;
+        max-width: 100%;
+        border-radius: 8px;
+        background: linear-gradient(90deg, #DED6E3, #F3EDF7, #DED6E3);
+        animation: perf-skeleton-pulse 1.5s ease-in-out infinite;
+        vertical-align: middle;
+      }
+      #perf-root .perf-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+      }
+      #perf-root .perf-refresh {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 36px;
+        padding: 7px 13px;
+        border: 1px solid #E0D4F1;
+        border-radius: 999px;
+        background: #F3EDF7;
+        color: #6750A4;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.3;
+        cursor: pointer;
+        transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+      }
+      #perf-root .perf-refresh:hover {
+        background: #EADDFF;
+        box-shadow: 0 3px 10px rgba(103, 80, 164, 0.14);
+      }
+      #perf-root .perf-refresh:active { transform: scale(0.98); }
+      #perf-root .perf-refresh:focus-visible {
+        outline: 3px solid rgba(103, 80, 164, 0.22);
+        outline-offset: 2px;
+      }
+      #perf-root .perf-refresh:disabled { cursor: wait; opacity: 0.62; }
+      #perf-root .perf-refresh::before {
+        content: '\u21BB';
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1;
+      }
+      #perf-root .perf-description {
+        padding: 13px 14px;
+        border: 1px solid #E7E0EC;
+        border-radius: 14px;
+        background: #FFFFFF;
+        color: #625F66;
+        font-size: 12px;
+        line-height: 1.65;
+      }
+      @media (max-width: 360px) {
+        #perf-root .perf-grid { grid-template-columns: 1fr; }
+        #perf-root .perf-hero-card { padding: 18px 14px 16px; }
+        #perf-root .perf-total-value { font-size: 28px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #perf-root .perf-skeleton { animation: none; }
+        #perf-root .perf-refresh { transition: none; }
       }
     </style>
-    <div id="perf-root" style="color: #374151; display: flex; flex-direction: column; gap: 12px;">
+    <div id="perf-root">
       ${totalSection}
 
       ${sessionStatsSection}
 
       <!-- \u540E\u7AEF\u6D88\u8017 -->
-      <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-        <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">EchoMem \u540E\u7AEF\u6D88\u8017</p>
-        <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue("80px")}</p>
-        <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
+      <div class="perf-metric-card perf-backend-card">
+        <p class="perf-label">EchoMem \u540E\u7AEF\u6D88\u8017</p>
+        <p id="perf-backend" class="perf-metric-value">${skeletonValue("80px")}</p>
+        <p class="perf-unit">tokens</p>
       </div>
 
       <!-- \u8BF4\u660E -->
-      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
-        <button id="perf-refresh-btn" style="padding: 4px 10px; font-size: 12px; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; cursor: pointer;"
-        >\u{1F504} \u5237\u65B0</button>
+      <div class="perf-toolbar">
+        <button id="perf-refresh-btn" class="perf-refresh">
+          \u5237\u65B0
+        </button>
       </div>
-      <div id="perf-desc" style="
-        padding: 12px 14px;
-        border-radius: 8px;
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        font-size: 12px;
-        color: #6b7280;
-        line-height: 1.6;
-      ">
-        <span style="color: #2563eb; font-weight: 600;">\u6B63\u5728\u52A0\u8F7D\u6570\u636E\u2026</span>
+      <div id="perf-desc" class="perf-description">
+        <span style="color: #6750A4; font-weight: 600;">\u6B63\u5728\u52A0\u8F7D\u6570\u636E\u2026</span>
       </div>
     </div>
   `;
@@ -24699,28 +25303,28 @@ ${block}` : block;
     if (backendEl) {
       if (data.backendTokens !== void 0 && data.backendTokens !== null) {
         backendEl.textContent = FMT(data.backendTokens);
-        backendEl.style.color = "#111827";
+        backendEl.style.color = "#1D1B20";
       } else {
         backendEl.textContent = "--";
-        backendEl.style.color = "#9ca3af";
+        backendEl.style.color = "#79747E";
       }
     }
     if (descEl) {
       const sinceText = data.since ? `\u81EA ${new Date(data.since).toLocaleString("zh-CN")} \u8D77\u7EDF\u8BA1` : "\u7EDF\u8BA1\u8303\u56F4\uFF1A\u5168\u90E8\u5386\u53F2\u4F1A\u8BDD";
       if (showSessionStats) {
         descEl.innerHTML = `
-        <span style="color: #2563eb; font-weight: 600;">Token \u7EDF\u8BA1\uFF1A</span>
+        <span style="color: #6750A4; font-weight: 600;">Token \u7EDF\u8BA1\uFF1A</span>
         \u7D2F\u8BA1 ${FMT(data.totalSessions ?? 0)} \u4E2A\u4F1A\u8BDD\uFF0C${FMT(data.totalTurns ?? 0)} \u8F6E\u5BF9\u8BDD\uFF1B
-        \u4F1A\u8BDD\u6D88\u8017 <strong style="color: #111827;">${FMT(sessionTokens)}</strong> tokens\uFF0C
-        EchoMem \u540E\u7AEF\u6D88\u8017 <strong style="color: #111827;">${FMT(backendTokens)}</strong> tokens\uFF0C
-        \u5408\u8BA1 <strong style="color: #111827;">${FMT(totalTokens)}</strong> tokens\u3002
-        <br><span style="color: #9ca3af;">${sinceText}</span>
+        \u4F1A\u8BDD\u6D88\u8017 <strong style="color: #1D1B20;">${FMT(sessionTokens)}</strong> tokens\uFF0C
+        EchoMem \u540E\u7AEF\u6D88\u8017 <strong style="color: #1D1B20;">${FMT(backendTokens)}</strong> tokens\uFF0C
+        \u5408\u8BA1 <strong style="color: #1D1B20;">${FMT(totalTokens)}</strong> tokens\u3002
+        <br><span style="color: #79747E;">${sinceText}</span>
       `;
       } else {
         descEl.innerHTML = `
-        <span style="color: #2563eb; font-weight: 600;">Token \u7EDF\u8BA1\uFF1A</span>
+        <span style="color: #6750A4; font-weight: 600;">Token \u7EDF\u8BA1\uFF1A</span>
         \u5F53\u524D\u5E73\u53F0\u4EC5\u5C55\u793A EchoMem \u540E\u7AEF Token \u6D88\u8017\u3002
-        <br><span style="color: #9ca3af;">\u4F1A\u8BDD\u7EA7 Token \u7EDF\u8BA1\u4EC5\u5728 HIGO \u5E73\u53F0\u53EF\u7528</span>
+        <br><span style="color: #79747E;">\u4F1A\u8BDD\u7EA7 Token \u7EDF\u8BA1\u4EC5\u5728 HIGO \u5E73\u53F0\u53EF\u7528</span>
       `;
       }
     }
@@ -24762,7 +25366,7 @@ ${block}` : block;
         console.warn("EchoMem: performance data refresh failed", err);
         const descEl = bodyElement == null ? void 0 : bodyElement.querySelector("#perf-desc");
         if (descEl && !destroyed) {
-          descEl.innerHTML = `<span style="color: #dc2626;">\u6570\u636E\u52A0\u8F7D\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5</span>`;
+          descEl.innerHTML = `<span style="color: #B3261E; font-weight: 600;">\u6570\u636E\u52A0\u8F7D\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5</span>`;
         }
       }
     }
@@ -24845,6 +25449,780 @@ ${block}` : block;
 
   // src/panels/skill-store/index.js
   var SKILL_ROOT_URI = "echo://skills";
+  var SKILL_STORE_STYLES = `
+  <style>
+    .claw-skill-surface,
+    .claw-skill-dialog,
+    .claw-skill-preview-overlay {
+      --skill-primary: #6750a4;
+      --skill-on-primary: #ffffff;
+      --skill-primary-container: #eaddff;
+      --skill-on-primary-container: #21005d;
+      --skill-secondary-container: #e8def8;
+      --skill-surface: #fffbfe;
+      --skill-surface-soft: #fef7ff;
+      --skill-surface-strong: #f3edf7;
+      --skill-outline: #79747e;
+      --skill-outline-soft: #e7e0ec;
+      --skill-text: #1d1b20;
+      --skill-text-muted: #49454f;
+      --skill-error: #b3261e;
+      --skill-error-container: #f9dedc;
+      --skill-success: #2e7d32;
+      --skill-success-container: #e8f5e9;
+      box-sizing: border-box;
+      color: var(--skill-text);
+      font-family: Roboto, "Noto Sans SC", sans-serif;
+    }
+
+    .claw-skill-surface *,
+    .claw-skill-dialog *,
+    .claw-skill-preview-overlay * {
+      box-sizing: border-box;
+    }
+
+    .claw-skill-surface {
+      width: 100%;
+    }
+
+    .claw-skill-home,
+    .claw-skill-list,
+    .claw-skill-upload {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .claw-skill-intro {
+      position: relative;
+      overflow: hidden;
+      padding: 16px;
+      border: 1px solid #d0bcff;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #fef7ff 0%, #f3edff 58%, #eaddff 100%);
+    }
+
+    .claw-skill-intro::after {
+      content: "";
+      position: absolute;
+      top: -34px;
+      right: -26px;
+      width: 104px;
+      height: 104px;
+      border: 18px solid rgba(103, 80, 164, 0.08);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .claw-skill-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 7px;
+      color: var(--skill-primary);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .claw-skill-intro-title {
+      position: relative;
+      z-index: 1;
+      margin: 0;
+      color: var(--skill-on-primary-container);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .claw-skill-intro-copy {
+      position: relative;
+      z-index: 1;
+      max-width: 270px;
+      margin: 4px 0 0;
+      color: var(--skill-text-muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .claw-skill-home-list {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    button.claw-skill-section {
+      width: 100%;
+      min-height: 74px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.88);
+      color: var(--skill-text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(29, 27, 32, 0.04);
+      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    }
+
+    button.claw-skill-section:hover {
+      transform: translateY(-2px);
+      border-color: #d0bcff;
+      background: var(--skill-surface-soft);
+      box-shadow: 0 8px 20px rgba(33, 0, 93, 0.08);
+    }
+
+    button.claw-skill-section:focus-visible,
+    .claw-skill-search-input:focus-visible,
+    .claw-skill-refresh:focus-visible,
+    .claw-skill-action:focus-visible,
+    .claw-skill-dialog-button:focus-visible,
+    .claw-skill-btn-delete:focus-visible,
+    .claw-skill-btn-view-full:focus-visible {
+      outline: 3px solid rgba(103, 80, 164, 0.22);
+      outline-offset: 2px;
+    }
+
+    .claw-skill-section-icon,
+    .claw-skill-upload-icon,
+    .claw-skill-dialog-icon,
+    .claw-skill-state-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      color: var(--skill-primary);
+      background: var(--skill-primary-container);
+    }
+
+    .claw-skill-section-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+    }
+
+    .claw-skill-section-copy {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .claw-skill-section-title {
+      display: block;
+      margin: 0 0 3px;
+      color: var(--skill-text);
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .claw-skill-section-desc {
+      display: block;
+      margin: 0;
+      color: var(--skill-text-muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .claw-skill-chevron {
+      flex: 0 0 auto;
+      color: var(--skill-outline);
+      transition: transform 180ms ease, color 180ms ease;
+    }
+
+    button.claw-skill-section:hover .claw-skill-chevron {
+      color: var(--skill-primary);
+      transform: translateX(2px);
+    }
+
+    .claw-skill-page-note {
+      margin: 0;
+      color: var(--skill-text-muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .claw-skill-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .claw-skill-search-shell {
+      position: relative;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .claw-skill-search-shell > svg {
+      position: absolute;
+      top: 50%;
+      left: 13px;
+      color: var(--skill-text-muted);
+      pointer-events: none;
+      transform: translateY(-50%);
+    }
+
+    .claw-skill-search-input {
+      width: 100%;
+      height: 42px;
+      padding: 0 13px 0 39px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 14px;
+      outline: none;
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--skill-text);
+      font: inherit;
+      font-size: 13px;
+      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    }
+
+    .claw-skill-search-input::placeholder {
+      color: #79747e;
+    }
+
+    .claw-skill-search-input:hover {
+      border-color: #c4bdc8;
+    }
+
+    .claw-skill-search-input:focus {
+      border-color: var(--skill-primary);
+      background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(103, 80, 164, 0.1);
+    }
+
+    .claw-skill-refresh,
+    .claw-skill-action,
+    .claw-skill-dialog-button,
+    .claw-skill-btn-view-full,
+    .claw-skill-btn-delete {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: 999px;
+      font-family: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+    }
+
+    .claw-skill-refresh {
+      height: 42px;
+      flex: 0 0 auto;
+      padding: 0 14px;
+      border: 1px solid #d0bcff;
+      background: var(--skill-surface);
+      color: var(--skill-primary);
+      font-size: 12px;
+    }
+
+    .claw-skill-refresh:hover,
+    .claw-skill-btn-view-full:hover {
+      background: var(--skill-primary-container);
+      border-color: #b69df8;
+    }
+
+    .claw-skill-notice {
+      align-items: flex-start;
+      gap: 9px;
+      padding: 11px 12px;
+      border: 1px solid #d0bcff;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.5;
+      box-shadow: 0 4px 12px rgba(29, 27, 32, 0.05);
+    }
+
+    .claw-skill-notice > svg {
+      flex: 0 0 auto;
+      margin-top: 1px;
+    }
+
+    .claw-skill-state {
+      min-height: 164px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 18px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      text-align: center;
+    }
+
+    .claw-skill-state-icon {
+      width: 46px;
+      height: 46px;
+      margin-bottom: 12px;
+      border-radius: 15px;
+    }
+
+    .claw-skill-state-title {
+      margin: 0;
+      color: var(--skill-text);
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .claw-skill-state-copy {
+      max-width: 250px;
+      margin: 5px 0 0;
+      color: var(--skill-text-muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .claw-skill-spinner {
+      animation: claw-skill-spin 900ms linear infinite;
+    }
+
+    .claw-skill-items {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .claw-skill-item {
+      padding: 13px 14px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.82);
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(29, 27, 32, 0.035);
+      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    }
+
+    .claw-skill-item:hover {
+      border-color: #d0bcff;
+      background: var(--skill-surface-soft);
+      box-shadow: 0 5px 15px rgba(33, 0, 93, 0.06);
+    }
+
+    .claw-skill-item-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .claw-skill-item-copy {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .claw-skill-item-title {
+      margin: 0 0 3px;
+      color: var(--skill-text);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+      word-break: break-all;
+    }
+
+    .claw-skill-item-desc {
+      display: -webkit-box;
+      overflow: hidden;
+      margin: 0 0 6px;
+      color: var(--skill-text-muted);
+      font-size: 12px;
+      line-height: 1.5;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .claw-skill-item-meta {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      margin: 0;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--skill-surface-strong);
+      color: var(--skill-text-muted);
+      font-size: 10px;
+      line-height: 1.4;
+    }
+
+    .claw-skill-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex: 0 0 auto;
+    }
+
+    .claw-skill-btn-delete {
+      min-height: 30px;
+      padding: 0 10px;
+      border: 1px solid #f2b8b5;
+      background: #fff8f7;
+      color: var(--skill-error);
+      font-size: 11px;
+    }
+
+    .claw-skill-btn-delete:hover {
+      background: var(--skill-error-container);
+      border-color: #e49b97;
+    }
+
+    .claw-skill-btn-delete:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
+
+    .claw-skill-toggle-icon {
+      margin-top: 7px;
+      color: var(--skill-outline);
+      transition: transform 180ms ease, color 180ms ease;
+    }
+
+    .claw-skill-item:hover .claw-skill-toggle-icon {
+      color: var(--skill-primary);
+    }
+
+    .claw-skill-detail {
+      margin-top: 13px;
+      padding-top: 13px;
+      border-top: 1px solid var(--skill-outline-soft);
+    }
+
+    .claw-skill-detail-description,
+    .claw-skill-detail-empty,
+    .claw-skill-code-preview {
+      padding: 10px 11px;
+      border-radius: 12px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .claw-skill-detail-description {
+      margin-bottom: 9px;
+      border: 1px solid #d0bcff;
+      background: var(--skill-surface-soft);
+      color: var(--skill-text-muted);
+    }
+
+    .claw-skill-detail-empty {
+      margin-bottom: 9px;
+      border: 1px solid var(--skill-outline-soft);
+      background: var(--skill-surface-strong);
+      color: var(--skill-outline);
+    }
+
+    .claw-skill-code-preview {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid var(--skill-outline-soft);
+      background: #f7f2fa;
+      color: #363139;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .claw-skill-detail-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 9px;
+    }
+
+    .claw-skill-uri {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--skill-outline);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .claw-skill-btn-view-full {
+      min-height: 32px;
+      flex: 0 0 auto;
+      padding: 0 11px;
+      border: 1px solid #d0bcff;
+      background: var(--skill-surface);
+      color: var(--skill-primary);
+      font-size: 11px;
+    }
+
+    .claw-skill-dropzone {
+      position: relative;
+      overflow: hidden;
+      padding: 30px 20px;
+      border: 1.5px dashed #a99db3;
+      border-radius: 20px;
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(243, 237, 247, 0.94));
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+    }
+
+    .claw-skill-dropzone:hover {
+      transform: translateY(-1px);
+      border-color: var(--skill-primary);
+      background: #f3edf7;
+      box-shadow: 0 8px 22px rgba(33, 0, 93, 0.08);
+    }
+
+    .claw-skill-upload-icon {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 12px;
+      border-radius: 18px;
+      box-shadow: 0 6px 16px rgba(103, 80, 164, 0.12);
+    }
+
+    .claw-skill-dropzone-title {
+      margin: 0;
+      color: var(--skill-text);
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+
+    .claw-skill-dropzone-copy {
+      max-width: 290px;
+      margin: 5px auto 0;
+      color: var(--skill-text-muted);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .claw-skill-format-row {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .claw-skill-format-chip {
+      padding: 3px 8px;
+      border: 1px solid #d0bcff;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--skill-primary);
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .claw-skill-guide {
+      padding: 14px 15px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.76);
+    }
+
+    .claw-skill-guide-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 9px;
+      color: var(--skill-on-primary-container);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .claw-skill-guide-title > span {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9px;
+      background: var(--skill-primary-container);
+      color: var(--skill-primary);
+    }
+
+    .claw-skill-guide-list {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--skill-text-muted);
+      font-size: 11px;
+      line-height: 1.75;
+    }
+
+    .claw-skill-guide-list li::marker {
+      color: var(--skill-primary);
+    }
+
+    .claw-skill-guide-list code {
+      padding: 2px 5px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 5px;
+      background: var(--skill-surface-strong);
+      color: var(--skill-on-primary-container);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 10px;
+    }
+
+    .claw-skill-dialog {
+      min-height: 172px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 17px;
+      padding: 18px 22px 22px;
+      text-align: center;
+    }
+
+    .claw-skill-dialog-icon {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 10px;
+      border-radius: 16px;
+    }
+
+    .claw-skill-dialog-icon.is-danger {
+      color: var(--skill-error);
+      background: var(--skill-error-container);
+    }
+
+    .claw-skill-dialog-title {
+      margin: 0;
+      color: var(--skill-text);
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .claw-skill-dialog-copy {
+      margin: 5px auto 0;
+      color: var(--skill-text-muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .claw-skill-dialog-copy strong {
+      color: var(--skill-text);
+      font-weight: 600;
+    }
+
+    .claw-skill-dialog-actions {
+      display: flex;
+      justify-content: center;
+      gap: 9px;
+    }
+
+    .claw-skill-dialog-button {
+      min-width: 108px;
+      min-height: 38px;
+      padding: 0 17px;
+      border: 1px solid #d0bcff;
+      background: var(--skill-surface);
+      color: var(--skill-primary);
+      font-size: 12px;
+    }
+
+    .claw-skill-dialog-button:hover {
+      background: var(--skill-primary-container);
+    }
+
+    .claw-skill-dialog-button.is-primary {
+      border-color: transparent;
+      background: linear-gradient(135deg, #6750a4 0%, #21005d 100%);
+      color: var(--skill-on-primary);
+      box-shadow: 0 5px 14px rgba(33, 0, 93, 0.2);
+    }
+
+    .claw-skill-dialog-button.is-primary:hover {
+      background: linear-gradient(135deg, #7b61b5 0%, #3a1860 100%);
+      box-shadow: 0 7px 18px rgba(33, 0, 93, 0.24);
+    }
+
+    .claw-skill-dialog-button.is-danger {
+      border-color: transparent;
+      background: var(--skill-error);
+      color: #ffffff;
+      box-shadow: 0 5px 14px rgba(179, 38, 30, 0.18);
+    }
+
+    .claw-skill-dialog-button.is-danger:hover {
+      background: #8c1d18;
+    }
+
+    .claw-skill-preview-overlay {
+      min-height: 100%;
+      padding: 18px 20px 24px;
+      background: var(--skill-surface);
+      color: #363139;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.75;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .claw-skill-state.is-error {
+      border-color: #f2b8b5;
+      background: #fff8f7;
+    }
+
+    .claw-skill-state.is-error .claw-skill-state-icon {
+      color: var(--skill-error);
+      background: var(--skill-error-container);
+    }
+
+    .claw-skill-state.is-error .claw-skill-state-title {
+      color: var(--skill-error);
+    }
+
+    @keyframes claw-skill-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .claw-skill-surface *,
+      .claw-skill-dialog *,
+      .claw-skill-preview-overlay * {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+`;
+  function getSkillIcon(name, size = 20, className = "") {
+    const paths = {
+      sparkles: '<path d="M12 3l1.2 3.3L16.5 7.5l-3.3 1.2L12 12l-1.2-3.3-3.3-1.2 3.3-1.2L12 3Z"/><path d="M18 13l.8 2.2L21 16l-2.2.8L18 19l-.8-2.2L15 16l2.2-.8L18 13Z"/><path d="M6 14l.9 2.6L9.5 17.5l-2.6.9L6 21l-.9-2.6-2.6-.9 2.6-.9L6 14Z"/>',
+      history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
+      upload: '<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/>',
+      settings: '<path d="M4 7h10"/><path d="M18 7h2"/><circle cx="16" cy="7" r="2"/><path d="M4 17h2"/><path d="M10 17h10"/><circle cx="8" cy="17" r="2"/>',
+      chevronRight: '<path d="m9 18 6-6-6-6"/>',
+      chevronDown: '<path d="m6 9 6 6 6-6"/>',
+      search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+      refresh: '<path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.4 9A7 7 0 0 0 6.2 6.2L4 8"/><path d="M5.6 15A7 7 0 0 0 17.8 17.8L20 16"/>',
+      spinner: '<circle cx="12" cy="12" r="8" opacity=".22"/><path d="M20 12a8 8 0 0 0-8-8"/>',
+      folder: '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-11Z"/><path d="M3 10h18"/>',
+      trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m6 7 1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>',
+      file: '<path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
+      info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',
+      check: '<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',
+      alert: '<path d="M10.3 4.2 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 16.5h.01"/>',
+      clipboard: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5"/><path d="M9 10h6M9 14h6M9 18h4"/>'
+    };
+    const iconPaths = paths[name] || paths.info;
+    return `<svg${className ? ` class="${className}"` : ""} width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths}</svg>`;
+  }
+  function setSkillNoticeContent(element, message, type) {
+    const iconName = type === "success" ? "check" : type === "error" ? "alert" : "info";
+    const iconWrapper = document.createElement("span");
+    iconWrapper.innerHTML = getSkillIcon(iconName, 17);
+    const icon = iconWrapper.firstElementChild;
+    const text = document.createElement("span");
+    text.textContent = message;
+    element.replaceChildren(...icon ? [icon, text] : [text]);
+  }
   function isDirectory(entry) {
     var _a, _b;
     if (entry.kind) return entry.kind === "directory";
@@ -24855,45 +26233,31 @@ ${block}` : block;
   }
   function getSkillStoreHomeContent() {
     const sections = [
-      { id: "history", title: "\u{1F4DC} \u6211\u7684 Skill", desc: "\u67E5\u770B\u548C\u7BA1\u7406\u4F60\u4F7F\u7528\u8FC7\u7684 Skill", color: "#667eea" },
-      { id: "upload", title: "\u2B06\uFE0F \u4E0A\u4F20 Skill", desc: "\u4E0A\u4F20\u4F60\u7684\u81EA\u5B9A\u4E49 Skill", color: "#42a5f5" },
-      { id: "manage", title: "\u2699\uFE0F \u5B89\u88C5\u7BA1\u7406", desc: "\u7BA1\u7406\u5DF2\u5B89\u88C5\u7684 Skill", color: "#ef5350" }
+      { id: "history", title: "\u6211\u7684 Skill", desc: "\u6D4F\u89C8\u5DF2\u4F7F\u7528\u7684\u80FD\u529B\u4E0E\u5185\u5BB9\u8BE6\u60C5", icon: "history" },
+      { id: "upload", title: "\u4E0A\u4F20 Skill", desc: "\u5BFC\u5165\u7B26\u5408 SKILL.md \u683C\u5F0F\u7684\u81EA\u5B9A\u4E49\u80FD\u529B", icon: "upload" },
+      { id: "manage", title: "\u5B89\u88C5\u7BA1\u7406", desc: "\u67E5\u770B\u5E76\u7EF4\u62A4\u5F53\u524D\u5DF2\u5B89\u88C5\u7684 Skill", icon: "settings" }
     ];
     const cards = sections.map((s) => `
-    <div class="claw-skill-section" data-section="${s.id}" style="
-      padding: 16px;
-      border: 1px solid #e0e0e0;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    " onmouseenter="this.style.borderColor='${s.color}';this.style.background='#fafafa';this.style.transform='translateX(4px)'" onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='none';this.style.transform='none'"
-    >
-      <div style="
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        background: ${s.color}15;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-        flex-shrink: 0;
-      ">${s.title.split(" ")[0]}</div>
-      <div style="flex: 1;">
-        <p style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 2px;">${s.title.split(" ").slice(1).join(" ")}</p>
-        <p style="font-size: 12px; color: #888;">${s.desc}</p>
-      </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="9 18 15 12 9 6"></polyline>
-      </svg>
-    </div>
+    <button type="button" class="claw-skill-section" data-section="${s.id}">
+      <span class="claw-skill-section-icon">${getSkillIcon(s.icon, 22)}</span>
+      <span class="claw-skill-section-copy">
+        <span class="claw-skill-section-title">${s.title}</span>
+        <span class="claw-skill-section-desc">${s.desc}</span>
+      </span>
+      ${getSkillIcon("chevronRight", 18, "claw-skill-chevron")}
+    </button>
   `).join("");
     return `
-    <div style="display: flex; flex-direction: column; gap: 10px;">
-      ${cards}
+    ${SKILL_STORE_STYLES}
+    <div class="claw-skill-surface claw-skill-home">
+      <section class="claw-skill-intro">
+        <span class="claw-skill-eyebrow">${getSkillIcon("sparkles", 13)} Skill Library</span>
+        <p class="claw-skill-intro-title">\u8BA9\u5E38\u7528\u80FD\u529B\u4FDD\u6301\u6709\u5E8F</p>
+        <p class="claw-skill-intro-copy">\u4ECE\u8FD9\u91CC\u6D4F\u89C8\u3001\u5BFC\u5165\u548C\u7EF4\u62A4\u4F60\u7684 Skill\uFF0C\u6240\u6709\u64CD\u4F5C\u90FD\u96C6\u4E2D\u5728\u540C\u4E00\u5904\u3002</p>
+      </section>
+      <div class="claw-skill-home-list">
+        ${cards}
+      </div>
     </div>
   `;
   }
@@ -24904,43 +26268,31 @@ ${block}` : block;
     return getSkillListContent("\u5B89\u88C5\u7BA1\u7406", { showDelete: true });
   }
   function getSkillListContent(title, options = {}) {
+    const pageNote = options.showDelete ? "\u5C55\u5F00\u6761\u76EE\u67E5\u770B\u5185\u5BB9\uFF0C\u6216\u79FB\u9664\u4E0D\u518D\u9700\u8981\u7684 Skill\u3002" : "\u6309\u540D\u79F0\u6216\u63CF\u8FF0\u641C\u7D22\uFF0C\u5C55\u5F00\u6761\u76EE\u5373\u53EF\u67E5\u770B\u5185\u5BB9\u6458\u8981\u3002";
     return `
-    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+    ${SKILL_STORE_STYLES}
+    <div class="claw-skill-surface claw-skill-list">
+      <p class="claw-skill-page-note">${pageNote}</p>
       <!-- \u641C\u7D22\u6846 -->
-      <div style="display: flex; gap: 8px; align-items: center;">
-        <input type="text" id="claw-skill-search" placeholder="\u641C\u7D22 Skill \u540D\u79F0\u6216\u63CF\u8FF0..." style="
-          flex: 1;
-          padding: 8px 12px;
-          border: 1px solid #d1d5db;
-          border-radius: 6px;
-          font-size: 13px;
-          outline: none;
-          transition: border-color 0.2s;
-        " onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#d1d5db'">
-        <button id="claw-skill-btn-refresh" style="
-          padding: 8px 12px;
-          background: white;
-          color: #374151;
-          border: 1px solid #d1d5db;
-          border-radius: 6px;
-          font-size: 12px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          white-space: nowrap;
-        ">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      <div class="claw-skill-toolbar">
+        <div class="claw-skill-search-shell">
+          ${getSkillIcon("search", 17)}
+          <input class="claw-skill-search-input" type="text" id="claw-skill-search" placeholder="\u641C\u7D22 Skill \u540D\u79F0\u6216\u63CF\u8FF0..." aria-label="\u641C\u7D22 ${title}">
+        </div>
+        <button type="button" id="claw-skill-btn-refresh" class="claw-skill-refresh">
+          ${getSkillIcon("refresh", 15)}
           \u5237\u65B0
         </button>
       </div>
 
       <!-- Toast -->
-      <div id="claw-skill-toast" style="display: none;"></div>
+      <div id="claw-skill-toast" class="claw-skill-notice claw-skill-toast" role="status" aria-live="polite" style="display: none;"></div>
 
       <!-- \u52A0\u8F7D\u4E2D -->
-      <div id="claw-skill-list-loading" style="text-align: center; padding: 40px 20px; color: #888;">
-        <p style="font-size: 14px;">\u23F3 \u6B63\u5728\u52A0\u8F7D Skill \u5217\u8868...</p>
+      <div id="claw-skill-list-loading" class="claw-skill-state" role="status" aria-live="polite">
+        <span class="claw-skill-state-icon">${getSkillIcon("spinner", 23, "claw-skill-spinner")}</span>
+        <p class="claw-skill-state-title">\u6B63\u5728\u52A0\u8F7D Skill</p>
+        <p class="claw-skill-state-copy">\u6B63\u5728\u540C\u6B65\u4F60\u7684\u80FD\u529B\u5217\u8868\uFF0C\u8BF7\u7A0D\u5019\u3002</p>
       </div>
 
       <!-- \u5217\u8868\u5185\u5BB9 -->
@@ -24950,34 +26302,31 @@ ${block}` : block;
   }
   function getSkillUploadContent() {
     return `
-    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+    ${SKILL_STORE_STYLES}
+    <div class="claw-skill-surface claw-skill-upload">
+      <p class="claw-skill-page-note">\u4E0A\u4F20\u524D\u4F1A\u5148\u6821\u9A8C\u6587\u4EF6\uFF1B\u82E5\u5B58\u5728\u540C\u540D Skill\uFF0C\u786E\u8BA4\u540E\u5C06\u8986\u76D6\u539F\u5185\u5BB9\u3002</p>
       <!-- \u4E0A\u4F20\u533A\u57DF -->
-      <div id="claw-skill-dropzone" style="
-        border: 2px dashed #ccc;
-        border-radius: 12px;
-        padding: 32px 20px;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.2s;
-        background: #fafafa;
-      " onmouseenter="this.style.borderColor='#667eea';this.style.background='#f8f9ff'" onmouseleave="this.style.borderColor='#ccc';this.style.background='#fafafa'"
-      >
-        <p style="font-size: 32px; margin-bottom: 8px;">\u{1F4E4}</p>
-        <p style="font-size: 14px; color: #333; font-weight: 500; margin-bottom: 4px;">\u70B9\u51FB\u6216\u62D6\u62FD\u4E0A\u4F20 Skill \u6587\u4EF6</p>
-        <p style="font-size: 12px; color: #888;">\u652F\u6301 .md / .txt\uFF08\u5185\u5BB9\u987B\u7B26\u5408 SKILL.md \u683C\u5F0F\uFF09\uFF0C\u5355\u4E2A\u6587\u4EF6\u4E0D\u8D85\u8FC7 10MB</p>
+      <div id="claw-skill-dropzone" class="claw-skill-dropzone" aria-label="\u9009\u62E9\u6216\u62D6\u653E Skill \u6587\u4EF6">
+        <span class="claw-skill-upload-icon">${getSkillIcon("upload", 25)}</span>
+        <p class="claw-skill-dropzone-title">\u70B9\u51FB\u9009\u62E9\u6216\u62D6\u62FD\u6587\u4EF6\u5230\u8FD9\u91CC</p>
+        <p class="claw-skill-dropzone-copy">\u5185\u5BB9\u9700\u7B26\u5408 SKILL.md \u683C\u5F0F\uFF0C\u5355\u4E2A\u6587\u4EF6\u4E0D\u8D85\u8FC7 10MB\u3002</p>
+        <div class="claw-skill-format-row" aria-hidden="true">
+          <span class="claw-skill-format-chip">.MD</span>
+          <span class="claw-skill-format-chip">.TXT</span>
+        </div>
         <input type="file" id="claw-skill-file-input" accept=".md,.txt" style="display: none;" />
       </div>
 
       <!-- \u72B6\u6001\u63D0\u793A -->
-      <div id="claw-skill-upload-status" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 13px;"></div>
+      <div id="claw-skill-upload-status" class="claw-skill-notice claw-skill-upload-status" role="status" aria-live="polite" style="display: none;"></div>
 
       <!-- \u4E0A\u4F20\u987B\u77E5 -->
-      <div style="padding: 12px; background: #f8f9fa; border-radius: 8px;">
-        <p style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 13px;">\u{1F4CB} \u4E0A\u4F20\u987B\u77E5</p>
-        <ul style="font-size: 12px; color: #666; padding-left: 18px; line-height: 1.8; margin: 0;">
-          <li>SKILL.md \u5FC5\u987B\u4EE5 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">---</code> \u5F00\u5934</li>
-          <li>Skill \u540D\u79F0\u4F18\u5148\u53D6 frontmatter \u4E2D\u7684 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">name</code>\uFF1B\u672A\u586B\u5199\u65F6\u53D6\u6587\u4EF6\u540D\uFF08\u53BB\u6389 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">.md</code> / <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">.txt</code>\uFF09</li>
-          <li>Skill \u540D\u79F0\u4EC5\u652F\u6301\u5B57\u6BCD\u3001\u6570\u5B57\u3001\u4E0B\u5212\u7EBF\u3001\u77ED\u6A2A\u7EBF\uFF08\u6B63\u5219 <code style="background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px;">^[w-]+$</code>\uFF09</li>
+      <div class="claw-skill-guide">
+        <p class="claw-skill-guide-title"><span>${getSkillIcon("clipboard", 16)}</span>\u4E0A\u4F20\u987B\u77E5</p>
+        <ul class="claw-skill-guide-list">
+          <li>SKILL.md \u5FC5\u987B\u4EE5 <code>---</code> \u5F00\u5934</li>
+          <li>Skill \u540D\u79F0\u4F18\u5148\u53D6 frontmatter \u4E2D\u7684 <code>name</code>\uFF1B\u672A\u586B\u5199\u65F6\u53D6\u6587\u4EF6\u540D\uFF08\u53BB\u6389 <code>.md</code> / <code>.txt</code>\uFF09</li>
+          <li>Skill \u540D\u79F0\u4EC5\u652F\u6301\u5B57\u6BCD\u3001\u6570\u5B57\u3001\u4E0B\u5212\u7EBF\u3001\u77ED\u6A2A\u7EBF\uFF08\u6B63\u5219 <code>^[\\w-]+$</code>\uFF09</li>
           <li>\u5982\u5B58\u5728\u540C\u540D Skill\uFF0C\u5C06\u76F4\u63A5\u8986\u76D6</li>
           <li>\u524D\u7AEF\u6821\u9A8C\u4EC5\u4F9B\u53C2\u8003\uFF0C\u6700\u7EC8\u683C\u5F0F\u4EE5\u670D\u52A1\u7AEF\u89E3\u6790\u4E3A\u51C6</li>
           <li>\u4E0A\u4F20\u6210\u529F\u540E\u53EF\u5728\u300C\u6211\u7684 Skill\u300D\u4E2D\u67E5\u770B</li>
@@ -24994,17 +26343,17 @@ ${block}` : block;
     if (!dropzone || !fileInput) return;
     function showStatus(msg, type = "info") {
       if (!statusEl) return;
-      statusEl.style.display = "block";
+      statusEl.style.display = "flex";
       const colors = {
-        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
-        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
-        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+        info: { bg: "#f3edf7", border: "#d0bcff", text: "#4f378b" },
+        success: { bg: "#e8f5e9", border: "#a5d6a7", text: "#1b5e20" },
+        error: { bg: "#f9dedc", border: "#f2b8b5", text: "#8c1d18" }
       };
       const c = colors[type] || colors.info;
       statusEl.style.background = c.bg;
       statusEl.style.border = `1px solid ${c.border}`;
       statusEl.style.color = c.text;
-      statusEl.textContent = msg;
+      setSkillNoticeContent(statusEl, msg, type);
     }
     function formatError(err) {
       var _a, _b, _c, _d;
@@ -25065,9 +26414,9 @@ ${block}` : block;
           tags,
           allowedTools
         });
-        showStatus(`\u2705 Skill\u300C${skillResult.name || finalName || skillName}\u300D\u4E0A\u4F20\u6210\u529F`, "success");
+        showStatus(`Skill\u300C${skillResult.name || finalName || skillName}\u300D\u4E0A\u4F20\u6210\u529F`, "success");
       } catch (err) {
-        showStatus(`\u274C \u4E0A\u4F20\u5931\u8D25: ${formatError(err)}`, "error");
+        showStatus(`\u4E0A\u4F20\u5931\u8D25\uFF1A${formatError(err)}`, "error");
       }
     }
     async function doUpload(file) {
@@ -25075,7 +26424,7 @@ ${block}` : block;
       try {
         await validateFile(file);
       } catch (err) {
-        showStatus(`\u274C ${err.message}`, "error");
+        showStatus(err.message, "error");
         return;
       }
       const ext = file.name.split(".").pop().toLowerCase();
@@ -25089,43 +26438,25 @@ ${block}` : block;
         } catch {
         }
       } else {
-        showStatus("\u274C \u5F53\u524D\u7248\u672C\u4EC5\u652F\u6301 .md / .txt \u683C\u5F0F Skill", "error");
+        showStatus("\u5F53\u524D\u7248\u672C\u4EC5\u652F\u6301 .md / .txt \u683C\u5F0F Skill", "error");
         return;
       }
       if (!skillText) {
-        showStatus("\u274C \u65E0\u6CD5\u8BFB\u53D6 Skill \u5185\u5BB9", "error");
+        showStatus("\u65E0\u6CD5\u8BFB\u53D6 Skill \u5185\u5BB9", "error");
         return;
       }
       const safeName = skillName.replace(/\u0026/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
       const dialogId = "claw-skill-confirm-" + Date.now();
       const dialogHtml = `
-      <div id="${dialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
-        <div style="text-align: center;">
-          <p style="font-size: 24px; margin: 0; line-height: 1;">\u26A0\uFE0F</p>
-          <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u4E0A\u4F20 Skill</p>
-          <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u5982\u5B58\u5728\u540C\u540D Skill\u300C<strong style="color: #111;">${safeName}</strong>\u300D\uFF0C\u5C06\u76F4\u63A5\u8986\u76D6\u3002</p>
+      <div id="${dialogId}" class="claw-skill-dialog">
+        <div>
+          <span class="claw-skill-dialog-icon">${getSkillIcon("upload", 23)}</span>
+          <p class="claw-skill-dialog-title">\u786E\u8BA4\u4E0A\u4F20 Skill</p>
+          <p class="claw-skill-dialog-copy">\u5982\u5B58\u5728\u540C\u540D Skill\u300C<strong>${safeName}</strong>\u300D\uFF0C\u5C06\u76F4\u63A5\u8986\u76D6\u3002</p>
         </div>
-        <div style="display: flex; gap: 10px; justify-content: center;">
-          <button id="claw-skill-confirm-cancel" style="
-            padding: 8px 20px;
-            background: #f3f4f6;
-            color: #374151;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 13px;
-            cursor: pointer;
-            font-weight: 500;
-          ">\u53D6\u6D88</button>
-          <button id="claw-skill-confirm-ok" style="
-            padding: 8px 20px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 13px;
-            cursor: pointer;
-            font-weight: 500;
-          ">\u786E\u8BA4\u4E0A\u4F20</button>
+        <div class="claw-skill-dialog-actions">
+          <button type="button" id="claw-skill-confirm-cancel" class="claw-skill-dialog-button">\u53D6\u6D88</button>
+          <button type="button" id="claw-skill-confirm-ok" class="claw-skill-dialog-button is-primary">\u786E\u8BA4\u4E0A\u4F20</button>
         </div>
       </div>
     `;
@@ -25161,19 +26492,19 @@ ${block}` : block;
     });
     dropzone.addEventListener("dragover", (e) => {
       e.preventDefault();
-      dropzone.style.borderColor = "#667eea";
-      dropzone.style.background = "#f8f9ff";
+      dropzone.style.borderColor = "#6750a4";
+      dropzone.style.background = "#f3edf7";
     });
     dropzone.addEventListener("dragleave", (e) => {
       e.preventDefault();
-      dropzone.style.borderColor = "#ccc";
-      dropzone.style.background = "#fafafa";
+      dropzone.style.borderColor = "#a99db3";
+      dropzone.style.background = "";
     });
     dropzone.addEventListener("drop", (e) => {
       var _a, _b;
       e.preventDefault();
-      dropzone.style.borderColor = "#ccc";
-      dropzone.style.background = "#fafafa";
+      dropzone.style.borderColor = "#a99db3";
+      dropzone.style.background = "";
       const file = (_b = (_a = e.dataTransfer) == null ? void 0 : _a.files) == null ? void 0 : _b[0];
       if (file) doUpload(file);
     });
@@ -25198,20 +26529,16 @@ ${block}` : block;
     function showToast(msg, type = "info") {
       if (!toastEl) return;
       const colors = {
-        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
-        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
-        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+        info: { bg: "#f3edf7", border: "#d0bcff", text: "#4f378b" },
+        success: { bg: "#e8f5e9", border: "#a5d6a7", text: "#1b5e20" },
+        error: { bg: "#f9dedc", border: "#f2b8b5", text: "#8c1d18" }
       };
       const c = colors[type] || colors.info;
-      toastEl.style.display = "block";
-      toastEl.style.padding = "10px 12px";
-      toastEl.style.borderRadius = "6px";
-      toastEl.style.fontSize = "13px";
-      toastEl.style.marginBottom = "8px";
+      toastEl.style.display = "flex";
       toastEl.style.background = c.bg;
       toastEl.style.border = `1px solid ${c.border}`;
       toastEl.style.color = c.text;
-      toastEl.textContent = msg;
+      setSkillNoticeContent(toastEl, msg, type);
       setTimeout(() => {
         if (toastEl) {
           toastEl.style.display = "none";
@@ -25227,11 +26554,14 @@ ${block}` : block;
     }
     function renderSkills(skills) {
       if (skills.length === 0) {
+        const hasSearchKeyword = Boolean(searchInput == null ? void 0 : searchInput.value.trim());
+        const emptyTitle = hasSearchKeyword ? "\u6CA1\u6709\u5339\u914D\u7ED3\u679C" : "\u6682\u65E0 Skill";
+        const emptyCopy = hasSearchKeyword ? "\u8BD5\u8BD5\u66F4\u77ED\u7684\u5173\u952E\u8BCD\uFF0C\u6216\u68C0\u67E5\u540D\u79F0\u4E0E\u63CF\u8FF0\u3002" : "\u4E0A\u4F20\u4E00\u4E2A Skill \u6587\u4EF6\u540E\uFF0C\u5B83\u4F1A\u663E\u793A\u5728\u8FD9\u91CC\u3002";
         contentEl.innerHTML = `
-        <div style="text-align: center; padding: 40px 20px; color: #999;">
-          <p style="font-size: 36px; margin-bottom: 12px;">\u{1F4C2}</p>
-          <p style="font-size: 14px;">\u6682\u65E0 Skill</p>
-          <p style="font-size: 12px; margin-top: 6px;">\u8BF7\u5148\u4E0A\u4F20 Skill \u6587\u4EF6</p>
+        <div class="claw-skill-state">
+          <span class="claw-skill-state-icon">${getSkillIcon(hasSearchKeyword ? "search" : "folder", 23)}</span>
+          <p class="claw-skill-state-title">${emptyTitle}</p>
+          <p class="claw-skill-state-copy">${emptyCopy}</p>
         </div>
       `;
         return;
@@ -25242,47 +26572,31 @@ ${block}` : block;
         const author = skill.author || "";
         const metaParts = [version, author, formatDate2(skill.modifiedAt)].filter(Boolean);
         const meta = metaParts.join(" \xB7 ") || "-";
-        const deleteBtnHtml = options.showDelete ? `<button class="claw-skill-btn-delete" data-name="${skill.name}" style="
-            padding: 4px 10px;
-            background: #fef2f2;
-            color: #dc2626;
-            border: 1px solid #fecaca;
-            border-radius: 5px;
-            font-size: 11px;
-            cursor: pointer;
-            flex-shrink: 0;
-          ">\u5220\u9664</button>` : "";
+        const deleteBtnHtml = options.showDelete ? `<button type="button" class="claw-skill-btn-delete" data-name="${skill.name}" aria-label="\u5220\u9664 ${skill.name}">
+            ${getSkillIcon("trash", 13)}
+            \u5220\u9664
+          </button>` : "";
         return `
-        <div class="claw-skill-item" data-index="${index}" style="
-          padding: 12px;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          cursor: pointer;
-          transition: all 0.2s;
-        " onmouseenter="this.style.background='#f0f7ff';this.style.borderColor='#c7d8f5'" onmouseleave="this.style.background='#f9fafb';this.style.borderColor='#e5e7eb'"
-        >
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-            <div style="flex: 1; min-width: 0;">
-              <p style="font-weight: 600; font-size: 13px; color: #111827; margin-bottom: 2px; word-break: break-all;">${skill.name}</p>
-              <p style="font-size: 12px; color: #6b7280; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px;">${desc}</p>
-              <p style="font-size: 11px; color: #9ca3af;">${meta}</p>
+        <div class="claw-skill-item" data-index="${index}">
+          <div class="claw-skill-item-head">
+            <div class="claw-skill-item-copy">
+              <p class="claw-skill-item-title">${skill.name}</p>
+              <p class="claw-skill-item-desc">${desc}</p>
+              <p class="claw-skill-item-meta">${meta}</p>
             </div>
-            <div style="display: flex; align-items: flex-start; gap: 6px; flex-shrink: 0;">
+            <div class="claw-skill-item-actions">
               ${deleteBtnHtml}
-              <svg class="claw-skill-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 4px; transition: transform 0.2s;">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
+              ${getSkillIcon("chevronDown", 17, "claw-skill-toggle-icon")}
             </div>
           </div>
-          <div class="claw-skill-detail" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+          <div class="claw-skill-detail" style="display: none;">
             ${renderDetail(skill)}
           </div>
         </div>
       `;
       }).join("");
       contentEl.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div class="claw-skill-items">
         ${itemsHtml}
       </div>
     `;
@@ -25309,33 +26623,15 @@ ${block}` : block;
             if (!name) return;
             const safeDelName = name.replace(/\u0026/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
             const delDialogHtml = `
-            <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
-              <div style="text-align: center;">
-                <p style="font-size: 24px; margin: 0; line-height: 1;">\u{1F5D1}\uFE0F</p>
-                <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u5220\u9664 Skill</p>
-                <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u786E\u5B9A\u5220\u9664 Skill\u300C<strong style="color: #111;">${safeDelName}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
+            <div class="claw-skill-dialog">
+              <div>
+                <span class="claw-skill-dialog-icon is-danger">${getSkillIcon("trash", 22)}</span>
+                <p class="claw-skill-dialog-title">\u786E\u8BA4\u5220\u9664 Skill</p>
+                <p class="claw-skill-dialog-copy">\u786E\u5B9A\u5220\u9664 Skill\u300C<strong>${safeDelName}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
               </div>
-              <div style="display: flex; gap: 10px; justify-content: center;">
-                <button id="claw-skill-del-cancel" style="
-                  padding: 8px 20px;
-                  background: #f3f4f6;
-                  color: #374151;
-                  border: 1px solid #d1d5db;
-                  border-radius: 8px;
-                  font-size: 13px;
-                  cursor: pointer;
-                  font-weight: 500;
-                ">\u53D6\u6D88</button>
-                <button id="claw-skill-del-ok" style="
-                  padding: 8px 20px;
-                  background: #ef5350;
-                  color: white;
-                  border: none;
-                  border-radius: 8px;
-                  font-size: 13px;
-                  cursor: pointer;
-                  font-weight: 500;
-                ">\u786E\u8BA4\u5220\u9664</button>
+              <div class="claw-skill-dialog-actions">
+                <button type="button" id="claw-skill-del-cancel" class="claw-skill-dialog-button">\u53D6\u6D88</button>
+                <button type="button" id="claw-skill-del-ok" class="claw-skill-dialog-button is-danger">\u786E\u8BA4\u5220\u9664</button>
               </div>
             </div>
           `;
@@ -25359,11 +26655,11 @@ ${block}` : block;
                   const config = await getEchoMemConfig();
                   const client2 = createClient(config);
                   await client2.deleteSkill(name);
-                  showToast(`\u2705 Skill\u300C${name || "\u672A\u547D\u540D"}\u300D\u5DF2\u5220\u9664`, "success");
+                  showToast(`Skill\u300C${name || "\u672A\u547D\u540D"}\u300D\u5DF2\u5220\u9664`, "success");
                   skillCache = null;
                   await loadSkills();
                 } catch (err) {
-                  showToast(`\u274C \u5220\u9664\u5931\u8D25: ${err.message}`, "error");
+                  showToast(`\u5220\u9664\u5931\u8D25\uFF1A${err.message}`, "error");
                   btn.textContent = "\u5220\u9664";
                   btn.disabled = false;
                 }
@@ -25380,7 +26676,7 @@ ${block}` : block;
           const skill = allSkills.find((s) => s.name === name);
           if (!skill) return;
           const text = skill.fullContent || skill.rawContent || "\u65E0\u5185\u5BB9";
-          const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+          const previewHtml = `<div class="claw-skill-preview-overlay">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
           openCenterOverlay(skill.name, previewHtml, {
             showBack: true,
             onBack: () => closeOverlayPanel()
@@ -25389,25 +26685,18 @@ ${block}` : block;
       });
     }
     function renderDetail(skill) {
-      const descHtml = skill.description ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">${skill.description.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : `<div style="font-size: 12px; color: #9ca3af; line-height: 1.6; margin-bottom: 12px; padding: 8px; background: #f3f4f6; border-radius: 6px;">\u6682\u65E0\u63CF\u8FF0</div>`;
+      const descHtml = skill.description ? `<div class="claw-skill-detail-description">${skill.description.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : `<div class="claw-skill-detail-empty">\u6682\u65E0\u63CF\u8FF0</div>`;
       const previewText = skill.rawContent || skill.fullContent || "";
-      const bodyPreview = previewText ? `<div style="font-size: 12px; color: #4b5563; line-height: 1.6; max-height: 200px; overflow-y: auto; padding: 8px; background: #f3f4f6; border-radius: 6px; white-space: pre-wrap; word-break: break-word;">${previewText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : `<div style="font-size: 12px; color: #9ca3af; padding: 8px; background: #f3f4f6; border-radius: 6px;">\u6682\u65E0\u6B63\u6587</div>`;
+      const bodyPreview = previewText ? `<div class="claw-skill-code-preview">${previewText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : `<div class="claw-skill-detail-empty">\u6682\u65E0\u6B63\u6587</div>`;
       return `
       ${descHtml}
       ${bodyPreview}
-      <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
-        <button class="claw-skill-btn-view-full" data-name="${skill.name}" style="
-          padding: 5px 10px;
-          background: #eff6ff;
-          color: #2563eb;
-          border: 1px solid #bfdbfe;
-          border-radius: 5px;
-          font-size: 12px;
-          cursor: pointer;
-        ">\u67E5\u770B\u5B8C\u6574\u5185\u5BB9</button>
-      </div>
-      <div style="margin-top: 8px;">
-        <span style="font-size: 11px; color: #9ca3af; font-family: monospace; word-break: break-all;">${skill.uri}</span>
+      <div class="claw-skill-detail-footer">
+        <span class="claw-skill-uri">${skill.uri}</span>
+        <button type="button" class="claw-skill-btn-view-full" data-name="${skill.name}">
+          ${getSkillIcon("file", 13)}
+          \u67E5\u770B\u5B8C\u6574\u5185\u5BB9
+        </button>
       </div>
     `;
     }
@@ -25431,7 +26720,7 @@ ${block}` : block;
         renderSkills(filteredSkills);
         return;
       }
-      loadingEl.style.display = "block";
+      loadingEl.style.display = "flex";
       contentEl.style.display = "none";
       try {
         const config = await getEchoMemConfig();
@@ -25504,9 +26793,10 @@ ${block}` : block;
         loadingEl.style.display = "none";
         contentEl.style.display = "block";
         contentEl.innerHTML = `
-        <div style="text-align: center; padding: 40px 20px; color: #b91c1c; background: #fef2f2; border-radius: 8px;">
-          <p style="font-size: 14px; margin-bottom: 6px;">\u274C \u52A0\u8F7D\u5931\u8D25</p>
-          <p style="font-size: 12px;">${err.message}</p>
+        <div class="claw-skill-state is-error" role="alert">
+          <span class="claw-skill-state-icon">${getSkillIcon("alert", 22)}</span>
+          <p class="claw-skill-state-title">\u52A0\u8F7D\u5931\u8D25</p>
+          <p class="claw-skill-state-copy">${err.message}</p>
         </div>
       `;
       }
@@ -25607,84 +26897,99 @@ ${block}` : block;
       };
     }).filter(Boolean);
   }
-  var CARD_STYLE = `width: 100%; padding: 16px 18px; margin-bottom: 10px; border-radius: 20px; border: 1px solid rgba(58, 47, 40, 0.06); background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(12px); cursor: pointer; text-align: left; display: flex; align-items: center; gap: 14px; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden;`;
+  var CARD_STYLE = `width: 100%; min-height: 76px; padding: 14px 16px; margin: 0; border-radius: 12px; border: 1px solid rgba(121, 116, 126, 0.24); background: #FFFFFF; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 14px; transition: background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease; position: relative; overflow: hidden;`;
   function buildHoverEvents(style) {
-    const enter = `this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 30px ${style.shadow}, 0 2px 8px rgba(0,0,0,0.04)';this.style.borderColor='rgba(58, 47, 40, 0.1)';var d=this.querySelector('.droplet');if(d)d.style.transform='scale(1.08) rotate(-5deg)';var a=this.querySelector('.arrow');if(a){a.style.color='${style.accent}';a.style.transform='translateX(4px)';}`;
-    const leave = `this.style.transform='none';this.style.boxShadow='none';this.style.borderColor='rgba(58, 47, 40, 0.06)';var d=this.querySelector('.droplet');if(d)d.style.transform='none';var a=this.querySelector('.arrow');if(a){a.style.color='#c4b8a8';a.style.transform='none';}`;
+    const enter = `this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 18px ${style.shadow}';this.style.borderColor='rgba(103,80,164,0.42)';this.style.background='#FEF7FF';var d=this.querySelector('.droplet');if(d)d.style.transform='scale(1.04)';var a=this.querySelector('.arrow');if(a){a.style.color='${style.accent}';a.style.transform='translateX(2px)';}`;
+    const leave = `this.style.transform='none';this.style.boxShadow='none';this.style.borderColor='rgba(121,116,126,0.24)';this.style.background='${style.cardBackground || "#FFFFFF"}';var d=this.querySelector('.droplet');if(d)d.style.transform='none';var a=this.querySelector('.arrow');if(a){a.style.color='#79747E';a.style.transform='none';}`;
     return `onmouseenter="${enter}" onmouseleave="${leave}"`;
   }
   function buildCardBody(text, description, style) {
     return `
-    <span class="droplet" style="
-      width: 42px; height: 42px;
-      border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    <span class="droplet claw-echomem-menu-icon" style="
+      width: 44px; height: 44px;
+      border-radius: 12px;
       flex-shrink: 0; display: flex; align-items: center; justify-content: center;
       background: ${style.gradient};
-      transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-      color: #fff;
+      transition: transform 200ms ease;
+      color: ${style.iconColor || "#6750A4"};
     ">${style.icon}</span>
-    <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1;">
-      <span style="font-size: 14px; font-weight: 600; color: #3a2f28; font-family: Roboto, 'Noto Sans SC', sans-serif; letter-spacing: -0.01em;">${text}</span>
-      <span style="font-size: 12px; color: #9a8b7a; font-family: Roboto, 'Noto Sans SC', sans-serif; line-height: 1.5;">${description}</span>
+    <span class="claw-echomem-menu-copy" style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1;">
+      <span class="claw-echomem-menu-title" style="font-size: 14px; font-weight: 500; color: #21005D; font-family: Roboto, 'Noto Sans SC', sans-serif; letter-spacing: -0.01em;">${text}</span>
+      <span class="claw-echomem-menu-description" style="font-size: 12px; color: #49454F; font-family: Roboto, 'Noto Sans SC', sans-serif; line-height: 1.5;">${description}</span>
     </span>
-    <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; color: #c4b8a8; transition: all 0.4s ease;">
+    <svg class="arrow claw-echomem-menu-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; color: #79747E; transition: color 200ms ease, transform 200ms ease;">
       <polyline points="9 18 15 12 9 6"></polyline>
     </svg>
   `;
   }
   function getEchoMemHomeContent() {
+    const navigationStyle = {
+      gradient: "linear-gradient(135deg, #EADDFF 0%, #FEF7FF 100%)",
+      shadow: "rgba(33, 0, 93, 0.12)",
+      accent: "#6750A4",
+      iconColor: "#6750A4",
+      cardBackground: "#FFFFFF"
+    };
     const panelStyles = {
       resources: {
-        gradient: "linear-gradient(135deg, #8ab0c8 0%, #6a90a8 100%)",
-        shadow: "rgba(122, 158, 181, 0.15)",
-        accent: "#5a7e95",
+        ...navigationStyle,
         icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`
       },
       association: {
-        gradient: "linear-gradient(135deg, #8ac89a 0%, #6aa87a 100%)",
-        shadow: "rgba(122, 176, 138, 0.15)",
-        accent: "#5a906a",
+        ...navigationStyle,
         icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`
       },
       feedback: {
-        gradient: "linear-gradient(135deg, #b0a0c8 0%, #9080a8 100%)",
-        shadow: "rgba(160, 144, 184, 0.15)",
-        accent: "#807098",
+        ...navigationStyle,
         icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`
       },
       skillStore: {
-        gradient: "linear-gradient(135deg, #d8b87a 0%, #b8985a 100%)",
-        shadow: "rgba(200, 168, 106, 0.15)",
-        accent: "#a8884a",
+        ...navigationStyle,
         icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`
       },
       performance: {
-        gradient: "linear-gradient(135deg, #d89888 0%, #b87868 100%)",
-        shadow: "rgba(200, 136, 120, 0.15)",
-        accent: "#a86858",
+        ...navigationStyle,
         icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`
       }
     };
     const configStyle = {
-      gradient: "linear-gradient(135deg, #c8a8d0 0%, #a888b0 100%)",
-      shadow: "rgba(184, 152, 192, 0.15)",
-      accent: "#9878a0",
+      gradient: "linear-gradient(135deg, #6750A4 0%, #21005D 100%)",
+      shadow: "rgba(33, 0, 93, 0.14)",
+      accent: "#6750A4",
+      iconColor: "#FFFFFF",
+      cardBackground: "#FEF7FF",
       icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`
     };
     const cards = getEchoMemMenuItems().map((item) => {
       const style = panelStyles[item.panelId] || panelStyles.resources;
       return `
-      <button class="claw-echomem-menu-item" data-panel-id="${item.panelId}" data-panel="${item.panelId}" style="${CARD_STYLE}" ${buildHoverEvents(style)}>
+      <button type="button" class="claw-echomem-menu-item" data-panel-id="${item.panelId}" data-panel="${item.panelId}" style="${CARD_STYLE} background: ${style.cardBackground};" ${buildHoverEvents(style)}>
         ${buildCardBody(item.text, item.description, style)}
       </button>
     `;
     }).join("");
     const configCard = `
-    <div class="claw-config-section" data-config="echomem" style="${CARD_STYLE} margin-top: 8px;" ${buildHoverEvents(configStyle)}>
+    <button type="button" class="claw-config-section" data-config="echomem" style="${CARD_STYLE} background: ${configStyle.cardBackground};" ${buildHoverEvents(configStyle)}>
       ${buildCardBody("\u540E\u7AEF\u8FDE\u63A5\u914D\u7F6E", "\u914D\u7F6E\u540E\u7AEF\u5730\u5740\u3001API Key \u548C\u8BA4\u8BC1\u4FE1\u606F", configStyle)}
+    </button>
+  `;
+    return `
+    <div class="claw-echomem-home">
+      <section class="claw-echomem-home-intro" aria-label="EchoMem \u5DE5\u4F5C\u53F0">
+        <span class="claw-echomem-home-eyebrow">ECHO MEMORY</span>
+        <p>\u8BA9\u8BB0\u5FC6\u3001\u8D44\u6E90\u4E0E\u80FD\u529B\u5728\u5F53\u524D\u5BF9\u8BDD\u4E2D\u968F\u65F6\u53EF\u7528\u3002</p>
+      </section>
+      <nav class="claw-echomem-home-nav" aria-label="EchoMem \u529F\u80FD\u5BFC\u822A">
+        ${cards}
+      </nav>
+      <div class="claw-echomem-home-divider" aria-hidden="true">
+        <span>\u8FDE\u63A5\u8BBE\u7F6E</span>
+      </div>
+      <div class="claw-echomem-home-config">
+        ${configCard}
+      </div>
     </div>
   `;
-    return `<div style="display: flex; flex-direction: column;">${cards}${configCard}</div>`;
   }
 
   // src/panels/resource/index.js
@@ -25692,52 +26997,93 @@ ${block}` : block;
     const sections = [
       {
         id: "import",
-        title: "\u2B06\uFE0F \u8D44\u6E90\u5BFC\u5165",
+        title: "\u8D44\u6E90\u5BFC\u5165",
         desc: "\u4E0A\u4F20\u672C\u5730\u6587\u4EF6\u6216\u901A\u8FC7 URL \u6DFB\u52A0\u8D44\u6E90",
-        color: "#2563eb"
+        color: "#6750A4",
+        surface: "#F4EEFF",
+        icon: '<path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />'
       },
       {
         id: "manage",
-        title: "\u{1F4CB} \u67E5\u770B\u8D44\u6E90",
+        title: "\u67E5\u770B\u8D44\u6E90",
         desc: "\u6D4F\u89C8\u3001\u9884\u89C8\u548C\u5220\u9664\u5DF2\u5BFC\u5165\u7684\u8D44\u6E90",
-        color: "#059669"
+        color: "#625B71",
+        surface: "#F3EDF7",
+        icon: '<path d="M4 6.5h16M4 12h16M4 17.5h10M7 4v5M7 9v11" />'
       }
     ];
     const cards = sections.map((s) => `
     <div class="claw-resource-section" data-resource-section="${s.id}" style="
-      padding: 16px;
-      border: 1px solid #e0e0e0;
-      border-radius: 10px;
+      padding: 16px 14px;
+      border: 1px solid #E7E0EC;
+      border-radius: 16px;
+      background: #FFFFFF;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
       display: flex;
       align-items: center;
       gap: 12px;
-    " onmouseenter="this.style.borderColor='${s.color}';this.style.background='#fafafa';this.style.transform='translateX(4px)'"
-       onmouseleave="this.style.borderColor='#e0e0e0';this.style.background='none';this.style.transform='none'"
+    " onmouseenter="this.style.borderColor='${s.color}';this.style.background='${s.surface}';this.style.transform='translateY(-1px)'"
+       onmouseleave="this.style.borderColor='#E7E0EC';this.style.background='#FFFFFF';this.style.transform='none'"
     >
-      <div style="
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        background: ${s.color}15;
+      <div class="claw-resource-section-icon" style="
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background: ${s.surface};
+        color: ${s.color};
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 20px;
         flex-shrink: 0;
-      ">${s.title.split(" ")[0]}</div>
-      <div style="flex: 1;">
-        <p style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 2px;">${s.title.split(" ").slice(1).join(" ")}</p>
-        <p style="font-size: 12px; color: #888;">${s.desc}</p>
+      ">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${s.icon}</svg>
       </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <div style="flex: 1; min-width: 0;">
+        <p style="font-weight: 600; color: #1D1B20; font-size: 14px; line-height: 1.45; margin: 0 0 3px;">${s.title}</p>
+        <p style="font-size: 12px; line-height: 1.55; color: #625F66; margin: 0;">${s.desc}</p>
+      </div>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#79747E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polyline points="9 18 15 12 9 6"></polyline>
       </svg>
     </div>
   `).join("");
     return `
-    <div style="display: flex; flex-direction: column; gap: 10px;">
+    <style>
+      .claw-resource-home {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        color: #1D1B20;
+        font-family: Roboto, "Noto Sans SC", sans-serif;
+      }
+      .claw-resource-home .claw-resource-section {
+        box-sizing: border-box;
+        box-shadow: 0 1px 2px rgba(29, 27, 32, 0.05);
+      }
+      .claw-resource-home .claw-resource-section:hover {
+        box-shadow: 0 6px 18px rgba(103, 80, 164, 0.12);
+      }
+      .claw-resource-home .claw-resource-section:focus-visible {
+        outline: 3px solid rgba(103, 80, 164, 0.22);
+        outline-offset: 2px;
+      }
+      @media (max-width: 360px) {
+        .claw-resource-home .claw-resource-section {
+          padding: 14px 12px !important;
+          gap: 10px !important;
+        }
+        .claw-resource-home .claw-resource-section-icon {
+          width: 38px !important;
+          height: 38px !important;
+          border-radius: 12px !important;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .claw-resource-home .claw-resource-section { transition: none !important; }
+      }
+    </style>
+    <div class="claw-resource-home">
       ${cards}
     </div>
   `;
@@ -25772,17 +27118,215 @@ ${block}` : block;
   }
   function getResourceManageContent() {
     return `
-    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+    <style>
+      #claw-resource-manage-root {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        color: #1D1B20;
+        font-family: Roboto, "Noto Sans SC", sans-serif;
+      }
+      #claw-resource-manage-root, #claw-resource-manage-root * { box-sizing: border-box; }
+      #claw-resource-manage-root #claw-resource-toast {
+        padding: 11px 13px !important;
+        border-radius: 12px !important;
+        font-size: 12px !important;
+        line-height: 1.5;
+      }
+      #claw-resource-manage-root .resource-manage-loading,
+      #claw-resource-manage-root .resource-manage-empty,
+      #claw-resource-manage-root .resource-manage-error {
+        padding: 28px 16px !important;
+        border: 1px dashed #D8D0DC;
+        border-radius: 16px;
+        background: #FFFFFF;
+        color: #79747E !important;
+        text-align: center;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      #claw-resource-manage-root .resource-manage-spinner {
+        display: inline-block;
+        width: 22px;
+        height: 22px;
+        margin-bottom: 8px;
+        border: 2px solid #E7E0EC;
+        border-top-color: #6750A4;
+        border-radius: 50%;
+        animation: resource-manage-spin 0.8s linear infinite;
+      }
+      @keyframes resource-manage-spin { to { transform: rotate(360deg); } }
+      #claw-resource-manage-root .resource-manage-state-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 46px;
+        height: 46px;
+        margin-bottom: 9px;
+        border-radius: 16px;
+        background: #F3EDF7;
+        color: #6750A4;
+      }
+      #claw-resource-manage-root .resource-manage-error {
+        border-style: solid;
+        border-color: #F2B8B5;
+        background: #FFF8F7 !important;
+        color: #B3261E !important;
+      }
+      #claw-resource-manage-root .resource-manage-error .resource-manage-state-icon {
+        background: #F9DEDC;
+        color: #B3261E;
+      }
+      #claw-resource-manage-root #claw-resource-toolbar {
+        align-items: center;
+        margin: 0 !important;
+      }
+      #claw-resource-manage-root #claw-resource-btn-refresh {
+        min-height: 36px;
+        padding: 7px 13px !important;
+        border: 1px solid #E0D4F1 !important;
+        border-radius: 999px !important;
+        background: #F3EDF7 !important;
+        color: #6750A4 !important;
+        font-family: inherit;
+        font-size: 12px !important;
+        font-weight: 600;
+        line-height: 1.3;
+        transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+      }
+      #claw-resource-manage-root #claw-resource-btn-refresh:hover {
+        background: #EADDFF !important;
+        box-shadow: 0 3px 10px rgba(103, 80, 164, 0.14);
+      }
+      #claw-resource-manage-root #claw-resource-btn-refresh:active { transform: scale(0.98); }
+      #claw-resource-manage-root button:focus-visible {
+        outline: 3px solid rgba(103, 80, 164, 0.22);
+        outline-offset: 2px;
+      }
+      #claw-resource-manage-root .resource-manage-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 9px;
+        padding: 9px 11px;
+        border-radius: 12px;
+        background: #F3EDF7;
+        color: #625B71;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+      #claw-resource-manage-root .resource-manage-path {
+        display: inline-block;
+        min-width: 0;
+        max-width: 190px;
+        overflow: hidden;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: bottom;
+      }
+      #claw-resource-manage-root .resource-manage-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      #claw-resource-manage-root .claw-resource-item {
+        padding: 13px !important;
+        border: 1px solid #E7E0EC !important;
+        border-radius: 16px !important;
+        background: #FFFFFF !important;
+        box-shadow: 0 1px 2px rgba(29, 27, 32, 0.04);
+        transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+      }
+      #claw-resource-manage-root .claw-resource-item:hover {
+        border-color: #C9B8DE !important;
+        box-shadow: 0 5px 16px rgba(103, 80, 164, 0.09);
+        transform: translateY(-1px);
+      }
+      #claw-resource-manage-root .resource-item-name {
+        margin: 0 0 3px !important;
+        color: #1D1B20 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        line-height: 1.45;
+      }
+      #claw-resource-manage-root .resource-item-meta {
+        margin: 0 !important;
+        color: #79747E !important;
+        font-size: 10px !important;
+        line-height: 1.4;
+      }
+      #claw-resource-manage-root .resource-status-badge {
+        padding: 4px 9px !important;
+        border: 1px solid #B7DDB9;
+        border-radius: 999px !important;
+        background: #E8F5E9 !important;
+        color: #1B5E20 !important;
+        font-size: 10px !important;
+        font-weight: 600 !important;
+      }
+      #claw-resource-manage-root .resource-item-abstract {
+        margin: 0 !important;
+        color: #625F66 !important;
+        font-size: 12px !important;
+        line-height: 1.55 !important;
+      }
+      #claw-resource-manage-root .claw-resource-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px !important;
+        margin-top: 3px !important;
+      }
+      #claw-resource-manage-root .claw-resource-actions button {
+        min-height: 32px;
+        padding: 6px 11px !important;
+        border-radius: 999px !important;
+        font-family: inherit;
+        font-size: 11px !important;
+        font-weight: 600;
+        line-height: 1.25;
+      }
+      #claw-resource-manage-root .claw-resource-btn-view {
+        border: 1px solid #E0D4F1 !important;
+        background: #F3EDF7 !important;
+        color: #6750A4 !important;
+      }
+      #claw-resource-manage-root .claw-resource-btn-insert {
+        border: 1px solid #B7DDB9 !important;
+        background: #E8F5E9 !important;
+        color: #1B5E20 !important;
+      }
+      #claw-resource-manage-root .claw-resource-btn-delete {
+        border: 1px solid #F2B8B5 !important;
+        background: #F9DEDC !important;
+        color: #B3261E !important;
+      }
+      #claw-resource-manage-root button:disabled { cursor: wait !important; opacity: 0.58 !important; }
+      @media (max-width: 360px) {
+        #claw-resource-manage-root .resource-manage-summary { align-items: flex-start; flex-direction: column; }
+        #claw-resource-manage-root .resource-manage-path { max-width: 180px; }
+        #claw-resource-manage-root .claw-resource-item { padding: 11px !important; border-radius: 14px !important; }
+        #claw-resource-manage-root .claw-resource-actions .claw-resource-btn-delete { margin-left: 0 !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #claw-resource-manage-root .resource-manage-spinner { animation: none; }
+        #claw-resource-manage-root .claw-resource-item,
+        #claw-resource-manage-root #claw-resource-btn-refresh { transition: none; }
+      }
+    </style>
+    <div id="claw-resource-manage-root">
       <div id="claw-resource-toast" style="display: none;"></div>
-      <div id="claw-resource-list-loading" style="text-align: center; padding: 40px 20px; color: #888;">
-        <p style="font-size: 14px;">\u23F3 \u6B63\u5728\u52A0\u8F7D\u8D44\u6E90\u5217\u8868...</p>
+      <div id="claw-resource-list-loading" class="resource-manage-loading">
+        <span class="resource-manage-spinner" aria-hidden="true"></span>
+        <p style="margin: 0; font-size: 12px;">\u6B63\u5728\u52A0\u8F7D\u8D44\u6E90\u5217\u8868\u2026</p>
       </div>
       <div id="claw-resource-toolbar" style="display: none; justify-content: flex-end; margin-bottom: 8px;">
         <button id="claw-resource-btn-refresh" style="
           padding: 5px 12px;
           background: white;
-          color: #374151;
-          border: 1px solid #d1d5db;
+          color: #6750A4;
+          border: 1px solid #E0D4F1;
           border-radius: 6px;
           font-size: 12px;
           cursor: pointer;
@@ -25791,7 +27335,7 @@ ${block}` : block;
           gap: 4px;
         ">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-          \u5237\u65B0
+          \u5237\u65B0\u8D44\u6E90
         </button>
       </div>
       <div id="claw-resource-list-content" style="display: none;"></div>
@@ -25826,15 +27370,15 @@ ${block}` : block;
     function showToast(msg, type = "info") {
       if (!toastEl) return;
       const colors = {
-        info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
-        success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
-        error: { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c" }
+        info: { bg: "#F3EDF7", border: "#E0D4F1", text: "#6750A4" },
+        success: { bg: "#E8F5E9", border: "#B7DDB9", text: "#1B5E20" },
+        error: { bg: "#F9DEDC", border: "#F2B8B5", text: "#B3261E" }
       };
       const c = colors[type] || colors.info;
       toastEl.style.display = "block";
       toastEl.style.padding = "10px 12px";
-      toastEl.style.borderRadius = "6px";
-      toastEl.style.fontSize = "13px";
+      toastEl.style.borderRadius = "12px";
+      toastEl.style.fontSize = "12px";
       toastEl.style.marginBottom = "8px";
       toastEl.style.background = c.bg;
       toastEl.style.border = `1px solid ${c.border}`;
@@ -25860,10 +27404,12 @@ ${block}` : block;
         contentEl.style.display = "block";
         if (toolbarEl) toolbarEl.style.display = "flex";
         contentEl.innerHTML = `
-        <div style="text-align: center; padding: 40px 20px; color: #999;">
-          <p style="font-size: 36px; margin-bottom: 12px;">\u{1F4C2}</p>
-          <p style="font-size: 14px;">\u6682\u65E0\u5DF2\u5BFC\u5165\u8D44\u6E90</p>
-          <p style="font-size: 12px; margin-top: 6px;">\u5F53\u524D\u76EE\u5F55: ${dirUri}</p>
+        <div class="resource-manage-empty">
+          <span class="resource-manage-state-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5h6l2 2h10v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-11Z"/></svg>
+          </span>
+          <p style="margin: 0; color: #49454F; font-size: 13px; font-weight: 600;">\u6682\u65E0\u5DF2\u5BFC\u5165\u8D44\u6E90</p>
+          <p style="margin: 5px 0 0; font-size: 11px; word-break: break-word;">\u5F53\u524D\u76EE\u5F55\uFF1A${dirUri}</p>
         </div>
       `;
         return;
@@ -25884,59 +27430,59 @@ ${block}` : block;
         return `
         <div class="claw-resource-item" data-uri="${entry.uri}" data-resource-id="${resourceId}" style="
           padding: 12px;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
+          background: #FFFFFF;
+          border: 1px solid #E7E0EC;
+          border-radius: 16px;
           display: flex;
           flex-direction: column;
           gap: 8px;
         ">
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div style="min-width: 0; flex: 1;">
-              <p style="font-weight: 600; font-size: 13px; color: #111827; margin-bottom: 2px; word-break: break-all;">${name}</p>
-              <p style="font-size: 11px; color: #6b7280;">
+              <p class="resource-item-name" style="font-weight: 600; font-size: 13px; color: #1D1B20; margin-bottom: 2px; word-break: break-all;">${name}</p>
+              <p class="resource-item-meta" style="font-size: 11px; color: #79747E;">
                 <span>${size}</span>
                 <span style="margin: 0 6px;">\xB7</span>
                 <span>${date}</span>
               </p>
             </div>
-            <span style="
+            <span class="resource-status-badge" style="
               padding: 2px 8px;
               border-radius: 999px;
               font-size: 11px;
               font-weight: 500;
-              background: #15803d15;
-              color: #15803d;
+              background: #E8F5E9;
+              color: #1B5E20;
               white-space: nowrap;
               margin-left: 8px;
             ">\u5DF2\u5904\u7406</span>
           </div>
-          ${abstractText ? `<p style="font-size: 12px; color: #4b5563; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${abstractText}</p>` : ""}
+          ${abstractText ? `<p class="resource-item-abstract" style="font-size: 12px; color: #625F66; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${abstractText}</p>` : ""}
           <div class="claw-resource-actions" style="display: flex; gap: 6px; margin-top: 4px;">
             <button class="claw-resource-btn-view" data-uri="${contentUri}" style="
               padding: 5px 10px;
-              background: #eff6ff;
-              color: #2563eb;
-              border: 1px solid #bfdbfe;
-              border-radius: 5px;
+              background: #F3EDF7;
+              color: #6750A4;
+              border: 1px solid #E0D4F1;
+              border-radius: 999px;
               font-size: 12px;
               cursor: pointer;
             ">\u67E5\u770B\u5185\u5BB9</button>
             <button class="claw-resource-btn-insert" data-uri="${contentUri}" style="
               padding: 5px 10px;
-              background: #f0fdf4;
-              color: #15803d;
-              border: 1px solid #bbf7d0;
-              border-radius: 5px;
+              background: #E8F5E9;
+              color: #1B5E20;
+              border: 1px solid #B7DDB9;
+              border-radius: 999px;
               font-size: 12px;
               cursor: pointer;
             ">\u63D2\u5165\u5BF9\u8BDD</button>
             <button class="claw-resource-btn-delete" data-resource-id="${resourceId}" style="
               padding: 5px 10px;
-              background: #fef2f2;
-              color: #dc2626;
-              border: 1px solid #fecaca;
-              border-radius: 5px;
+              background: #F9DEDC;
+              color: #B3261E;
+              border: 1px solid #F2B8B5;
+              border-radius: 999px;
               font-size: 12px;
               cursor: pointer;
               margin-left: auto;
@@ -25949,11 +27495,11 @@ ${block}` : block;
       contentEl.style.display = "block";
       if (toolbarEl) toolbarEl.style.display = "flex";
       contentEl.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <p style="font-size: 12px; color: #6b7280;">\u5F53\u524D\u76EE\u5F55: <span style="font-family: monospace;">${dirUri}</span></p>
-        <p style="font-size: 12px; color: #6b7280;">\u5171 ${entries.length} \u4E2A\u8D44\u6E90</p>
+      <div class="resource-manage-summary">
+        <p style="margin: 0; min-width: 0;">\u5F53\u524D\u76EE\u5F55\uFF1A<span class="resource-manage-path">${dirUri}</span></p>
+        <p style="margin: 0; white-space: nowrap;">\u5171 ${entries.length} \u4E2A\u8D44\u6E90</p>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div class="resource-manage-list">
         ${itemsHtml}
       </div>
     `;
@@ -25967,7 +27513,7 @@ ${block}` : block;
             const result = await client3.fsRead(uri);
             const text = typeof result === "string" ? result : (result == null ? void 0 : result.content) || JSON.stringify(result, null, 2);
             const name = uri.split("/").pop() || uri;
-            const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+            const previewHtml = `<div style="padding: 18px; border-radius: 14px; background: #FFFBFE; color: #49454F; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.72; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
             openCenterOverlay(name, previewHtml, {
               showBack: true,
               onBack: () => closeOverlayPanel()
@@ -25999,39 +27545,45 @@ ${block}` : block;
           const resourceId = btn.dataset.resourceId;
           if (!resourceId) return;
           const dialogHtml = `
-          <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+          <div class="echomem-confirm-dialog" style="padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; color: #1D1B20; font-family: Roboto, 'Noto Sans SC', sans-serif;">
             <div style="text-align: center;">
-              <p style="font-size: 24px; margin: 0; line-height: 1;">\u{1F5D1}\uFE0F</p>
-              <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">\u786E\u8BA4\u5220\u9664\u8D44\u6E90</p>
-              <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">\u786E\u5B9A\u5220\u9664\u8D44\u6E90\u300C<strong style="color: #111;">${resourceId}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
+              <span style="display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; border-radius: 16px; background: #F9DEDC; color: #B3261E;" aria-hidden="true">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 10v6M14 10v6"/></svg>
+              </span>
+              <p style="font-size: 15px; color: #1D1B20; font-weight: 600; margin: 8px 0 4px;">\u786E\u8BA4\u5220\u9664\u8D44\u6E90</p>
+              <p style="font-size: 12px; color: #625F66; line-height: 1.55; margin: 0;">\u786E\u5B9A\u5220\u9664\u8D44\u6E90\u300C<strong style="color: #1D1B20; word-break: break-all;">${resourceId}</strong>\u300D\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\u3002</p>
             </div>
-            <div style="display: flex; gap: 10px; justify-content: center;">
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">
               <button id="claw-resource-manage-del-cancel" style="
-                padding: 8px 20px;
-                background: #f3f4f6;
-                color: #374151;
-                border: 1px solid #d1d5db;
-                border-radius: 8px;
+                min-width: 104px;
+                min-height: 40px;
+                padding: 8px 18px;
+                background: #F3EDF7;
+                color: #6750A4;
+                border: 1px solid #E0D4F1;
+                border-radius: 999px;
                 font-size: 13px;
                 cursor: pointer;
-                font-weight: 500;
+                font-weight: 600;
               ">\u53D6\u6D88</button>
               <button id="claw-resource-manage-del-ok" style="
-                padding: 8px 20px;
-                background: #ef5350;
-                color: white;
-                border: none;
-                border-radius: 8px;
+                min-width: 104px;
+                min-height: 40px;
+                padding: 8px 18px;
+                background: #B3261E;
+                color: #FFFFFF;
+                border: 1px solid #B3261E;
+                border-radius: 999px;
                 font-size: 13px;
                 cursor: pointer;
-                font-weight: 500;
+                font-weight: 600;
               ">\u786E\u8BA4\u5220\u9664</button>
             </div>
           </div>
         `;
           openCenterOverlay("\u5220\u9664\u786E\u8BA4", dialogHtml, {
-            width: "360px",
-            maxWidth: "360px",
+            width: "min(360px, calc(100vw - 24px))",
+            maxWidth: "calc(100vw - 24px)",
             height: "240px",
             maxHeight: "280px"
           });
@@ -26064,10 +27616,13 @@ ${block}` : block;
       contentEl.style.display = "block";
       if (toolbarEl) toolbarEl.style.display = "flex";
       contentEl.innerHTML = `
-      <div style="text-align: center; padding: 40px 20px; color: #b91c1c; background: #fef2f2; border-radius: 8px;">
-        <p style="font-size: 14px; margin-bottom: 6px;">\u274C \u52A0\u8F7D\u5931\u8D25</p>
-        <p style="font-size: 12px;">${err.message}</p>
-        <p style="font-size: 11px; color: #888; margin-top: 8px;">\u76EE\u5F55: ${getResourceDirUri()}</p>
+      <div class="resource-manage-error">
+        <span class="resource-manage-state-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg>
+        </span>
+        <p style="font-size: 13px; font-weight: 600; margin: 0 0 5px;">\u52A0\u8F7D\u5931\u8D25</p>
+        <p style="font-size: 12px; margin: 0; word-break: break-word;">${err.message}</p>
+        <p style="font-size: 11px; color: #79747E; margin: 7px 0 0;">\u76EE\u5F55\uFF1A${getResourceDirUri()}</p>
       </div>
     `;
     }
@@ -28161,69 +29716,234 @@ ${MEM_TAG_CLOSE2}`;
   function getEchoMemConfigContent() {
     const showOpenView = isHigoPlatform2();
     const openViewSection = showOpenView ? `
-      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #eee;">
-        <div style="font-size: 14px; font-weight: 500; margin-bottom: 10px; color: #333;">EchoAgent \u7EDF\u8BA1\u670D\u52A1</div>
-        <div style="padding: 10px 12px; background: #f6f8fa; border-radius: 6px; border-left: 3px solid #10b981; font-size: 12px; color: #666; margin-bottom: 12px;">
-          \u7528\u4E8E\u83B7\u53D6\u7528\u6237\u4F1A\u8BDD Token \u7EDF\u8BA1\u6C47\u603B
+      <div class="config-card config-service-card">
+        <div class="config-card-heading">
+          <span class="config-card-icon config-card-icon-secondary" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
+          </span>
+          <div>
+            <p>EchoAgent \u7EDF\u8BA1\u670D\u52A1</p>
+            <span>\u4F1A\u8BDD Token \u7EDF\u8BA1\u6C47\u603B</span>
+          </div>
         </div>
 
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u670D\u52A1\u5730\u5740</label>
-          <input id="cfg-openview-url" type="text"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
+        <div class="config-field">
+          <label for="cfg-openview-url">\u670D\u52A1\u5730\u5740</label>
+          <input id="cfg-openview-url" class="config-input" type="text" />
         </div>
 
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u7528\u6237\u540D</label>
-          <input id="cfg-openview-username" type="text"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
+        <div class="config-field">
+          <label for="cfg-openview-username">\u7528\u6237\u540D</label>
+          <input id="cfg-openview-username" class="config-input" type="text" />
         </div>
 
-        <div style="margin-bottom: 12px;">
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u5BC6\u7801</label>
-          <input id="cfg-openview-password" type="password"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
+        <div class="config-field">
+          <label for="cfg-openview-password">\u5BC6\u7801</label>
+          <input id="cfg-openview-password" class="config-input" type="password" />
         </div>
 
-        <button id="cfg-openview-login-btn" style="width: 100%; padding: 10px; background: #10b981; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;"
-        >\u{1F511} \u767B\u5F55 EchoAgent</button>
+        <button id="cfg-openview-login-btn" class="config-button config-button-secondary" style="width: 100%;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          \u767B\u5F55 EchoAgent
+        </button>
       </div>
   ` : "";
     return `
-    <div style="display: flex; flex-direction: column; gap: 14px; color: #333;">
-      <div style="padding: 10px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #667eea; font-size: 12px; color: #666;">
-        \u{1F4A1} \u6B64\u914D\u7F6E\u540C\u65F6\u5F71\u54CD\u8D44\u6E90\u7BA1\u7406\u3001\u8F93\u5165\u8054\u60F3\u7B49\u529F\u80FD
+    <style>
+      .echomem-config-root {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        color: #1D1B20;
+        font-family: Roboto, "Noto Sans SC", sans-serif;
+      }
+      .echomem-config-root, .echomem-config-root * { box-sizing: border-box; }
+      .echomem-config-root .config-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        padding: 12px 14px;
+        border: 1px solid #E7E0EC;
+        border-radius: 14px;
+        background: #F3EDF7;
+        color: #49454F;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .echomem-config-root .config-note svg {
+        margin-top: 1px;
+        color: #6750A4;
+        flex: 0 0 auto;
+      }
+      .echomem-config-root .config-card {
+        padding: 16px;
+        border: 1px solid #E7E0EC;
+        border-radius: 18px;
+        background: #FFFFFF;
+        box-shadow: 0 1px 2px rgba(29, 27, 32, 0.04);
+      }
+      .echomem-config-root .config-service-card { background: #FEF7FF; }
+      .echomem-config-root .config-card-heading {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .echomem-config-root .config-card-heading p {
+        margin: 0;
+        color: #1D1B20;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+      .echomem-config-root .config-card-heading span:not(.config-card-icon) {
+        display: block;
+        margin-top: 2px;
+        color: #79747E;
+        font-size: 11px;
+        line-height: 1.4;
+      }
+      .echomem-config-root .config-card-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        background: #EADDFF;
+        color: #6750A4;
+        flex: 0 0 auto;
+      }
+      .echomem-config-root .config-card-icon-secondary {
+        background: #E8DEF8;
+        color: #625B71;
+      }
+      .echomem-config-root .config-field { margin-bottom: 12px; }
+      .echomem-config-root .config-field label {
+        display: block;
+        margin: 0 0 6px;
+        color: #49454F;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+      .echomem-config-root .config-input {
+        width: 100%;
+        min-height: 42px;
+        padding: 9px 12px;
+        border: 1px solid #CAC4D0;
+        border-radius: 12px;
+        background: #FFFBFE;
+        color: #1D1B20;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 400;
+        line-height: 1.45;
+        transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+      }
+      .echomem-config-root .config-input:hover { border-color: #79747E; }
+      .echomem-config-root .config-input:focus {
+        border-color: #6750A4;
+        background: #FFFFFF;
+        box-shadow: 0 0 0 3px rgba(103, 80, 164, 0.14);
+        outline: none;
+      }
+      .echomem-config-root .config-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 4px;
+      }
+      .echomem-config-root .config-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 42px;
+        padding: 10px 16px;
+        border-radius: 999px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.3;
+        cursor: pointer;
+        transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+      }
+      .echomem-config-root .config-button-primary {
+        border: 1px solid #6750A4;
+        background: #6750A4;
+        color: #FFFFFF;
+      }
+      .echomem-config-root .config-button-tonal {
+        border: 1px solid #E0D4F1;
+        background: #F3EDF7;
+        color: #6750A4;
+      }
+      .echomem-config-root .config-button-secondary {
+        border: 1px solid #D8CCE7;
+        background: #E8DEF8;
+        color: #1D192B;
+      }
+      .echomem-config-root .config-button:hover {
+        filter: brightness(0.97);
+        box-shadow: 0 4px 12px rgba(103, 80, 164, 0.16);
+      }
+      .echomem-config-root .config-button:active { transform: scale(0.985); }
+      .echomem-config-root .config-button:focus-visible {
+        outline: 3px solid rgba(103, 80, 164, 0.22);
+        outline-offset: 2px;
+      }
+      @media (max-width: 360px) {
+        .echomem-config-root .config-card { padding: 14px; border-radius: 16px; }
+        .echomem-config-root .config-actions { flex-direction: column; }
+        .echomem-config-root .config-actions .config-button { width: 100%; flex: none !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .echomem-config-root .config-input,
+        .echomem-config-root .config-button { transition: none !important; }
+      }
+    </style>
+    <div class="echomem-config-root">
+      <div class="config-note">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+        <span>\u6B64\u914D\u7F6E\u540C\u65F6\u5F71\u54CD\u8D44\u6E90\u7BA1\u7406\u3001\u8F93\u5165\u8054\u60F3\u7B49\u529F\u80FD\u3002</span>
       </div>
 
-      <div>
-        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u670D\u52A1\u5730\u5740</label>
-        <input id="cfg-base-url" type="text"
-          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-        />
-      </div>
+      <div class="config-card">
+        <div class="config-card-heading">
+          <span class="config-card-icon" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M7 4v6M4 17h16M17 14v6"/></svg>
+          </span>
+          <div>
+            <p>\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE</p>
+            <span>\u8FDE\u63A5\u5730\u5740\u4E0E\u8EAB\u4EFD\u8BA4\u8BC1</span>
+          </div>
+        </div>
 
-      <div>
-        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">\u8BA4\u8BC1\u5BC6\u94A5</label>
-        <input id="cfg-auth-key" type="password"
-          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-        />
-      </div>
+        <div class="config-field">
+          <label for="cfg-base-url">\u670D\u52A1\u5730\u5740</label>
+          <input id="cfg-base-url" class="config-input" type="text" />
+        </div>
 
-      <div>
-        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID\uFF08\u7559\u7A7A\u4F7F\u7528\u5E73\u53F0\u9ED8\u8BA4\u503C\uFF09</label>
-        <input id="cfg-agent-id" type="text"
-          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-        />
-      </div>
+        <div class="config-field">
+          <label for="cfg-auth-key">\u8BA4\u8BC1\u5BC6\u94A5</label>
+          <input id="cfg-auth-key" class="config-input" type="password" />
+        </div>
 
-      <div style="display: flex; gap: 10px; margin-top: 4px;">
-        <button id="cfg-test-btn" style="flex: 1; padding: 10px; background: #f0f7ff; color: #667eea; border: 1px solid #c7d8f5; border-radius: 6px; font-size: 13px; cursor: pointer;"
-        >\u{1F504} \u6D4B\u8BD5\u8FDE\u63A5</button>
-        <button id="cfg-save-btn" style="flex: 1; padding: 10px; background: #667eea; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;"
-        >\u{1F4BE} \u4FDD\u5B58\u914D\u7F6E</button>
+        <div class="config-field">
+          <label for="cfg-agent-id">Agent ID <span style="color: #79747E; font-weight: 400;">\xB7 \u7559\u7A7A\u4F7F\u7528\u5E73\u53F0\u9ED8\u8BA4\u503C</span></label>
+          <input id="cfg-agent-id" class="config-input" type="text" />
+        </div>
+
+        <div class="config-actions">
+          <button id="cfg-test-btn" class="config-button config-button-tonal" style="flex: 1;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66L20 14"/><path d="M20 8v6h-6"/></svg>
+            \u6D4B\u8BD5\u8FDE\u63A5
+          </button>
+          <button id="cfg-save-btn" class="config-button config-button-primary" style="flex: 1;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+            \u4FDD\u5B58\u914D\u7F6E
+          </button>
+        </div>
       </div>
 
       ${openViewSection}

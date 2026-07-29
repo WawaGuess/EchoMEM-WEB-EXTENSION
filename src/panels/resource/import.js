@@ -24,23 +24,278 @@ function getParentUri(uri) {
 
 export function getResourceImportContent() {
   return `
-    <div style="display: flex; flex-direction: column; gap: 12px; color: #333;">
+    <style>
+      #claw-resource-import-root {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        color: #1D1B20;
+        font-family: Roboto, "Noto Sans SC", sans-serif;
+      }
+      #claw-resource-import-root, #claw-resource-import-root * { box-sizing: border-box; }
+      #claw-resource-import-root .resource-import-card {
+        padding: 15px;
+        border: 1px solid #E7E0EC;
+        border-radius: 18px;
+        background: #FFFFFF;
+      }
+      #claw-resource-import-root .resource-section-heading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 10px;
+        color: #1D1B20;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.45;
+      }
+      #claw-resource-import-root .resource-section-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 10px;
+        background: #F3EDF7;
+        color: #6750A4;
+        flex: 0 0 auto;
+      }
+      #claw-resource-import-root #claw-resource-dropzone {
+        min-height: 118px;
+        padding: 18px 14px;
+        border-color: #B9AFC2;
+        border-radius: 16px;
+        background: #FEF7FF;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+      }
+      #claw-resource-import-root #claw-resource-dropzone:hover {
+        border-color: #6750A4;
+        background: #F3EDF7;
+        box-shadow: 0 0 0 3px rgba(103, 80, 164, 0.08);
+      }
+      #claw-resource-import-root #claw-resource-dropzone:focus-visible,
+      #claw-resource-import-root button:focus-visible {
+        outline: 3px solid rgba(103, 80, 164, 0.22);
+        outline-offset: 2px;
+      }
+      #claw-resource-import-root .resource-drop-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 14px;
+        background: #EADDFF;
+        color: #6750A4;
+      }
+      #claw-resource-import-root .resource-drop-title {
+        margin: 1px 0 0;
+        color: #1D1B20;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.45;
+      }
+      #claw-resource-import-root .resource-drop-meta {
+        margin: 0;
+        color: #79747E;
+        font-size: 10px;
+        line-height: 1.45;
+      }
+      #claw-resource-import-root #claw-resource-import-status {
+        padding: 11px 13px !important;
+        border-radius: 12px !important;
+        font-size: 12px !important;
+        line-height: 1.5;
+      }
+      #claw-resource-import-root .resource-remote-card { background: #FFFBFE; }
+      #claw-resource-import-root .resource-remote-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      #claw-resource-import-root .resource-remote-header .resource-section-heading { margin: 0; }
+      #claw-resource-import-root #claw-remote-path {
+        min-width: 0;
+        max-width: 54%;
+        overflow: hidden;
+        padding: 5px 8px;
+        border-radius: 8px;
+        background: #F3EDF7;
+        color: #625B71;
+        font: 500 10px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #claw-resource-import-root #claw-remote-back {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 6px 12px !important;
+        border: 1px solid #E0D4F1 !important;
+        border-radius: 999px !important;
+        background: #F3EDF7 !important;
+        color: #6750A4 !important;
+        font-family: inherit !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        line-height: 1.3 !important;
+        cursor: pointer;
+      }
+      #claw-resource-import-root #claw-remote-back:hover { background: #EADDFF !important; }
+      #claw-resource-import-root .resource-loading,
+      #claw-resource-import-root .resource-empty-state,
+      #claw-resource-import-root .resource-error-state {
+        padding: 22px 14px !important;
+        border: 1px dashed #D8D0DC;
+        border-radius: 14px;
+        background: #FFFFFF;
+        color: #79747E !important;
+        text-align: center;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      #claw-resource-import-root .resource-loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        margin-bottom: 7px;
+        border: 2px solid #E7E0EC;
+        border-top-color: #6750A4;
+        border-radius: 50%;
+        animation: resource-import-spin 0.8s linear infinite;
+      }
+      @keyframes resource-import-spin { to { transform: rotate(360deg); } }
+      #claw-resource-import-root .resource-empty-icon,
+      #claw-resource-import-root .resource-error-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        margin-bottom: 8px;
+        border-radius: 14px;
+        background: #F3EDF7;
+        color: #6750A4;
+      }
+      #claw-resource-import-root .resource-error-state {
+        border-color: #F2B8B5;
+        background: #FFF8F7;
+        color: #B3261E !important;
+      }
+      #claw-resource-import-root .resource-error-icon {
+        background: #F9DEDC;
+        color: #B3261E;
+      }
+      #claw-resource-import-root .resource-file-list {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+      #claw-resource-import-root .claw-remote-folder,
+      #claw-resource-import-root .claw-remote-file {
+        min-width: 0;
+        padding: 10px 11px !important;
+        border: 1px solid #E7E0EC !important;
+        border-radius: 13px !important;
+        background: #FFFFFF !important;
+        gap: 8px !important;
+        transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+      }
+      #claw-resource-import-root .claw-remote-folder:hover {
+        border-color: #C9B8DE !important;
+        background: #FEF7FF !important;
+        box-shadow: 0 3px 10px rgba(103, 80, 164, 0.08);
+      }
+      #claw-resource-import-root .resource-entry-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 9px;
+        background: #F3EDF7;
+        font-size: 14px !important;
+        flex: 0 0 auto;
+      }
+      #claw-resource-import-root .resource-entry-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        color: #1D1B20 !important;
+        font-weight: 500 !important;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #claw-resource-import-root .resource-entry-size,
+      #claw-resource-import-root .resource-entry-date {
+        color: #79747E !important;
+        font-size: 10px;
+      }
+      #claw-resource-import-root .claw-remote-btn-view,
+      #claw-resource-import-root .claw-remote-btn-delete {
+        min-height: 30px;
+        padding: 5px 10px !important;
+        border-radius: 999px !important;
+        font-family: inherit !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        line-height: 1.25 !important;
+      }
+      #claw-resource-import-root .claw-remote-btn-view {
+        border: 1px solid #E0D4F1 !important;
+        background: #F3EDF7 !important;
+        color: #6750A4 !important;
+      }
+      #claw-resource-import-root .claw-remote-btn-delete {
+        border: 1px solid #F2B8B5 !important;
+        background: #F9DEDC !important;
+        color: #B3261E !important;
+      }
+      #claw-resource-import-root button:disabled { cursor: wait !important; opacity: 0.58; }
+      @media (max-width: 360px) {
+        #claw-resource-import-root .resource-import-card { padding: 13px; border-radius: 16px; }
+        #claw-resource-import-root .resource-remote-header { align-items: flex-start; flex-direction: column; }
+        #claw-resource-import-root #claw-remote-path { max-width: 100%; width: 100%; }
+        #claw-resource-import-root .resource-entry-date { display: none; }
+        #claw-resource-import-root .claw-remote-folder,
+        #claw-resource-import-root .claw-remote-file { padding: 9px !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #claw-resource-import-root .resource-loading-spinner { animation: none; }
+        #claw-resource-import-root .claw-remote-folder,
+        #claw-resource-import-root .claw-remote-file { transition: none; }
+      }
+    </style>
+    <div id="claw-resource-import-root">
       <!-- 本地文件上传 -->
-      <div>
-        <p style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">📁 本地文件上传</p>
+      <div class="resource-import-card">
+        <p class="resource-section-heading">
+          <span class="resource-section-icon" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+          </span>
+          本地文件上传
+        </p>
         <div id="claw-resource-dropzone" style="
-          border: 1.5px dashed #ccc;
-          border-radius: 8px;
-          padding: 0px 16px;
+          border: 1.5px dashed #B9AFC2;
+          border-radius: 16px;
+          padding: 18px 14px;
           text-align: center;
           cursor: pointer;
           transition: all 0.2s;
-          background: #fafafa;
-        " onmouseenter="this.style.borderColor='#2563eb';this.style.background='#f0f7ff'"
-           onmouseleave="this.style.borderColor='#ccc';this.style.background='#fafafa'">
-          <p style="font-size: 14px; margin: 0;">📤</p>
-          <p style="font-size: 11px; font-weight: 500; margin: 0;">点击或拖拽文件到此处</p>
-          <p style="font-size: 9px; color: #888; margin: 0;">支持 PDF, DOC, TXT, MD</p>
+          background: #FEF7FF;
+        " onmouseenter="this.style.borderColor='#6750A4';this.style.background='#F3EDF7'"
+           onmouseleave="this.style.borderColor='#B9AFC2';this.style.background='#FEF7FF'">
+          <span class="resource-drop-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+          </span>
+          <p class="resource-drop-title">点击或拖拽文件到此处</p>
+          <p class="resource-drop-meta">支持 PDF、DOC、TXT 与 MD</p>
           <input type="file" id="claw-resource-file-input" style="display: none;" />
         </div>
       </div>
@@ -52,25 +307,33 @@ export function getResourceImportContent() {
       <div id="claw-resource-import-result" style="display: none;"></div>
 
       <!-- 远程文件列表 -->
-      <div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <p style="font-weight: 600; font-size: 14px; margin: 0;">📂 远程文件</p>
-          <p id="claw-remote-path" style="font-size: 10px; color: #888; margin: 0; font-family: monospace;">echo://resources</p>
+      <div class="resource-import-card resource-remote-card">
+        <div class="resource-remote-header">
+          <p class="resource-section-heading">
+            <span class="resource-section-icon" aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5h6l2 2h10v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-11Z"/></svg>
+            </span>
+            远程文件
+          </p>
+          <p id="claw-remote-path" style="margin: 0;">echo://resources</p>
         </div>
         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
           <div id="claw-remote-back-btn" style="display: none;">
             <button id="claw-remote-back" style="
               padding: 4px 10px;
-              background: #f3f4f6;
-              border: 1px solid #d1d5db;
+              background: #F3EDF7;
+              border: 1px solid #E0D4F1;
               border-radius: 4px;
               font-size: 12px;
               cursor: pointer;
-              color: #374151;
+              color: #6750A4;
             ">← 返回上级</button>
           </div>
         </div>
-        <div id="claw-backup-list-loading" style="text-align: center; padding: 16px; color: #888; font-size: 12px;">⏳ 正在加载...</div>
+        <div id="claw-backup-list-loading" class="resource-loading">
+          <span class="resource-loading-spinner" aria-hidden="true"></span>
+          <div>正在加载远程文件…</div>
+        </div>
         <div id="claw-backup-list-content" style="display: none;"></div>
       </div>
     </div>
@@ -159,9 +422,12 @@ export async function initImportPanel(bodyElement) {
         backupLoadingEl.style.display = 'none';
         backupContentEl.style.display = 'block';
         backupContentEl.innerHTML = `
-          <div style="text-align: center; padding: 24px 16px; color: #999; font-size: 12px;">
-            <p style="font-size: 24px; margin-bottom: 8px;">📂</p>
-            <p>暂无文件</p>
+          <div class="resource-empty-state">
+            <span class="resource-empty-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5h6l2 2h10v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-11Z"/></svg>
+            </span>
+            <p style="margin: 0; color: #49454F; font-weight: 500;">暂无文件</p>
+            <p style="margin: 3px 0 0; font-size: 11px;">上传文件后将在此处显示</p>
           </div>
         `;
         return;
@@ -185,7 +451,9 @@ export async function initImportPanel(bodyElement) {
       const itemsHtml = allEntries.map((entry) => {
         const name = getEntryName(entry);
         const isDir = isDirectory(entry);
-        const icon = isDir ? '📁' : '📄';
+        const icon = isDir
+          ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6750A4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5h6l2 2h10v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-11Z"/></svg>'
+          : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6750A4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>';
         const size = isDir ? '' : formatSize(getEntrySize(entry));
         const date = formatDate(getEntryUpdatedAt(entry));
         const atRoot = isRootDir(currentDirUri);
@@ -194,10 +462,10 @@ export async function initImportPanel(bodyElement) {
           const deleteBtn = atRoot
             ? `<button class="claw-remote-btn-delete" data-resource-id="${name}" style="
                 padding: 3px 8px;
-                background: #fef2f2;
-                color: #dc2626;
-                border: 1px solid #fecaca;
-                border-radius: 4px;
+                background: #F9DEDC;
+                color: #B3261E;
+                border: 1px solid #F2B8B5;
+                border-radius: 999px;
                 font-size: 11px;
                 cursor: pointer;
                 white-space: nowrap;
@@ -207,19 +475,19 @@ export async function initImportPanel(bodyElement) {
           return `
             <div class="claw-remote-folder" data-uri="${entry.uri}" style="
               padding: 8px 10px;
-              background: #f0f9ff;
-              border: 1px solid #bae6fd;
-              border-radius: 6px;
+              background: #FFFFFF;
+              border: 1px solid #E7E0EC;
+              border-radius: 13px;
               display: flex;
               align-items: center;
               gap: 8px;
               font-size: 12px;
               cursor: pointer;
             " title="点击进入文件夹">
-              <span style="font-size: 14px;">${icon}</span>
-              <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0369a1; font-weight: 500;"
+              <span class="resource-entry-icon">${icon}</span>
+              <span class="resource-entry-name" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1D1B20; font-weight: 500;"
                 >${name}</span>
-              <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
+              <span class="resource-entry-date" style="color: #79747E; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
               ${deleteBtn}
             </div>
           `;
@@ -229,25 +497,25 @@ export async function initImportPanel(bodyElement) {
         return `
           <div class="claw-remote-file" data-uri="${entry.uri}" style="
             padding: 8px 10px;
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
+            background: #FFFFFF;
+            border: 1px solid #E7E0EC;
+            border-radius: 13px;
             display: flex;
             align-items: center;
             gap: 8px;
             font-size: 12px;
           ">
-            <span style="font-size: 14px;">${icon}</span>
-            <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #111827;"
+            <span class="resource-entry-icon">${icon}</span>
+            <span class="resource-entry-name" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1D1B20;"
               title="${name}">${name}</span>
-            <span style="color: #6b7280; white-space: nowrap; width: 60px; text-align: right;">${size}</span>
-            <span style="color: #9ca3af; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
+            <span class="resource-entry-size" style="color: #79747E; white-space: nowrap; width: 60px; text-align: right;">${size}</span>
+            <span class="resource-entry-date" style="color: #79747E; white-space: nowrap; width: 80px; text-align: right;">${date}</span>
             <button class="claw-remote-btn-view" data-uri="${entry.uri}" style="
               padding: 3px 8px;
-              background: #eff6ff;
-              color: #2563eb;
-              border: 1px solid #bfdbfe;
-              border-radius: 4px;
+              background: #F3EDF7;
+              color: #6750A4;
+              border: 1px solid #E0D4F1;
+              border-radius: 999px;
               font-size: 11px;
               cursor: pointer;
               white-space: nowrap;
@@ -259,7 +527,7 @@ export async function initImportPanel(bodyElement) {
       backupLoadingEl.style.display = 'none';
       backupContentEl.style.display = 'block';
       backupContentEl.innerHTML = `
-        <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div class="resource-file-list">
           ${itemsHtml}
         </div>
       `;
@@ -285,7 +553,7 @@ export async function initImportPanel(bodyElement) {
             const result = await client.fsRead(uri);
             const text = typeof result === 'string' ? result : (result?.content || JSON.stringify(result, null, 2));
             const name = uri.split('/').pop() || uri;
-            const previewHtml = `<div style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`;
+            const previewHtml = `<div style="padding: 18px; border-radius: 14px; background: #FFFBFE; color: #49454F; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.72; white-space: pre-wrap; word-break: break-word;">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`;
             openCenterOverlay(name, previewHtml, {
               showBack: true,
               onBack: () => closeOverlayPanel()
@@ -308,40 +576,46 @@ export async function initImportPanel(bodyElement) {
           }
 
           const dialogHtml = `
-            <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <div class="echomem-confirm-dialog" style="padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; color: #1D1B20; font-family: Roboto, 'Noto Sans SC', sans-serif;">
               <div style="text-align: center;">
-                <p style="font-size: 24px; margin: 0; line-height: 1;">🗑️</p>
-                <p style="font-size: 15px; color: #333; font-weight: 500; margin: 4px 0 2px;">确认删除资源</p>
-                <p style="font-size: 12px; color: #666; line-height: 1.4; margin: 0;">确定删除资源「<strong style="color: #111;">${resourceId}</strong>」？此操作不可恢复。</p>
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; border-radius: 16px; background: #F9DEDC; color: #B3261E;" aria-hidden="true">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 10v6M14 10v6"/></svg>
+                </span>
+                <p style="font-size: 15px; color: #1D1B20; font-weight: 600; margin: 8px 0 4px;">确认删除资源</p>
+                <p style="font-size: 12px; color: #625F66; line-height: 1.55; margin: 0;">确定删除资源「<strong style="color: #1D1B20; word-break: break-all;">${resourceId}</strong>」？此操作不可恢复。</p>
               </div>
-              <div style="display: flex; gap: 10px; justify-content: center;">
+              <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">
                 <button id="claw-resource-del-cancel" style="
-                  padding: 8px 20px;
-                  background: #f3f4f6;
-                  color: #374151;
-                  border: 1px solid #d1d5db;
-                  border-radius: 8px;
+                  min-width: 104px;
+                  min-height: 40px;
+                  padding: 8px 18px;
+                  background: #F3EDF7;
+                  color: #6750A4;
+                  border: 1px solid #E0D4F1;
+                  border-radius: 999px;
                   font-size: 13px;
                   cursor: pointer;
-                  font-weight: 500;
+                  font-weight: 600;
                 ">取消</button>
                 <button id="claw-resource-del-ok" style="
-                  padding: 8px 20px;
-                  background: #ef5350;
-                  color: white;
-                  border: none;
-                  border-radius: 8px;
+                  min-width: 104px;
+                  min-height: 40px;
+                  padding: 8px 18px;
+                  background: #B3261E;
+                  color: #FFFFFF;
+                  border: 1px solid #B3261E;
+                  border-radius: 999px;
                   font-size: 13px;
                   cursor: pointer;
-                  font-weight: 500;
+                  font-weight: 600;
                 ">确认删除</button>
               </div>
             </div>
           `;
 
           openCenterOverlay('删除确认', dialogHtml, {
-            width: '360px',
-            maxWidth: '360px',
+            width: 'min(360px, calc(100vw - 24px))',
+            maxWidth: 'calc(100vw - 24px)',
             height: '240px',
             maxHeight: '280px'
           });
@@ -375,9 +649,12 @@ export async function initImportPanel(bodyElement) {
       backupLoadingEl.style.display = 'none';
       backupContentEl.style.display = 'block';
       backupContentEl.innerHTML = `
-        <div style="text-align: center; padding: 16px; color: #b91c1c; font-size: 12px;">
-          <p>❌ 加载文件列表失败</p>
-          <p style="color: #888;">${err.message}</p>
+        <div class="resource-error-state">
+          <span class="resource-error-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg>
+          </span>
+          <p style="margin: 0; font-weight: 600;">加载文件列表失败</p>
+          <p style="margin: 4px 0 0; color: #79747E; word-break: break-word;">${err.message}</p>
         </div>
       `;
     }
@@ -398,9 +675,9 @@ export async function initImportPanel(bodyElement) {
     if (!statusEl) return;
     statusEl.style.display = 'block';
     const colors = {
-      info: { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8' },
-      success: { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d' },
-      error: { bg: '#fef2f2', border: '#fecaca', text: '#b91c1c' }
+      info: { bg: '#F3EDF7', border: '#E0D4F1', text: '#6750A4' },
+      success: { bg: '#E8F5E9', border: '#B7DDB9', text: '#1B5E20' },
+      error: { bg: '#F9DEDC', border: '#F2B8B5', text: '#B3261E' }
     };
     const c = colors[type] || colors.info;
     statusEl.style.background = c.bg;
@@ -509,18 +786,18 @@ export async function initImportPanel(bodyElement) {
   // Drag & drop
   dropzone.addEventListener('dragover', (e) => {
     e.preventDefault();
-    dropzone.style.borderColor = '#2563eb';
-    dropzone.style.background = '#f0f7ff';
+    dropzone.style.borderColor = '#6750A4';
+    dropzone.style.background = '#F3EDF7';
   });
   dropzone.addEventListener('dragleave', (e) => {
     e.preventDefault();
-    dropzone.style.borderColor = '#ccc';
-    dropzone.style.background = '#fafafa';
+    dropzone.style.borderColor = '#B9AFC2';
+    dropzone.style.background = '#FEF7FF';
   });
   dropzone.addEventListener('drop', (e) => {
     e.preventDefault();
-    dropzone.style.borderColor = '#ccc';
-    dropzone.style.background = '#fafafa';
+    dropzone.style.borderColor = '#B9AFC2';
+    dropzone.style.background = '#FEF7FF';
     const file = e.dataTransfer?.files?.[0];
     if (file) doUpload(file);
   });
