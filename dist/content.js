@@ -2297,38 +2297,37 @@ ${block}` : block;
   // src/services/graph-client.js
   var DEFAULT_ENGINE_ID = "echo0_plugin";
   var CATEGORY_CONFIG = [
-    { name: "atom", itemStyle: { color: "#4facfe" } },
-    { name: "entity", itemStyle: { color: "#667eea" } },
-    { name: "episode", itemStyle: { color: "#f093fb" } }
+    { name: "atom", itemStyle: { color: "#cc66ff" } },
+    { name: "entity", itemStyle: { color: "#00e6ff" } },
+    { name: "episode", itemStyle: { color: "#f093fb" } },
+    { name: "other", itemStyle: { color: "#8899aa" } }
   ];
-  function getNodeName(node) {
-    const props = node.properties || {};
-    switch (node.node_type) {
-      case "entity":
-        return props.name || node.summary_hint || node.node_id;
-      case "episode": {
-        const title = props.title || node.summary_hint || node.node_id;
-        return `\u4F1A\u8BDD: ${title}`;
-      }
-      case "atom":
-      default:
-        return props.statement || node.summary_hint || node.node_id;
-    }
-  }
   function truncate(str, maxLen = 40) {
     if (typeof str !== "string") return String(str);
     if (str.length <= maxLen) return str;
     return `${str.slice(0, maxLen)}\u2026`;
   }
+  function getNodeDisplayName(node) {
+    const props = node.properties || {};
+    switch (node.node_type) {
+      case "entity":
+        return props.name || node.summary_hint || node.node_id;
+      case "episode":
+        return `\u4F1A\u8BDD: ${props.title || node.summary_hint || node.node_id}`;
+      case "atom":
+      default:
+        return props.statement || node.summary_hint || node.node_id;
+    }
+  }
   function toEchartsNode(node) {
     const categoryMap = { atom: 0, entity: 1, episode: 2 };
-    const category = categoryMap[node.node_type] ?? 0;
+    const category = categoryMap[node.node_type] ?? 3;
     const salience = typeof node.salience === "number" ? node.salience : 0.5;
-    const baseSize = node.node_type === "episode" ? 55 : node.node_type === "entity" ? 45 : 28;
+    const baseSize = node.node_type === "episode" ? 55 : node.node_type === "entity" ? 45 : node.node_type === "atom" ? 28 : 20;
     const symbolSize = Math.round(baseSize + salience * 35);
     return {
       id: node.node_id,
-      name: truncate(getNodeName(node)),
+      name: truncate(getNodeDisplayName(node)),
       symbolSize,
       category,
       value: Math.round(salience * 100)
@@ -2341,12 +2340,41 @@ ${block}` : block;
       name: edge.relation_type
     };
   }
+  function inferNodeTypeFromId(id) {
+    if (id.startsWith("atom:")) return "atom";
+    if (id.startsWith("entity:")) return "entity";
+    if (id.startsWith("episode:")) return "episode";
+    return "other";
+  }
+  function toSyntheticNode(id) {
+    const nodeType = inferNodeTypeFromId(id);
+    const bare = id.split(":").slice(1).join(":") || id;
+    const label = nodeType === "episode" ? `\u4F1A\u8BDD: ${bare}` : bare;
+    const categoryMap = { atom: 0, entity: 1, episode: 2, other: 3 };
+    const baseSize = nodeType === "episode" ? 55 : nodeType === "entity" ? 45 : nodeType === "atom" ? 28 : 20;
+    return {
+      id,
+      name: truncate(label),
+      symbolSize: Math.round(baseSize + 0.5 * 35),
+      category: categoryMap[nodeType],
+      value: 50,
+      _synthetic: true
+    };
+  }
+  function buildSyntheticNodes(links, existingIds) {
+    const needed = /* @__PURE__ */ new Set();
+    links.forEach((l) => {
+      if (!existingIds.has(l.source)) needed.add(l.source);
+      if (!existingIds.has(l.target)) needed.add(l.target);
+    });
+    return Array.from(needed).map(toSyntheticNode);
+  }
   async function fetchGraphData(options = {}) {
     const cfg = await getEchoMemConfig();
     const client2 = createClient(cfg);
     const engineId = options.engineId || DEFAULT_ENGINE_ID;
     const graphUri = `echo://engine/${engineId}/memory/.graph`;
-    const tree = await client2.fsTree(graphUri, { maxDepth: 3 });
+    const tree = await client2.fsTree(graphUri, { maxDepth: 4 });
     const entries = (tree == null ? void 0 : tree.entries) || [];
     const nodeFiles = entries.filter(
       (e) => e.kind === "file" && e.uri.includes("/nodes/") && e.uri.endsWith(".json")
@@ -2380,7 +2408,20 @@ ${block}` : block;
     ]);
     const nodes = nodeResults.filter(Boolean).map(toEchartsNode);
     const nodeIds = new Set(nodes.map((n) => n.id));
-    const links = edgeResults.filter(Boolean).map(toEchartsLink).filter((l) => nodeIds.has(l.source) && nodeIds.has(l.target));
+    const rawLinks = edgeResults.filter(Boolean).map(toEchartsLink);
+    const syntheticNodes = buildSyntheticNodes(rawLinks, nodeIds);
+    nodes.push(...syntheticNodes);
+    syntheticNodes.forEach((n) => nodeIds.add(n.id));
+    const links = rawLinks.filter((l) => nodeIds.has(l.source) && nodeIds.has(l.target));
+    console.log(
+      "EchoMem graph loaded:",
+      nodes.length,
+      "nodes,",
+      links.length,
+      "edges,",
+      syntheticNodes.length,
+      "synthetic nodes"
+    );
     return { nodes, links, categories: CATEGORY_CONFIG };
   }
 
@@ -24228,11 +24269,13 @@ ${block}` : block;
   // src/panels/feedback/graph-three.js
   var TYPE_STYLES = {
     atom: { color: 13395711, emissive: 6697898, size: 1.1, opacity: 0.88 },
-    entity: { color: 59135, emissive: 26282, size: 2.8, opacity: 0.92 }
+    entity: { color: 59135, emissive: 26282, size: 2.8, opacity: 0.92 },
+    episode: { color: 15766523, emissive: 11154346, size: 4, opacity: 0.95 },
+    other: { color: 8952234, emissive: 4478310, size: 1.5, opacity: 0.7 }
   };
   var REL_COLORS = {
-    about: 6719692,
-    contains: 8947882
+    about: 6728447,
+    contains: 11176191
   };
   function createLabel(text, color) {
     const canvas = document.createElement("canvas");
@@ -24320,13 +24363,13 @@ ${block}` : block;
     const mid = start2.clone().add(end).multiplyScalar(0.5);
     mid.y += 2 + Math.random() * 2;
     const curve = new QuadraticBezierCurve3(start2, mid, end);
-    const tubeGeo = new TubeGeometry(curve, 24, 0.05, 8, false);
+    const tubeGeo = new TubeGeometry(curve, 32, 0.09, 10, false);
     const tubeMat = new MeshPhysicalMaterial({
       color: edgeColor,
       emissive: edgeColor,
-      emissiveIntensity: 0.5,
+      emissiveIntensity: 0.7,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.6,
       metalness: 0.9,
       roughness: 0.1
     });
@@ -24430,7 +24473,8 @@ ${block}` : block;
     legend.innerHTML = `
     <h3 style="margin:0 0 10px;font-size:11px;color:#00e6ff;letter-spacing:2px;text-transform:uppercase;">// Node Types</h3>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#00e6ff;box-shadow:0 0 8px #00e6ff;"></span><span>Entity (\u5B9E\u4F53)</span></div>
-    <div style="display:flex;align-items:center;gap:8px;"><span style="width:10px;height:10px;border-radius:50%;background:#cc66ff;box-shadow:0 0 8px #cc66ff;"></span><span>Atom (\u539F\u5B50\u8BB0\u5FC6)</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#cc66ff;box-shadow:0 0 8px #cc66ff;"></span><span>Atom (\u539F\u5B50\u8BB0\u5FC6)</span></div>
+    <div style="display:flex;align-items:center;gap:8px;"><span style="width:10px;height:10px;border-radius:50%;background:#8899aa;box-shadow:0 0 8px #8899aa;"></span><span>Other (\u5176\u4ED6)</span></div>
   `;
     const stats = document.createElement("div");
     stats.style.cssText = panelCss + `
@@ -24444,7 +24488,8 @@ ${block}` : block;
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Nodes</span><span style="color:#00e6ff;font-weight:700;" data-stat="nodes">0</span></div>
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Edges</span><span style="color:#00e6ff;font-weight:700;" data-stat="edges">0</span></div>
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Entities</span><span style="color:#00e6ff;font-weight:700;" data-stat="entities">0</span></div>
-    <div style="display:flex;justify-content:space-between;"><span>Atoms</span><span style="color:#00e6ff;font-weight:700;" data-stat="atoms">0</span></div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Atoms</span><span style="color:#00e6ff;font-weight:700;" data-stat="atoms">0</span></div>
+    <div style="display:flex;justify-content:space-between;"><span>Other</span><span style="color:#00e6ff;font-weight:700;" data-stat="other">0</span></div>
   `;
     const info = document.createElement("div");
     info.style.cssText = panelCss + `
@@ -24469,10 +24514,12 @@ ${block}` : block;
   function updateStats(statsPanel, nodes, edges) {
     const entityCount = nodes.filter((n) => n.userData.node_type === "entity").length;
     const atomCount = nodes.filter((n) => n.userData.node_type === "atom").length;
+    const otherCount = nodes.filter((n) => n.userData.node_type === "other").length;
     statsPanel.querySelector('[data-stat="nodes"]').textContent = nodes.length;
     statsPanel.querySelector('[data-stat="edges"]').textContent = edges.length;
     statsPanel.querySelector('[data-stat="entities"]').textContent = entityCount;
     statsPanel.querySelector('[data-stat="atoms"]').textContent = atomCount;
+    statsPanel.querySelector('[data-stat="other"]').textContent = otherCount;
   }
   function runForceLayout(nodeObjects, edgeObjects, iterations = 200) {
     const velocities = nodeObjects.map(() => new Vector3());
@@ -24520,10 +24567,10 @@ ${block}` : block;
       const curve = new QuadraticBezierCurve3(start2, mid, end);
       edge.userData.curve = curve;
       edge.geometry.dispose();
-      edge.geometry = new TubeGeometry(curve, 24, 0.05, 8, false);
+      edge.geometry = new TubeGeometry(curve, 32, 0.09, 10, false);
     });
   }
-  function renderThreeGraph(container, graphData) {
+  function renderThreeGraph(container, graphData, options = {}) {
     cleanupThreeGraph(container);
     container.innerHTML = "";
     container.style.position = "relative";
@@ -24728,6 +24775,11 @@ ${block}` : block;
         endTarget: targetPos.clone()
       };
     }
+    const initialFocusNode = options.focusNodeId ? nodesById[options.focusNodeId] : null;
+    if (initialFocusNode) {
+      selectNode(initialFocusNode);
+      focusOnNode(initialFocusNode);
+    }
     function updateCameraAnimation(time) {
       if (!cameraAnimation) return;
       const elapsed = time - cameraAnimation.startTime;
@@ -24874,70 +24926,237 @@ ${block}` : block;
     container._threeControls = null;
   }
 
+  // src/panels/feedback/feedback-theme.js
+  var STYLE_ID = "echomem-feedback-theme";
+  function injectFeedbackTheme(container) {
+    if (!container || container.querySelector(`#${STYLE_ID}`)) return;
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+    .echomem-feedback-shell,
+    .echomem-feedback-shell * { box-sizing: border-box; }
+    .echomem-feedback-shell {
+      --em-bg: #05070a; --em-panel: rgba(2,8,20,.92); --em-panel-strong: #07101c;
+      --em-line: rgba(0,230,255,.12); --em-line-strong: rgba(0,230,255,.42);
+      --em-text: #e7fbff; --em-text-2: #b5d5df; --em-text-3: #7593a1;
+      --em-cyan: #00e6ff; --em-blue: #4f8cff; --em-green: #4cd6a1;
+      --em-amber: #f2b84b; --em-pink: #e16fa4; --em-purple: #a269ff;
+      color: var(--em-text); background: var(--em-bg);
+      font-family: Roboto, "Noto Sans SC", sans-serif; color-scheme: dark;
+    }
+    .em-topbar {
+      --em-line: rgba(121,116,126,.24); --em-text: #1d1b20;
+      --em-text-2: #49454f; --em-text-3: #79747e; --em-cyan: #6750a4;
+      min-height: 64px; display: flex; align-items: center; gap: 24px; padding: 10px 18px;
+      border-bottom: 1px solid var(--em-line); color: var(--em-text);
+      background: rgba(255,255,255,.96); backdrop-filter: blur(12px); flex: 0 0 auto;
+      color-scheme: light;
+    }
+    .echomem-feedback-shell button,
+    .echomem-feedback-shell input { font: inherit; }
+    .echomem-feedback-shell button:focus-visible,
+    .echomem-feedback-shell input:focus-visible { outline: 2px solid #6750a4; outline-offset: 2px; }
+    .em-brand { min-width: 206px; }
+    .em-brand-eyebrow { font-size: 10px; font-weight: 500; letter-spacing: .12em; color: #6750a4; text-transform: uppercase; }
+    .em-brand-title { margin-top: 4px; font-size: 14px; font-weight: 500; color: #21005d; }
+    .em-tabs { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+    .em-tab {
+      display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 7px 13px;
+      color: #79747e; background: transparent; border: 1px solid transparent;
+      border-radius: 12px; cursor: pointer; transition: color .2s ease, background .2s ease, border-color .2s ease;
+    }
+    .em-tab:hover { color: #21005d; background: rgba(103,80,164,.08); }
+    .em-tab[aria-selected="true"] { color: #21005d; background: #eaddff; border-color: rgba(103,80,164,.18); }
+    .em-tab-mark { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .75; }
+    .em-tab[aria-selected="true"] .em-tab-mark { background: #6750a4; box-shadow: 0 0 12px rgba(103,80,164,.42); }
+    .em-view-stage { flex: 1 1 auto; min-height: 0; position: relative; }
+    .em-view-stage[data-em-view="relation"] {
+      color: var(--em-text); background: #05070a; color-scheme: dark; isolation: isolate;
+    }
+    .em-empty, .em-error, .em-loading {
+      height: 100%; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 10px; padding: 28px; text-align: center;
+    }
+    .em-state-orb { width: 44px; height: 44px; border: 2px solid rgba(103,80,164,.18); border-radius: 50%; background: #fef7ff; }
+    .em-loading .em-state-orb { border-top-color: var(--em-cyan); animation: em-spin .9s linear infinite; }
+    .em-state-title { margin: 2px 0 0; font-size: 14px; color: var(--em-text); }
+    .em-state-copy { margin: 0; max-width: 390px; color: var(--em-text-3); font-size: 12px; line-height: 1.65; }
+    .em-primary-btn { margin-top: 5px; min-height: 38px; padding: 8px 20px; border: 0; border-radius: 20px; background: linear-gradient(135deg,#6750a4,#21005d); color: #fff; cursor: pointer; }
+    @keyframes em-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .em-loading .em-state-orb { animation: none !important; } }
+    @media (max-width: 820px) {
+      .em-topbar { align-items: flex-start; flex-direction: column; gap: 8px; }
+      .em-brand { min-width: 0; }
+      .em-tabs { width: 100%; margin-left: 0; overflow-x: auto; }
+      .em-tab { white-space: nowrap; }
+    }
+  `;
+    container.appendChild(style);
+  }
+
+  // src/panels/feedback/view-switcher.js
+  function mountViewSwitcher(container, { views, defaultKey }) {
+    var _a;
+    container.innerHTML = "";
+    container.style.position = "relative";
+    const wrapper = document.createElement("div");
+    wrapper.className = "echomem-feedback-shell";
+    wrapper.style.cssText = "display:flex;flex-direction:column;width:100%;height:100%;min-height:400px;";
+    injectFeedbackTheme(wrapper);
+    const topbar = document.createElement("div");
+    topbar.className = "em-topbar";
+    const brand = document.createElement("div");
+    brand.className = "em-brand";
+    brand.innerHTML = `
+    <div class="em-brand-eyebrow">ECHO \xB7 MEMORY INSIGHT</div>
+    <div class="em-brand-title">\u8BA4\u77E5\u53CD\u9988</div>
+  `;
+    const tabList = document.createElement("div");
+    tabList.className = "em-tabs";
+    tabList.setAttribute("role", "tablist");
+    tabList.setAttribute("aria-label", "\u8BA4\u77E5\u53CD\u9988\u89C6\u56FE");
+    const content = document.createElement("div");
+    content.className = "em-view-stage";
+    topbar.appendChild(brand);
+    topbar.appendChild(tabList);
+    wrapper.appendChild(topbar);
+    wrapper.appendChild(content);
+    container.appendChild(wrapper);
+    let activeKey = null;
+    let activeRevision = 0;
+    const tabs = {};
+    views.forEach((view) => {
+      const btn = document.createElement("button");
+      btn.className = "em-tab";
+      btn.type = "button";
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("aria-selected", "false");
+      btn.innerHTML = `<span class="em-tab-mark"></span><span>${view.label}</span>`;
+      btn.addEventListener("click", () => switchTo(view.key));
+      tabList.appendChild(btn);
+      tabs[view.key] = { btn, view };
+    });
+    function cleanupActive() {
+      var _a2, _b, _c;
+      if (!activeKey) return;
+      try {
+        (_c = (_b = (_a2 = tabs[activeKey]) == null ? void 0 : _a2.view) == null ? void 0 : _b.cleanup) == null ? void 0 : _c.call(_b, content);
+      } catch (err) {
+        console.warn("EchoMem view-switcher: cleanup error", err);
+      }
+    }
+    function switchTo(key, params = {}) {
+      if (key === activeKey || !tabs[key]) return;
+      cleanupActive();
+      content.innerHTML = "";
+      activeKey = key;
+      const revision = ++activeRevision;
+      content.dataset.emView = key;
+      wrapper.dataset.emView = key;
+      Object.entries(tabs).forEach(([tabKey, { btn }]) => {
+        btn.setAttribute("aria-selected", String(tabKey === key));
+        btn.tabIndex = tabKey === key ? 0 : -1;
+      });
+      try {
+        tabs[key].view.mount(content, {
+          switchTo,
+          params,
+          isActive: () => activeKey === key && activeRevision === revision && content.isConnected
+        });
+      } catch (err) {
+        console.error("EchoMem view-switcher: mount error", err);
+      }
+    }
+    const observer = new MutationObserver(() => {
+      if (!container.isConnected) destroy();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    function destroy() {
+      observer.disconnect();
+      cleanupActive();
+      activeKey = null;
+      activeRevision += 1;
+    }
+    switchTo(defaultKey || ((_a = views[0]) == null ? void 0 : _a.key));
+    return { destroy, switchTo };
+  }
+
+  // src/panels/feedback/view-registry.js
+  var VIEW_ORDER = ["timeline", "summary"];
+  function getOptionalFeedbackViews() {
+    const registry = globalThis.__ECHOMEM_FEEDBACK_VIEWS__;
+    if (!(registry instanceof Map)) return [];
+    return VIEW_ORDER.map((key) => registry.get(key)).filter(Boolean);
+  }
+
   // src/panels/feedback/index.js
-  var DEFAULT_MODE = "about";
-  function setLoadingState(container) {
+  var DEFAULT_MODE = "all";
+  function isViewActive(container, viewApi) {
+    return container.isConnected && (typeof viewApi.isActive !== "function" || viewApi.isActive());
+  }
+  function setLoadingState(container, label = "\u8BA4\u77E5\u53CD\u9988") {
     container.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; flex-direction: column; gap: 12px;">
-      <div style="width: 32px; height: 32px; border: 3px solid #1a2332; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-      <p style="font-size: 13px; color: #8899aa;">\u6B63\u5728\u52A0\u8F7D\u8BA4\u77E5\u56FE\u8C31\u2026</p>
+    <div class="em-loading" role="status" aria-live="polite">
+      <div class="em-state-orb" aria-hidden="true"></div>
+      <p class="em-state-title">\u6B63\u5728\u52A0\u8F7D${label}\u2026</p>
+      <p class="em-state-copy">EchoMem \u6B63\u5728\u6574\u7406\u76F8\u5173\u8BB0\u5FC6\uFF0C\u8BF7\u7A0D\u5019\u3002</p>
     </div>
-    <style>
-      @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
   `;
   }
-  function setErrorState(container, err) {
+  function setErrorState(container, err, onRetry) {
+    var _a;
     container.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; flex-direction: column; gap: 12px; padding: 20px; text-align: center;">
-      <p style="font-size: 14px; color: #aabbcc;">\u56FE\u8C31\u52A0\u8F7D\u5931\u8D25</p>
-      <p style="font-size: 12px; color: #667788; max-width: 300px;">${err.message || "\u672A\u77E5\u9519\u8BEF"}</p>
-      <button id="echomem-retry-graph" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">\u91CD\u8BD5</button>
+    <div class="em-error" role="alert">
+      <div class="em-state-orb" aria-hidden="true"></div>
+      <p class="em-state-title">\u52A0\u8F7D\u5931\u8D25</p>
+      <p class="em-state-copy"></p>
+      <button class="em-primary-btn" type="button">\u91CD\u8BD5</button>
     </div>
   `;
-    const retryBtn = container.querySelector("#echomem-retry-graph");
-    if (retryBtn) {
-      retryBtn.addEventListener("click", () => {
-        container._graphData = null;
-        renderGraph(container);
-      });
-    }
+    container.querySelector(".em-state-copy").textContent = (err == null ? void 0 : err.message) || "\u672A\u77E5\u9519\u8BEF";
+    (_a = container.querySelector(".em-primary-btn")) == null ? void 0 : _a.addEventListener("click", onRetry);
   }
   function setEmptyState(container) {
     container.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; flex-direction: column; gap: 12px; text-align: center;">
-      <p style="font-size: 14px; color: #aabbcc;">\u5F53\u524D\u89C6\u56FE\u6682\u65E0\u6570\u636E</p>
-      <p style="font-size: 12px; color: #667788; max-width: 300px;">\u5B9E\u4F53\u5173\u7CFB\u4E0B\u6CA1\u6709\u627E\u5230\u53EF\u6E32\u67D3\u7684\u8282\u70B9\u6216\u5173\u7CFB\u3002</p>
+    <div class="em-empty">
+      <div class="em-state-orb" aria-hidden="true"></div>
+      <p class="em-state-title">\u5F53\u524D\u89C6\u56FE\u6682\u65E0\u6570\u636E</p>
+      <p class="em-state-copy">\u8BA4\u77E5\u56FE\u8C31\u4E0B\u6CA1\u6709\u627E\u5230\u53EF\u6E32\u67D3\u7684\u8282\u70B9\u6216\u5173\u7CFB\u3002</p>
     </div>
   `;
   }
   function filterGraphData(graphData, mode) {
-    if (mode === "all") return graphData;
-    const filteredLinks = graphData.links.filter((l) => l.name === mode);
+    const visibleNodes = graphData.nodes.filter((node) => !node.id.startsWith("episode:"));
+    const visibleIds = new Set(visibleNodes.map((node) => node.id));
+    const visibleLinks = graphData.links.filter(
+      (link) => visibleIds.has(link.source) && visibleIds.has(link.target)
+    );
+    const visibleGraph = { ...graphData, nodes: visibleNodes, links: visibleLinks };
+    if (mode === "all") return visibleGraph;
+    const filteredLinks = visibleLinks.filter((link) => link.name === mode);
     const linkedIds = /* @__PURE__ */ new Set();
-    filteredLinks.forEach((l) => {
-      linkedIds.add(l.source);
-      linkedIds.add(l.target);
+    filteredLinks.forEach((link) => {
+      linkedIds.add(link.source);
+      linkedIds.add(link.target);
     });
-    const filteredNodes = graphData.nodes.filter((n) => linkedIds.has(n.id));
-    const usedCategories = new Set(filteredNodes.map((n) => n.category));
-    const filteredCategories = graphData.categories.filter((_, idx) => usedCategories.has(idx));
+    const filteredNodes = visibleNodes.filter((node) => linkedIds.has(node.id));
+    const usedCategories = new Set(filteredNodes.map((node) => node.category));
     return {
-      ...graphData,
+      ...visibleGraph,
       nodes: filteredNodes,
       links: filteredLinks,
-      categories: filteredCategories
+      categories: graphData.categories.filter((_, index) => usedCategories.has(index))
     };
   }
-  async function renderGraph(container) {
+  async function renderGraph(container, viewApi = {}) {
     try {
-      setLoadingState(container);
+      setLoadingState(container, "\u8BA4\u77E5\u56FE\u8C31");
       let graphData = container._graphData;
       if (!graphData) {
         graphData = await fetchGraphData();
         container._graphData = graphData;
       }
-      if (!container.isConnected) return;
+      if (!isViewActive(container, viewApi)) return;
       const viewData = filterGraphData(graphData, DEFAULT_MODE);
       if (viewData.nodes.length === 0) {
         setEmptyState(container);
@@ -24946,70 +25165,53 @@ ${block}` : block;
       renderThreeGraph(container, viewData);
     } catch (err) {
       console.error("EchoMem: \u52A0\u8F7D\u8BA4\u77E5\u56FE\u8C31\u5931\u8D25", err);
-      if (container.isConnected) {
-        setErrorState(container, err);
-      }
+      if (!isViewActive(container, viewApi)) return;
+      setErrorState(container, err, () => {
+        if (!isViewActive(container, viewApi)) return;
+        container._graphData = null;
+        renderGraph(container, viewApi);
+      });
     }
   }
   function getFeedbackContent() {
     return `
-    <div style="color: #666;">
-      <p style="margin-bottom: 12px;">\u{1F9E0} \u8BA4\u77E5\u53CD\u9988\u9762\u677F</p>
-      <div style="
-        padding: 16px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        margin-bottom: 12px;
-      ">
-        <p style="font-weight: 500; color: #333; margin-bottom: 8px;">\u5F53\u524D\u4F1A\u8BDD\u5206\u6790</p>
-        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
-          <span>\u5BF9\u8BDD\u8F6E\u6B21</span>
-          <span style="color: #333; font-weight: 500;">0</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
-          <span>\u5E73\u5747\u54CD\u5E94\u65F6\u95F4</span>
-          <span style="color: #333; font-weight: 500;">--</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 13px;">
-          <span>Token \u6D88\u8017</span>
-          <span style="color: #333; font-weight: 500;">0</span>
-        </div>
+    <div style="color:#49454F;font-family:Roboto,'Noto Sans SC',sans-serif;">
+      <p style="margin:0 0 12px;color:#6750A4;font-size:12px;font-weight:600;letter-spacing:.08em;">ECHO \xB7 \u8BA4\u77E5\u53CD\u9988</p>
+      <div style="padding:16px;background:#FFF;border:1px solid rgba(121,116,126,.24);border-radius:12px;margin-bottom:12px;">
+        <p style="font-weight:500;color:#21005D;margin-bottom:8px;">\u5F53\u524D\u4F1A\u8BDD\u5206\u6790</p>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span>\u5BF9\u8BDD\u8F6E\u6B21</span><span style="color:#1D1B20;font-weight:500;">0</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span>\u5E73\u5747\u54CD\u5E94\u65F6\u95F4</span><span style="color:#1D1B20;font-weight:500;">--</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Token \u6D88\u8017</span><span style="color:#1D1B20;font-weight:500;">0</span></div>
       </div>
-      <button style="
-        width: 100%;
-        padding: 10px;
-        background: #667eea;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 500;
-      ">\u751F\u6210\u53CD\u9988\u62A5\u544A</button>
+      <button type="button" style="width:100%;min-height:40px;padding:10px 18px;background:linear-gradient(135deg,#6750A4,#21005D);color:#FFF;border:0;border-radius:20px;cursor:pointer;font-size:14px;font-weight:500;">\u751F\u6210\u53CD\u9988\u62A5\u544A</button>
     </div>
   `;
   }
   function getGraphOverlayContent() {
-    const wrapperId = "echomem-graph-wrapper-" + Date.now();
-    const containerId = "echomem-graph-container-" + Date.now();
+    const wrapperId = `echomem-feedback-wrapper-${Date.now()}`;
     setTimeout(() => {
-      const container = document.getElementById(containerId);
-      if (container) {
-        renderGraph(container);
-      }
+      var _a;
+      const wrapper = document.getElementById(wrapperId);
+      if (!wrapper) return;
+      const optionalViews = getOptionalFeedbackViews();
+      const views = [
+        {
+          key: "relation",
+          label: "\u8BB0\u5FC6\u56FE\u8C31",
+          mount: (element, api) => renderGraph(element, api),
+          cleanup: (element) => {
+            cleanupThreeGraph(element);
+            element._graphData = null;
+          }
+        },
+        ...optionalViews
+      ];
+      mountViewSwitcher(wrapper, {
+        defaultKey: ((_a = optionalViews[0]) == null ? void 0 : _a.key) || "relation",
+        views
+      });
     }, 100);
-    return `
-    <div id="${wrapperId}" style="
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      height: 100%;
-      min-height: 400px;
-      background: #05070a;
-    ">
-      <div id="${containerId}" style="flex: 1; min-height: 0;"></div>
-    </div>
-  `;
+    return `<div id="${wrapperId}" style="display:flex;flex-direction:column;width:100%;height:100%;min-height:400px;background:#05070a;"></div>`;
   }
 
   // src/panels/performance/index.js
@@ -30130,7 +30332,7 @@ ${MEM_TAG_CLOSE2}`;
     if (!panel) return;
     setCurrentRoute({ type: "panel", panelId: panel.id });
     if (panel.id === "feedback") {
-      openCenterOverlay("\u8BA4\u77E5\u56FE\u8C31", getGraphOverlayContent(), {
+      openCenterOverlay("\u8BA4\u77E5\u53CD\u9988", getGraphOverlayContent(), {
         showBack: true,
         onBack: () => {
           closeOverlayPanel();
@@ -30140,7 +30342,8 @@ ${MEM_TAG_CLOSE2}`;
         height: "90vh",
         maxWidth: "1400px",
         maxHeight: "900px",
-        compactHeader: true
+        compactHeader: true,
+        panelClass: "claw-feedback-overlay"
       });
     } else {
       cleanupPerformancePanel();

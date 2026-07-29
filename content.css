@@ -681,6 +681,51 @@
   background: rgba(121, 116, 126, 0.18);
 }
 
+/* Feedback has its own top bar: keep only reachable overlay controls above it. */
+.claw-feedback-overlay .claw-custom-panel {
+  position: relative;
+}
+
+.claw-feedback-overlay .claw-panel-header {
+  position: absolute !important;
+  top: 12px;
+  right: 14px;
+  z-index: 120;
+  width: auto;
+  min-height: 40px !important;
+  padding: 0 !important;
+  flex-basis: auto;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.claw-feedback-overlay .claw-panel-title {
+  display: none;
+}
+
+.claw-feedback-overlay .claw-back-btn,
+.claw-feedback-overlay .claw-close-panel {
+  width: 36px !important;
+  height: 36px !important;
+  border: 1px solid rgba(103, 80, 164, 0.18) !important;
+  color: #49454F !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 2px 8px rgba(33, 0, 93, 0.08) !important;
+}
+
+.claw-feedback-overlay .claw-back-btn:hover,
+.claw-feedback-overlay .claw-close-panel:hover {
+  color: #21005D !important;
+  background: #EADDFF !important;
+}
+
+.claw-feedback-overlay .em-topbar {
+  padding-right: 108px !important;
+}
+
 @media (max-width: 480px) {
   .claw-overlay-panel--right .claw-custom-panel-body,
   .claw-overlay-panel--left .claw-custom-panel-body {

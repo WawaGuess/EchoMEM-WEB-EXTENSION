@@ -123,7 +123,7 @@ export async function navigateToEchoMemPanel(panelIdOrTitle) {
 
   // 认知反馈面板使用居中浮层打开图谱
   if (panel.id === 'feedback') {
-    openCenterOverlay('认知图谱', getGraphOverlayContent(), {
+    openCenterOverlay('认知反馈', getGraphOverlayContent(), {
       showBack: true,
       onBack: () => {
         closeOverlayPanel();
@@ -134,6 +134,7 @@ export async function navigateToEchoMemPanel(panelIdOrTitle) {
       maxWidth: '1400px',
       maxHeight: '900px',
       compactHeader: true,
+      panelClass: 'claw-feedback-overlay',
     });
   } else {
     cleanupPerformancePanel();

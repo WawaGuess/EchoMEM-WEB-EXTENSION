@@ -1,180 +1,151 @@
-// 认知反馈面板内容 - 知识图谱 3D 渲染
-// 文档：docs/flows/cognitive-feedback/图谱渲染.md
+// 认知反馈公共视图壳：图谱由底座提供，Episode / Summary 由独立 bundle 注册。
 
 import { fetchGraphData } from '../../services/graph-client.js';
 import { renderThreeGraph, cleanupThreeGraph } from './graph-three.js';
+import { mountViewSwitcher } from './view-switcher.js';
+import { getOptionalFeedbackViews } from './view-registry.js';
 
-const DEFAULT_MODE = 'about';
+const DEFAULT_MODE = 'all';
 
-function setLoadingState(container) {
+function isViewActive(container, viewApi) {
+  return container.isConnected && (
+    typeof viewApi.isActive !== 'function' || viewApi.isActive()
+  );
+}
+
+function setLoadingState(container, label = '认知反馈') {
   container.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; flex-direction: column; gap: 12px;">
-      <div style="width: 32px; height: 32px; border: 3px solid #1a2332; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-      <p style="font-size: 13px; color: #8899aa;">正在加载认知图谱…</p>
+    <div class="em-loading" role="status" aria-live="polite">
+      <div class="em-state-orb" aria-hidden="true"></div>
+      <p class="em-state-title">正在加载${label}…</p>
+      <p class="em-state-copy">EchoMem 正在整理相关记忆，请稍候。</p>
     </div>
-    <style>
-      @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
   `;
 }
 
-function setErrorState(container, err) {
+function setErrorState(container, err, onRetry) {
   container.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; flex-direction: column; gap: 12px; padding: 20px; text-align: center;">
-      <p style="font-size: 14px; color: #aabbcc;">图谱加载失败</p>
-      <p style="font-size: 12px; color: #667788; max-width: 300px;">${err.message || '未知错误'}</p>
-      <button id="echomem-retry-graph" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">重试</button>
+    <div class="em-error" role="alert">
+      <div class="em-state-orb" aria-hidden="true"></div>
+      <p class="em-state-title">加载失败</p>
+      <p class="em-state-copy"></p>
+      <button class="em-primary-btn" type="button">重试</button>
     </div>
   `;
-
-  const retryBtn = container.querySelector('#echomem-retry-graph');
-  if (retryBtn) {
-    retryBtn.addEventListener('click', () => {
-      container._graphData = null;
-      renderGraph(container);
-    });
-  }
+  container.querySelector('.em-state-copy').textContent = err?.message || '未知错误';
+  container.querySelector('.em-primary-btn')?.addEventListener('click', onRetry);
 }
 
 function setEmptyState(container) {
   container.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; flex-direction: column; gap: 12px; text-align: center;">
-      <p style="font-size: 14px; color: #aabbcc;">当前视图暂无数据</p>
-      <p style="font-size: 12px; color: #667788; max-width: 300px;">实体关系下没有找到可渲染的节点或关系。</p>
+    <div class="em-empty">
+      <div class="em-state-orb" aria-hidden="true"></div>
+      <p class="em-state-title">当前视图暂无数据</p>
+      <p class="em-state-copy">认知图谱下没有找到可渲染的节点或关系。</p>
     </div>
   `;
 }
 
 function filterGraphData(graphData, mode) {
-  if (mode === 'all') return graphData;
+  const visibleNodes = graphData.nodes.filter((node) => !node.id.startsWith('episode:'));
+  const visibleIds = new Set(visibleNodes.map((node) => node.id));
+  const visibleLinks = graphData.links.filter(
+    (link) => visibleIds.has(link.source) && visibleIds.has(link.target)
+  );
+  const visibleGraph = { ...graphData, nodes: visibleNodes, links: visibleLinks };
 
-  const filteredLinks = graphData.links.filter((l) => l.name === mode);
+  if (mode === 'all') return visibleGraph;
+
+  const filteredLinks = visibleLinks.filter((link) => link.name === mode);
   const linkedIds = new Set();
-  filteredLinks.forEach((l) => {
-    linkedIds.add(l.source);
-    linkedIds.add(l.target);
+  filteredLinks.forEach((link) => {
+    linkedIds.add(link.source);
+    linkedIds.add(link.target);
   });
-  const filteredNodes = graphData.nodes.filter((n) => linkedIds.has(n.id));
-
-  const usedCategories = new Set(filteredNodes.map((n) => n.category));
-  const filteredCategories = graphData.categories.filter((_, idx) => usedCategories.has(idx));
+  const filteredNodes = visibleNodes.filter((node) => linkedIds.has(node.id));
+  const usedCategories = new Set(filteredNodes.map((node) => node.category));
 
   return {
-    ...graphData,
+    ...visibleGraph,
     nodes: filteredNodes,
     links: filteredLinks,
-    categories: filteredCategories,
+    categories: graphData.categories.filter((_, index) => usedCategories.has(index)),
   };
 }
 
-/**
- * 渲染知识图谱（仅实体关系）
- * @param {HTMLElement} container - 图表容器元素
- */
-async function renderGraph(container) {
+async function renderGraph(container, viewApi = {}) {
   try {
-    setLoadingState(container);
-
+    setLoadingState(container, '认知图谱');
     let graphData = container._graphData;
     if (!graphData) {
       graphData = await fetchGraphData();
       container._graphData = graphData;
     }
-
-    if (!container.isConnected) return;
+    if (!isViewActive(container, viewApi)) return;
 
     const viewData = filterGraphData(graphData, DEFAULT_MODE);
-
     if (viewData.nodes.length === 0) {
       setEmptyState(container);
       return;
     }
-
     renderThreeGraph(container, viewData);
   } catch (err) {
     console.error('EchoMem: 加载认知图谱失败', err);
-    if (container.isConnected) {
-      setErrorState(container, err);
-    }
+    if (!isViewActive(container, viewApi)) return;
+    setErrorState(container, err, () => {
+      if (!isViewActive(container, viewApi)) return;
+      container._graphData = null;
+      renderGraph(container, viewApi);
+    });
   }
 }
 
-/**
- * 获取认知反馈面板内容（作为基础内容，实际打开时会通过 openCenterOverlay 展示居中图谱）
- */
 export function getFeedbackContent() {
   return `
-    <div style="color: #666;">
-      <p style="margin-bottom: 12px;">🧠 认知反馈面板</p>
-      <div style="
-        padding: 16px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        margin-bottom: 12px;
-      ">
-        <p style="font-weight: 500; color: #333; margin-bottom: 8px;">当前会话分析</p>
-        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
-          <span>对话轮次</span>
-          <span style="color: #333; font-weight: 500;">0</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
-          <span>平均响应时间</span>
-          <span style="color: #333; font-weight: 500;">--</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 13px;">
-          <span>Token 消耗</span>
-          <span style="color: #333; font-weight: 500;">0</span>
-        </div>
+    <div style="color:#49454F;font-family:Roboto,'Noto Sans SC',sans-serif;">
+      <p style="margin:0 0 12px;color:#6750A4;font-size:12px;font-weight:600;letter-spacing:.08em;">ECHO · 认知反馈</p>
+      <div style="padding:16px;background:#FFF;border:1px solid rgba(121,116,126,.24);border-radius:12px;margin-bottom:12px;">
+        <p style="font-weight:500;color:#21005D;margin-bottom:8px;">当前会话分析</p>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span>对话轮次</span><span style="color:#1D1B20;font-weight:500;">0</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span>平均响应时间</span><span style="color:#1D1B20;font-weight:500;">--</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Token 消耗</span><span style="color:#1D1B20;font-weight:500;">0</span></div>
       </div>
-      <button style="
-        width: 100%;
-        padding: 10px;
-        background: #667eea;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 500;
-      ">生成反馈报告</button>
+      <button type="button" style="width:100%;min-height:40px;padding:10px 18px;background:linear-gradient(135deg,#6750A4,#21005D);color:#FFF;border:0;border-radius:20px;cursor:pointer;font-size:14px;font-weight:500;">生成反馈报告</button>
     </div>
   `;
 }
 
-/**
- * 获取认知图谱浮层内容（用于居中 overlay，仅展示实体关系）
- */
 export function getGraphOverlayContent() {
-  const wrapperId = 'echomem-graph-wrapper-' + Date.now();
-  const containerId = 'echomem-graph-container-' + Date.now();
+  const wrapperId = `echomem-feedback-wrapper-${Date.now()}`;
 
   setTimeout(() => {
-    const container = document.getElementById(containerId);
-    if (container) {
-      renderGraph(container);
-    }
+    const wrapper = document.getElementById(wrapperId);
+    if (!wrapper) return;
+
+    const optionalViews = getOptionalFeedbackViews();
+    const views = [
+      {
+        key: 'relation',
+        label: '记忆图谱',
+        mount: (element, api) => renderGraph(element, api),
+        cleanup: (element) => {
+          cleanupThreeGraph(element);
+          element._graphData = null;
+        },
+      },
+      ...optionalViews,
+    ];
+
+    mountViewSwitcher(wrapper, {
+      defaultKey: optionalViews[0]?.key || 'relation',
+      views,
+    });
   }, 100);
 
-  return `
-    <div id="${wrapperId}" style="
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      height: 100%;
-      min-height: 400px;
-      background: #05070a;
-    ">
-      <div id="${containerId}" style="flex: 1; min-height: 0;"></div>
-    </div>
-  `;
+  return `<div id="${wrapperId}" style="display:flex;flex-direction:column;width:100%;height:100%;min-height:400px;background:#05070a;"></div>`;
 }
 
-/**
- * 清理图谱相关资源（在面板关闭时调用）
- */
 export function cleanupGraph(containerId) {
   const container = document.getElementById(containerId);
-  if (container) {
-    cleanupThreeGraph(container);
-  }
+  if (container) cleanupThreeGraph(container);
 }
