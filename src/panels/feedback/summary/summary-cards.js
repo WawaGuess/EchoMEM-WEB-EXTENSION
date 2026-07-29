@@ -270,7 +270,7 @@ function highlightCard(highlight, theme) {
 function listCard(title, eyebrow, items, formatter, theme) {
   const slide = cardShell(theme, eyebrow, title);
   const list = node('div', 'em-recap-list');
-  items.slice(0, 6).forEach((item, index) => {
+  items.forEach((item, index) => {
     const row = node('div', 'em-recap-list-row');
     const number = node('span', 'em-recap-list-number');
     number.textContent = String(index + 1).padStart(2, '0');
@@ -297,7 +297,7 @@ function actionGroup(title, items, formatter, symbol) {
   const heading = node('div', 'em-recap-group-title');
   heading.textContent = title;
   group.appendChild(heading);
-  items.slice(0, 4).forEach((item) => {
+  items.forEach((item) => {
     const row = node('div', 'em-recap-action-row');
     const icon = document.createElement('span');
     icon.textContent = symbol;
@@ -312,7 +312,7 @@ function actionGroup(title, items, formatter, symbol) {
 function themesCard(clusters, theme) {
   const slide = cardShell(theme, '主题聚类', '这一周，围绕这些事展开');
   const list = node('div', 'em-recap-themes');
-  clusters.slice(0, 5).forEach((cluster, index) => {
+  clusters.forEach((cluster) => {
     const item = document.createElement('div');
     const title = node('div', 'em-recap-theme-title');
     title.textContent = cluster.theme;
@@ -328,7 +328,7 @@ function themesCard(clusters, theme) {
 function updatesCard(updates, theme) {
   const slide = cardShell(theme, '记忆演化', '有些理解，已经改变');
   const list = node('div', 'em-recap-updates');
-  updates.slice(0, 5).forEach((update) => {
+  updates.forEach((update) => {
     const item = document.createElement('div');
     if (update.previous_version) {
       const before = node('div', 'em-recap-before');
@@ -355,7 +355,7 @@ function tagsCard(summary, theme) {
     const heading = node('div', 'em-recap-group-title');
     heading.textContent = label;
     const wrap = node('div', 'em-recap-tags');
-    items.slice(0, 10).forEach((item) => {
+    items.forEach((item) => {
       const tag = document.createElement('span');
       tag.textContent = item;
       wrap.appendChild(tag);

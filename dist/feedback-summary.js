@@ -505,15 +505,16 @@
   }
   function _normalizeMemoryUpdate(item) {
     if (typeof item === "string") {
-      return { statement: item, is_update: false };
+      return { statement: item, is_update: false, previous_version: "" };
     }
     if (item && typeof item === "object") {
       return {
         statement: item.statement || item.fact || item.content || item.description || JSON.stringify(item),
-        is_update: Boolean(item.is_update)
+        is_update: Boolean(item.is_update),
+        previous_version: item.previous_version || ""
       };
     }
-    return { statement: String(item || ""), is_update: false };
+    return { statement: String(item || ""), is_update: false, previous_version: "" };
   }
   function _normalizeActionItem(item) {
     if (typeof item === "string") {
@@ -5392,7 +5393,7 @@
   function listCard(title, eyebrow, items, formatter, theme) {
     const slide2 = cardShell(theme, eyebrow, title);
     const list = node("div", "em-recap-list");
-    items.slice(0, 6).forEach((item, index) => {
+    items.forEach((item, index) => {
       const row = node("div", "em-recap-list-row");
       const number = node("span", "em-recap-list-number");
       number.textContent = String(index + 1).padStart(2, "0");
@@ -5417,7 +5418,7 @@
     const heading = node("div", "em-recap-group-title");
     heading.textContent = title;
     group.appendChild(heading);
-    items.slice(0, 4).forEach((item) => {
+    items.forEach((item) => {
       const row = node("div", "em-recap-action-row");
       const icon = document.createElement("span");
       icon.textContent = symbol;
@@ -5431,7 +5432,7 @@
   function themesCard(clusters, theme) {
     const slide2 = cardShell(theme, "\u4E3B\u9898\u805A\u7C7B", "\u8FD9\u4E00\u5468\uFF0C\u56F4\u7ED5\u8FD9\u4E9B\u4E8B\u5C55\u5F00");
     const list = node("div", "em-recap-themes");
-    clusters.slice(0, 5).forEach((cluster, index) => {
+    clusters.forEach((cluster) => {
       var _a;
       const item = document.createElement("div");
       const title = node("div", "em-recap-theme-title");
@@ -5447,7 +5448,7 @@
   function updatesCard(updates, theme) {
     const slide2 = cardShell(theme, "\u8BB0\u5FC6\u6F14\u5316", "\u6709\u4E9B\u7406\u89E3\uFF0C\u5DF2\u7ECF\u6539\u53D8");
     const list = node("div", "em-recap-updates");
-    updates.slice(0, 5).forEach((update2) => {
+    updates.forEach((update2) => {
       const item = document.createElement("div");
       if (update2.previous_version) {
         const before = node("div", "em-recap-before");
@@ -5475,7 +5476,7 @@
       const heading = node("div", "em-recap-group-title");
       heading.textContent = label;
       const wrap = node("div", "em-recap-tags");
-      items.slice(0, 10).forEach((item) => {
+      items.forEach((item) => {
         const tag = document.createElement("span");
         tag.textContent = item;
         wrap.appendChild(tag);

@@ -66,11 +66,17 @@ const designDaily = {
   key_facts: [{ statement: '融资完成', importance: 'high' }],
   decisions: [{ description: '推进商业化', evidence: 'msg_1' }],
   action_items: [{ description: '整理材料', due: '明天', source: 'msg_2' }],
+  memory_updates: [{ statement: '融资阶段已完成', is_update: true, previous_version: '正在准备融资' }],
 };
 const parsed2 = parseSummary(designDaily);
 assertEqual(parsed2.keyFacts[0], { statement: '融资完成', importance: 'high', is_update: false, previous_version: '', atom_ids: [], source_turn_ids: [] }, 'design keyFacts[0]');
 assertEqual(parsed2.decisions[0], { description: '推进商业化', evidence: 'msg_1' }, 'design decisions[0]');
 assertEqual(parsed2.actionItems[0], { description: '整理材料', due: '明天', source: 'msg_2' }, 'design actionItems[0]');
+assertEqual(
+  parsed2.memoryUpdates[0],
+  { statement: '融资阶段已完成', is_update: true, previous_version: '正在准备融资' },
+  'memory update preserves previous_version'
+);
 
 // 9. Missing summary directories are treated as empty, but service/auth failures propagate.
 const notFound = new Error('HTTP 404');

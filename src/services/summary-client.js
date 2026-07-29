@@ -131,15 +131,16 @@ function _normalizeHighlightItem(item) {
 // 记忆更新：后端可能直接给字符串，也可能给 { statement, is_update } 对象
 function _normalizeMemoryUpdate(item) {
   if (typeof item === 'string') {
-    return { statement: item, is_update: false };
+    return { statement: item, is_update: false, previous_version: '' };
   }
   if (item && typeof item === 'object') {
     return {
       statement: item.statement || item.fact || item.content || item.description || JSON.stringify(item),
       is_update: Boolean(item.is_update),
+      previous_version: item.previous_version || '',
     };
   }
-  return { statement: String(item || ''), is_update: false };
+  return { statement: String(item || ''), is_update: false, previous_version: '' };
 }
 
 function _normalizeActionItem(item) {
