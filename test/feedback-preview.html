@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EchoMem Cognitive Feedback Preview</title>
+  <title>EchoMem Periodic Review Preview</title>
   <style>
     html, body, #app { width: 100%; height: 100%; margin: 0; }
     body { background: #02070b; }
@@ -21,55 +21,12 @@
   <div id="app"></div>
   <script type="module">
     import { mountViewSwitcher } from '../src/panels/feedback/view-switcher.js';
-    import { renderTimeline, cleanupTimeline } from '../src/panels/feedback/timeline/timeline-view.js';
     import { renderDailyCards } from '../src/panels/feedback/summary/summary-cards.js';
-
-    const day = (value) => Date.parse(`${value}T00:00:00Z`);
-    const episodes = [
-      {
-        id: 'ep-onboarding', title: 'Onboarding 重构分歧与妥协',
-        summary: '用户与王磊就 onboarding 重构优先级发生争执，最终决定先做最小可行版，并在两周内上线灰度。',
-        rawStartTime: '2026-07-07', rawEndTime: '2026-07-07', rawLastActiveAt: '2026-07-07',
-        startTime: day('2026-07-07'), endTime: day('2026-07-07'), lastActiveAt: day('2026-07-07'),
-        arcStage: 'middle', status: 'closed', salience: 1, confidence: .8, turnCount: 5,
-        atomRefs: ['a1', 'a2', 'a3', 'a4', 'a5'],
-        topics: ['团队协作', 'Onboarding', '沟通方式'], entities: ['王磊', 'Onboarding'], participants: ['user', 'agent'], segments: [],
-        followsRefs: ['ep-planning'], branchesToRefs: [],
-        events: [
-          { id: 'e1', type: 'action', description: '用户与王磊就 onboarding 重构分歧发生争执', time: day('2026-07-07'), confidence: .95 },
-          { id: 'e2', type: 'decision', description: '双方达成妥协，决定先做最小可行版，两周内上线灰度', time: day('2026-07-07'), confidence: .95 },
-          { id: 'e3', type: 'observation', description: '用户与王磊一起吃午饭，关系得到缓和', time: day('2026-07-07'), confidence: .95 },
-        ],
-      },
-      {
-        id: 'ep-planning', title: '从独自决策转向授权与团队共创',
-        summary: '用户反思自己的管理方式，决定从下周起让团队共同参与方案与决策过程。',
-        rawStartTime: '2026-07-11', rawEndTime: '2026-07-12', rawLastActiveAt: '2026-07-12',
-        startTime: day('2026-07-11'), endTime: day('2026-07-12'), lastActiveAt: day('2026-07-12'),
-        arcStage: 'beginning', status: 'ongoing', salience: .92, confidence: .86, turnCount: 7,
-        atomRefs: ['b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7'],
-        topics: ['授权', '团队共创', '管理方式'], entities: ['用户', '团队'], participants: ['user', 'agent'], segments: [],
-        followsRefs: [], branchesToRefs: [],
-        events: [
-          { id: 'e4', type: 'observation', description: '用户意识到自己经常独自抠细方案，授权不足', time: day('2026-07-11'), confidence: .9 },
-          { id: 'e5', type: 'state_change', description: '用户愿意调整管理方式，给团队更多参与空间', time: day('2026-07-12'), confidence: .9 },
-          { id: 'e6', type: 'decision', description: '决定从周一早会开始实践授权与团队共创', time: day('2026-07-12'), confidence: .95 },
-        ],
-      },
-      {
-        id: 'ep-customer', title: '客户投诉与紧急修复',
-        summary: '新功能缺少关闭入口引发老客户投诉，团队紧急补修复并降低灰度比例。',
-        rawStartTime: '2026-07-09', rawEndTime: '2026-07-10', rawLastActiveAt: '2026-07-10',
-        startTime: day('2026-07-09'), endTime: day('2026-07-10'), lastActiveAt: day('2026-07-10'),
-        arcStage: 'end', status: 'closed', salience: .86, confidence: .84, turnCount: 9,
-        atomRefs: ['c1', 'c2', 'c3', 'c4', 'c5', 'c6'],
-        topics: ['客户反馈', '灰度发布'], entities: ['老客户', '关闭入口'], participants: ['user', 'agent'], segments: [],
-        followsRefs: [], branchesToRefs: [], events: [],
-      },
-    ];
+    import { injectSummaryTheme } from '../src/panels/feedback/summary/summary-theme.js';
 
     const daily = {
-      date: '2026-07-12', generatedAt: '2026-07-14T12:56:23Z',
+      date: '2026-07-12',
+      generatedAt: '2026-07-14T12:56:23Z',
       overview: '你梳理了下周工作重点，并决定开始实践授权与团队共创。',
       narrative: '晚上，你围绕客户反馈关闭入口、候选人二面和下周工作重点进行了规划。更重要的是，你反思了自己习惯独自决策的管理方式，决定从周一开始让团队共同参与方案形成。',
       metrics: { sessions: 1, turns: 7, user_messages: 4, peak_hour: '21:00' },
@@ -78,21 +35,36 @@
         { statement: '关注候选人二面的结果', importance: 'medium', is_update: false },
         { statement: '从 7 月 13 日开始实施授权与团队共创方案', importance: 'high', is_update: true },
       ],
-      decisions: [{ description: '让团队共创方案，而不是继续由一个人拍板', evidence: '来自对管理方式的反思' }],
-      actionItems: [
-        { description: '梳理下周工作重点' }, { description: '在周一早会上实践授权与团队共创' },
+      decisions: [
+        { description: '让团队共创方案，而不是继续由一个人拍板', evidence: '来自对管理方式的反思' },
       ],
-      topics: ['工作规划', '授权与团队共创', '客户反馈', '招聘'], emotions: ['平静', '反思'], people: ['团队', '候选人'],
+      actionItems: [
+        { description: '梳理下周工作重点' },
+        { description: '在周一早会上实践授权与团队共创' },
+      ],
+      topics: ['工作规划', '授权与团队共创', '客户反馈', '招聘'],
+      emotions: ['平静', '反思'],
+      people: ['团队', '候选人'],
       highlight: { type: 'decision', description: '决定开始放权，让团队真正参与方案与决策。' },
       agentNote: '真正的授权不是少做一点，而是让团队拥有形成答案的空间。',
       basedOn: { sessions: ['s1'], atom_count: 5, message_count: 7 },
     };
 
     mountViewSwitcher(document.getElementById('app'), {
-      defaultKey: 'timeline',
+      defaultKey: 'summary',
       views: [
-        { key: 'timeline', label: '情节记忆', mount: (el) => renderTimeline(el, { episodes }), cleanup: cleanupTimeline },
-        { key: 'summary', label: '周期总结', mount: (el) => el.appendChild(renderDailyCards(daily)), cleanup: (el) => { el.innerHTML = ''; } },
+        {
+          key: 'summary',
+          label: '周期总结',
+          mount: (element) => {
+            injectSummaryTheme(element);
+            element.appendChild(renderDailyCards(daily));
+          },
+          cleanup: (element) => {
+            element.querySelector('.em-recap')?._cleanup?.();
+            element.innerHTML = '';
+          },
+        },
       ],
     });
   </script>
