@@ -1,8 +1,6 @@
-import { injectContent } from '../core/content-injector.js';
 import { renderTimeline, cleanupTimeline } from '../panels/feedback/timeline/timeline-view.js';
 import { injectTimelineTheme } from '../panels/feedback/timeline/timeline-theme.js';
 import { fetchEpisodeTimeline } from '../services/episode-client.js';
-import { showFloatingToast } from '../services/toast.js';
 
 function isViewActive(container, viewApi) {
   return container.isConnected && (
@@ -33,22 +31,6 @@ function setErrorState(container, err, onRetry) {
   container.querySelector('.em-primary-btn')?.addEventListener('click', onRetry);
 }
 
-function closeFeedbackOverlay() {
-  const overlay = Array.from(document.querySelectorAll('.claw-feedback-overlay'))
-    .find((element) => element.isConnected && element.style.display !== 'none');
-  overlay?.querySelector('.claw-close-panel')?.click();
-}
-
-function useMemory(content, message) {
-  const success = injectContent(content, { replace: true, focus: true });
-  if (!success) {
-    showFloatingToast('未找到聊天输入框，无法带入记忆', 'error');
-    return;
-  }
-  showFloatingToast(message || '记忆已带入当前对话', 'success');
-  setTimeout(closeFeedbackOverlay, 260);
-}
-
 async function mountEpisodeView(container, viewApi = {}) {
   try {
     setLoadingState(container);
@@ -59,9 +41,7 @@ async function mountEpisodeView(container, viewApi = {}) {
     }
     if (!isViewActive(container, viewApi)) return;
 
-    renderTimeline(container, model, {
-      onUseMemory: (content, message) => useMemory(content, message),
-    });
+    renderTimeline(container, model);
     injectTimelineTheme(container);
   } catch (err) {
     console.error('EchoMem: 加载 Episode 失败', err);

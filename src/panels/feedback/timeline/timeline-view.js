@@ -24,7 +24,7 @@ const RETENTION_LABEL = {
 const GENERIC_TAGS = new Set(['用户', 'user', 'agent', 'assistant']);
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export function renderTimeline(container, model, options = {}) {
+export function renderTimeline(container, model) {
   cleanupTimeline(container);
   container.innerHTML = '';
   container.style.position = 'relative';
@@ -47,7 +47,6 @@ export function renderTimeline(container, model, options = {}) {
     activeId: episodes[0].id,
     detailOpen: !compact,
     selectedEventDate: '',
-    options,
     handlers: {},
   };
 
@@ -96,11 +95,6 @@ export function renderTimeline(container, model, options = {}) {
       state.detailOpen = false;
       state.selectedEventDate = '';
       syncSelection();
-      return;
-    }
-
-    if (action === 'use-episode' && episode) {
-      state.options.onUseMemory?.(buildEpisodeContext(episode), '这段记忆已带入当前对话');
       return;
     }
 
@@ -306,12 +300,7 @@ function renderDetail(container, episode, state) {
     textNode('span', `${episode.turnCount} 轮相关对话`)
   );
 
-  const actions = node('div', 'em-detail-actions');
-  actions.append(
-    actionButton('带入当前对话', 'use-episode', 'is-primary', episode.id)
-  );
-
-  container.append(top, title, stage, summarySection, stats, tagSection, eventSection, memoryMeta, actions);
+  container.append(top, title, stage, summarySection, stats, tagSection, eventSection, memoryMeta);
 }
 
 function buildDetailEvent(event, selectedDate) {
@@ -441,24 +430,6 @@ function formatEventDate(eventOrCluster) {
   return '时间未记录';
 }
 
-function buildEpisodeContext(episode) {
-  const lines = [
-    `情节记忆：${episode.title}`,
-    `时间：${formatEpisodeDateRange(episode)}`,
-    `摘要：${episode.summary || '暂无摘要'}`,
-  ];
-  if (episode.events.length) {
-    lines.push('关键事件：');
-    episode.events.forEach((event) => {
-      const meta = EVENT_TYPE_META[event.type] || EVENT_TYPE_META.observation;
-      lines.push(`- [${meta.label} · ${formatEventDate(event)}] ${event.description}`);
-    });
-  }
-  const tags = visibleTags(episode);
-  if (tags.length) lines.push(`相关人物与主题：${tags.join('、')}`);
-  return lines.join('\n');
-}
-
 function visibleTags(episode) {
   return unique([...(episode.entities || []), ...(episode.topics || [])])
     .filter((item) => item && !GENERIC_TAGS.has(item.toLocaleLowerCase()));
@@ -505,16 +476,6 @@ function legendItem(className, label) {
   const item = node('span', 'em-legend-item');
   item.append(node('i', className), textNode('span', label));
   return item;
-}
-
-function actionButton(label, action, variant = '', episodeId = '') {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = `em-action-btn ${variant}`.trim();
-  button.dataset.emAction = action;
-  if (episodeId) button.dataset.episodeId = episodeId;
-  button.textContent = label;
-  return button;
 }
 
 function iconButton(label, action, ariaLabel) {

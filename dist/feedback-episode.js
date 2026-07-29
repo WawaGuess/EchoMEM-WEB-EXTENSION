@@ -1,248 +1,4 @@
 (() => {
-  // src/config/platforms.json
-  var platforms_default = {
-    version: 1,
-    platforms: [
-      {
-        id: "higo",
-        name: "HIGO Office",
-        enabled: true,
-        record: false,
-        detection: {
-          urlPatterns: ["/home/session/", "/home/workspace/"],
-          titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
-          domFeatures: {
-            required: [".MuiDrawer-root", ".MuiPaper-root"],
-            optional: ["textarea[id^='_r_']", "[data-testid='ArrowUpwardIcon']", ".MuiDrawer-anchorRight"]
-          },
-          contentKeywords: ["higo", "HIGO", "Higo2", "echo", "Echo"]
-        },
-        headerLauncher: {
-          anchorSelectors: [
-            "[data-testid='ShareIcon']",
-            "[data-testid='ChevronRightIcon']"
-          ],
-          preferredXRatio: 0.75,
-          minXRatio: 0.18,
-          maxXRatio: 0.94,
-          maxTop: 120,
-          logo: "assets/echomem-lockup.png",
-          title: "\u6253\u5F00 EchoMem"
-        },
-        input: {
-          selector: "textarea[id^='_r_']"
-        },
-        messages: {
-          messageContainers: [
-            "[class*='MessageList']",
-            "[class*='message-list']",
-            "[class*='chat-messages']",
-            "[class*='conversation']",
-            ".MuiPaper-root > .MuiList-root",
-            ".MuiDrawer-paper > div > div",
-            ".MuiPaper-root"
-          ],
-          userMessages: [
-            "[class*='UserMessage']",
-            "[class*='user-message']",
-            "[class*='user']",
-            "[style*='flex-end']"
-          ],
-          assistantMessages: [
-            "[class*='AssistantMessage']",
-            "[class*='assistant-message']",
-            "[class*='assistant']",
-            "[class*='bot-message']",
-            "[class*='ai-message']"
-          ],
-          allMessages: ["div[class*='Mui']", "div"],
-          noiseSelectors: [],
-          smartContainerHints: [],
-          assistant: {
-            textSelector: null,
-            skipIfMissing: false,
-            roleSignals: []
-          }
-        },
-        streaming: {
-          strategy: "none"
-        },
-        panelHost: {
-          type: "overlay",
-          overlayConfig: {
-            position: "right",
-            width: "320px",
-            backdrop: true
-          }
-        },
-        sessionId: {
-          type: "regex",
-          pattern: "/home/session/([a-f0-9-]+)",
-          flags: "i"
-        },
-        menuItems: [
-          { panelId: "resources" },
-          { panelId: "association" },
-          { panelId: "feedback" },
-          { panelId: "skillStore" },
-          { panelId: "performance" }
-        ]
-      },
-      {
-        id: "deepseek",
-        name: "DeepSeek",
-        enabled: true,
-        record: true,
-        detection: {
-          urlPatterns: ["chat.deepseek.com"],
-          titleKeywords: ["DeepSeek"],
-          domFeatures: {
-            required: ["textarea[placeholder*='DeepSeek']", "._24fad49"],
-            optional: ["._020ab5b", "[role='button']"]
-          },
-          contentKeywords: ["deepseek", "\u6DF1\u5EA6\u601D\u8003", "\u667A\u80FD\u641C\u7D22"]
-        },
-        input: {
-          selector: "textarea[placeholder*='DeepSeek']"
-        },
-        messages: {
-          messageContainers: [
-            ".ds-virtual-list",
-            "[class*='virtual-list']"
-          ],
-          userMessages: [],
-          assistantMessages: [],
-          allMessages: [".ds-message"],
-          noiseSelectors: [".ds-think-content"],
-          smartContainerHints: [".ds-virtual-list"],
-          assistant: {
-            textSelector: ".ds-assistant-message-main-content",
-            skipIfMissing: true,
-            roleSignals: [
-              ".ds-assistant-message-main-content",
-              ".ds-think-content"
-            ]
-          }
-        },
-        streaming: {
-          strategy: "button-svg-poll",
-          params: {
-            anchorSelector: "textarea",
-            anchorParents: [
-              "closest:form",
-              "closest:[class*=chat]",
-              "closest:[class*=input]",
-              "parent:2",
-              "parent:3"
-            ],
-            buttonSelector: ".ds-icon-button--l[role='button']",
-            iconSelector: "svg path",
-            iconAttr: "d",
-            streamingMatch: "startsWith:M2 4.88",
-            idleMatch: "startsWith:M8.3125",
-            pollIntervalMs: 500,
-            timeoutMs: 6e4
-          }
-        },
-        panelHost: {
-          type: "overlay",
-          overlayConfig: {
-            position: "right",
-            width: "320px",
-            backdrop: true
-          }
-        },
-        sessionId: {
-          type: "path",
-          segment: -1
-        },
-        menuItems: [
-          { panelId: "resources" },
-          { panelId: "association" },
-          { panelId: "feedback" },
-          { panelId: "skillStore" },
-          { panelId: "performance" }
-        ]
-      }
-    ]
-  };
-
-  // src/config/loader.js
-  var PLATFORM_CONFIGS = {};
-  for (const config of platforms_default.platforms || []) {
-    PLATFORM_CONFIGS[config.id] = { ...config };
-  }
-
-  // src/core/state.js
-  var DEFAULT_STATE = {
-    platform: null,
-    association: {
-      enabled: false,
-      triggerThreshold: 3,
-      debounceMs: 300,
-      maxSuggestions: 5
-    },
-    panel: {
-      isOpen: false,
-      currentRoute: null
-    }
-  };
-  var state = { ...DEFAULT_STATE };
-  function getPlatform() {
-    return state.platform;
-  }
-
-  // src/core/detection.js
-  function getCurrentPlatform() {
-    return getPlatform();
-  }
-
-  // src/core/content-injector.js
-  function findInputElement() {
-    var _a, _b, _c, _d, _e;
-    const platform = getCurrentPlatform();
-    if (!platform) return null;
-    const selector = ((_b = (_a = platform.config) == null ? void 0 : _a.input) == null ? void 0 : _b.selector) || ((_e = (_d = (_c = platform.config) == null ? void 0 : _c.launcher) == null ? void 0 : _d.validateSelectors) == null ? void 0 : _e.textarea);
-    if (!selector) return null;
-    return document.querySelector(selector);
-  }
-  var MEM_TAG_OPEN = "<relevant-memories>";
-  var MEM_TAG_CLOSE = "</relevant-memories>";
-  function stripMemoryBlock(text) {
-    const start = text.indexOf(MEM_TAG_OPEN);
-    if (start === -1) return text.trim();
-    const end = text.indexOf(MEM_TAG_CLOSE, start);
-    if (end === -1) return text.trim();
-    return (text.slice(0, start) + text.slice(end + MEM_TAG_CLOSE.length)).trim();
-  }
-  function injectContent(content, options = {}) {
-    const textarea = findInputElement();
-    if (!textarea) {
-      console.warn("EchoMem: \u672A\u627E\u5230\u8F93\u5165\u6846\uFF0C\u65E0\u6CD5\u6CE8\u5165\u5185\u5BB9");
-      return false;
-    }
-    const existing = textarea.value || "";
-    let base = options.replace ? stripMemoryBlock(existing) : existing;
-    const cleanContent = content.replace(new RegExp(MEM_TAG_OPEN, "g"), "").replace(new RegExp(MEM_TAG_CLOSE, "g"), "").trim();
-    if (!cleanContent) return false;
-    const block = options.asPlainText ? cleanContent : `${MEM_TAG_OPEN}
-${cleanContent}
-${MEM_TAG_CLOSE}`;
-    const next = base ? `${base}
-
-${block}` : block;
-    textarea.value = next;
-    try {
-      textarea.selectionStart = textarea.selectionEnd = next.length;
-    } catch (_) {
-    }
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    if (options.focus !== false) {
-      textarea.focus();
-    }
-    return true;
-  }
-
   // src/services/echomem-client.js
   var DEFAULT_CONFIG = {
     baseUrl: "http://127.0.0.1:8010",
@@ -758,7 +514,7 @@ ${block}` : block;
   };
   var GENERIC_TAGS = /* @__PURE__ */ new Set(["\u7528\u6237", "user", "agent", "assistant"]);
   var DAY_MS = 24 * 60 * 60 * 1e3;
-  function renderTimeline(container, model, options = {}) {
+  function renderTimeline(container, model) {
     var _a;
     cleanupTimeline(container);
     container.innerHTML = "";
@@ -774,12 +530,11 @@ ${block}` : block;
     }
     const root = node("div", "em-episode-view");
     const compact = (_a = window.matchMedia) == null ? void 0 : _a.call(window, "(max-width: 820px)").matches;
-    const state2 = {
+    const state = {
       episodes,
       activeId: episodes[0].id,
       detailOpen: !compact,
       selectedEventDate: "",
-      options,
       handlers: {}
     };
     const shell = node("div", "em-episode-timeline-shell");
@@ -791,29 +546,28 @@ ${block}` : block;
     root.appendChild(shell);
     container.appendChild(root);
     const onClick = (event) => {
-      var _a2, _b;
       const trigger = event.target.closest("[data-em-action]");
       if (!trigger || !root.contains(trigger)) return;
       const action = trigger.dataset.emAction;
-      const episodeId = trigger.dataset.episodeId || state2.activeId;
-      const episode = state2.episodes.find((item) => item.id === episodeId);
+      const episodeId = trigger.dataset.episodeId || state.activeId;
+      const episode = state.episodes.find((item) => item.id === episodeId);
       if (action === "select-episode" && episode) {
-        state2.activeId = episode.id;
-        state2.selectedEventDate = "";
-        state2.detailOpen = true;
+        state.activeId = episode.id;
+        state.selectedEventDate = "";
+        state.detailOpen = true;
         syncSelection();
-        renderDetail(detail, episode, state2);
+        renderDetail(detail, episode, state);
         return;
       }
       if (action === "select-event" && episode) {
-        state2.activeId = episode.id;
-        state2.selectedEventDate = trigger.dataset.eventDate || "";
-        state2.detailOpen = true;
+        state.activeId = episode.id;
+        state.selectedEventDate = trigger.dataset.eventDate || "";
+        state.detailOpen = true;
         syncSelection();
-        renderDetail(detail, episode, state2);
+        renderDetail(detail, episode, state);
         requestAnimationFrame(() => {
-          var _a3;
-          (_a3 = detail.querySelector(".em-detail-event.is-selected")) == null ? void 0 : _a3.scrollIntoView({
+          var _a2;
+          (_a2 = detail.querySelector(".em-detail-event.is-selected")) == null ? void 0 : _a2.scrollIntoView({
             block: "nearest",
             behavior: "smooth"
           });
@@ -821,36 +575,32 @@ ${block}` : block;
         return;
       }
       if (action === "close-detail") {
-        state2.detailOpen = false;
-        state2.selectedEventDate = "";
+        state.detailOpen = false;
+        state.selectedEventDate = "";
         syncSelection();
-        return;
-      }
-      if (action === "use-episode" && episode) {
-        (_b = (_a2 = state2.options).onUseMemory) == null ? void 0 : _b.call(_a2, buildEpisodeContext(episode), "\u8FD9\u6BB5\u8BB0\u5FC6\u5DF2\u5E26\u5165\u5F53\u524D\u5BF9\u8BDD");
         return;
       }
     };
     root.addEventListener("click", onClick);
-    state2.handlers = { root, onClick };
-    container._timelineState = state2;
-    renderTimelineMain(main, episodes, state2);
-    renderDetail(detail, episodes[0], state2);
+    state.handlers = { root, onClick };
+    container._timelineState = state;
+    renderTimelineMain(main, episodes, state);
+    renderDetail(detail, episodes[0], state);
     syncSelection();
     function syncSelection() {
-      shell.classList.toggle("is-detail-closed", !state2.detailOpen);
-      detail.classList.toggle("is-open", state2.detailOpen);
-      detail.setAttribute("aria-hidden", String(!state2.detailOpen));
+      shell.classList.toggle("is-detail-closed", !state.detailOpen);
+      detail.classList.toggle("is-open", state.detailOpen);
+      detail.setAttribute("aria-hidden", String(!state.detailOpen));
       root.querySelectorAll("[data-episode-row]").forEach((row) => {
-        const selected = row.dataset.episodeRow === state2.activeId;
+        const selected = row.dataset.episodeRow === state.activeId;
         row.classList.toggle("is-selected", selected);
       });
       root.querySelectorAll('[data-em-action="select-episode"]').forEach((button) => {
-        button.setAttribute("aria-pressed", String(button.dataset.episodeId === state2.activeId));
+        button.setAttribute("aria-pressed", String(button.dataset.episodeId === state.activeId));
       });
     }
   }
-  function renderTimelineMain(container, episodes, state2) {
+  function renderTimelineMain(container, episodes, state) {
     const range = collectionRange(episodes);
     const ticks = buildTicks(range.min, range.max, 6);
     const toolbar = node("header", "em-timeline-toolbar");
@@ -953,7 +703,7 @@ ${block}` : block;
     row.append(label, track, tail);
     return row;
   }
-  function renderDetail(container, episode, state2) {
+  function renderDetail(container, episode, state) {
     container.innerHTML = "";
     const top = node("div", "em-detail-panel-top");
     const overline = node("div", "em-detail-overline");
@@ -993,7 +743,7 @@ ${block}` : block;
     eventSection.appendChild(sectionTitle("\u5173\u952E\u4E8B\u4EF6\u94FE"));
     const chain = node("ol", "em-detail-event-chain");
     if (episode.events.length) {
-      episode.events.forEach((event) => chain.appendChild(buildDetailEvent(event, state2.selectedEventDate)));
+      episode.events.forEach((event) => chain.appendChild(buildDetailEvent(event, state.selectedEventDate)));
     } else {
       chain.appendChild(textNode("li", "\u8BE5\u60C5\u8282\u6682\u672A\u63D0\u53D6\u51FA\u5173\u952E\u4E8B\u4EF6\u3002", "em-source-note"));
     }
@@ -1003,11 +753,7 @@ ${block}` : block;
       textNode("span", RETENTION_LABEL[episode.retentionTier] || "\u957F\u671F\u8BB0\u5FC6"),
       textNode("span", `${episode.turnCount} \u8F6E\u76F8\u5173\u5BF9\u8BDD`)
     );
-    const actions = node("div", "em-detail-actions");
-    actions.append(
-      actionButton("\u5E26\u5165\u5F53\u524D\u5BF9\u8BDD", "use-episode", "is-primary", episode.id)
-    );
-    container.append(top, title, stage, summarySection, stats, tagSection, eventSection, memoryMeta, actions);
+    container.append(top, title, stage, summarySection, stats, tagSection, eventSection, memoryMeta);
   }
   function buildDetailEvent(event, selectedDate) {
     const meta = EVENT_TYPE_META[event.type] || EVENT_TYPE_META.observation;
@@ -1118,23 +864,6 @@ ${block}` : block;
     }
     return "\u65F6\u95F4\u672A\u8BB0\u5F55";
   }
-  function buildEpisodeContext(episode) {
-    const lines = [
-      `\u60C5\u8282\u8BB0\u5FC6\uFF1A${episode.title}`,
-      `\u65F6\u95F4\uFF1A${formatEpisodeDateRange(episode)}`,
-      `\u6458\u8981\uFF1A${episode.summary || "\u6682\u65E0\u6458\u8981"}`
-    ];
-    if (episode.events.length) {
-      lines.push("\u5173\u952E\u4E8B\u4EF6\uFF1A");
-      episode.events.forEach((event) => {
-        const meta = EVENT_TYPE_META[event.type] || EVENT_TYPE_META.observation;
-        lines.push(`- [${meta.label} \xB7 ${formatEventDate(event)}] ${event.description}`);
-      });
-    }
-    const tags = visibleTags(episode);
-    if (tags.length) lines.push(`\u76F8\u5173\u4EBA\u7269\u4E0E\u4E3B\u9898\uFF1A${tags.join("\u3001")}`);
-    return lines.join("\n");
-  }
   function visibleTags(episode) {
     return unique([...episode.entities || [], ...episode.topics || []]).filter((item) => item && !GENERIC_TAGS.has(item.toLocaleLowerCase()));
   }
@@ -1174,15 +903,6 @@ ${block}` : block;
     item.append(node("i", className), textNode("span", label));
     return item;
   }
-  function actionButton(label, action, variant = "", episodeId = "") {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `em-action-btn ${variant}`.trim();
-    button.dataset.emAction = action;
-    if (episodeId) button.dataset.episodeId = episodeId;
-    button.textContent = label;
-    return button;
-  }
   function iconButton(label, action, ariaLabel) {
     const button = document.createElement("button");
     button.type = "button";
@@ -1218,9 +938,9 @@ ${block}` : block;
   }
   function cleanupTimeline(container) {
     var _a;
-    const state2 = container == null ? void 0 : container._timelineState;
-    if ((_a = state2 == null ? void 0 : state2.handlers) == null ? void 0 : _a.root) {
-      state2.handlers.root.removeEventListener("click", state2.handlers.onClick);
+    const state = container == null ? void 0 : container._timelineState;
+    if ((_a = state == null ? void 0 : state.handlers) == null ? void 0 : _a.root) {
+      state.handlers.root.removeEventListener("click", state.handlers.onClick);
     }
     if (container) container._timelineState = null;
   }
@@ -1293,62 +1013,6 @@ ${block}` : block;
     container.appendChild(style);
   }
 
-  // src/services/toast.js
-  function showFloatingToast(message, type = "success", duration = 2500) {
-    let toast = document.getElementById("echomem-floating-toast");
-    if (!toast) {
-      toast = document.createElement("div");
-      toast.id = "echomem-floating-toast";
-      toast.style.cssText = `
-      position: fixed;
-      left: 50%;
-      bottom: 40px;
-      transform: translateX(-50%) translateY(20px);
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      font-family: Roboto, 'Noto Sans SC', sans-serif;
-      color: #fff;
-      background: rgba(5, 7, 10, 0.88);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      z-index: 100000;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.2s ease, transform 0.2s ease;
-    `;
-      document.body.appendChild(toast);
-    }
-    const ACCENTS = {
-      success: "#00e6ff",
-      error: "#ff6b6b",
-      info: "#667eea"
-    };
-    const ICONS = {
-      success: "\u2705",
-      error: "\u274C",
-      info: "\u23F3"
-    };
-    const accent = ACCENTS[type] || ACCENTS.info;
-    toast.style.borderColor = accent;
-    toast.innerHTML = `<span style="color:${accent}; margin-right:6px;">${ICONS[type] || ICONS.info}</span>${message}`;
-    clearTimeout(toast._hideTimer);
-    requestAnimationFrame(() => {
-      toast.style.opacity = "1";
-      toast.style.transform = "translateX(-50%) translateY(0)";
-    });
-    if (duration > 0) {
-      toast._hideTimer = setTimeout(() => {
-        toast.style.opacity = "0";
-        toast.style.transform = "translateX(-50%) translateY(20px)";
-        setTimeout(() => toast.remove(), 200);
-      }, duration);
-    }
-  }
-
   // src/entry/feedback-episode.js
   function isViewActive(container, viewApi) {
     return container.isConnected && (typeof viewApi.isActive !== "function" || viewApi.isActive());
@@ -1375,20 +1039,6 @@ ${block}` : block;
     container.querySelector(".em-state-copy").textContent = (err == null ? void 0 : err.message) || "\u672A\u77E5\u9519\u8BEF";
     (_a = container.querySelector(".em-primary-btn")) == null ? void 0 : _a.addEventListener("click", onRetry);
   }
-  function closeFeedbackOverlay() {
-    var _a;
-    const overlay = Array.from(document.querySelectorAll(".claw-feedback-overlay")).find((element) => element.isConnected && element.style.display !== "none");
-    (_a = overlay == null ? void 0 : overlay.querySelector(".claw-close-panel")) == null ? void 0 : _a.click();
-  }
-  function useMemory(content, message) {
-    const success = injectContent(content, { replace: true, focus: true });
-    if (!success) {
-      showFloatingToast("\u672A\u627E\u5230\u804A\u5929\u8F93\u5165\u6846\uFF0C\u65E0\u6CD5\u5E26\u5165\u8BB0\u5FC6", "error");
-      return;
-    }
-    showFloatingToast(message || "\u8BB0\u5FC6\u5DF2\u5E26\u5165\u5F53\u524D\u5BF9\u8BDD", "success");
-    setTimeout(closeFeedbackOverlay, 260);
-  }
   async function mountEpisodeView(container, viewApi = {}) {
     try {
       setLoadingState(container);
@@ -1398,9 +1048,7 @@ ${block}` : block;
         container._episodeModel = model;
       }
       if (!isViewActive(container, viewApi)) return;
-      renderTimeline(container, model, {
-        onUseMemory: (content, message) => useMemory(content, message)
-      });
+      renderTimeline(container, model);
       injectTimelineTheme(container);
     } catch (err) {
       console.error("EchoMem: \u52A0\u8F7D Episode \u5931\u8D25", err);

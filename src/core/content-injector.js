@@ -83,7 +83,6 @@ export function insertPlainText(content, options = {}) {
  * @param {Object} options
  * @param {boolean} options.replace 是否替换已有的 <relevant-memories> 块
  * @param {boolean} options.focus 注入后是否聚焦输入框
- * @param {boolean} options.asPlainText 是否作为普通用户文本追加，而不是包裹为记忆块
  */
 export function injectContent(content, options = {}) {
   const textarea = findInputElement();
@@ -103,9 +102,7 @@ export function injectContent(content, options = {}) {
 
   if (!cleanContent) return false;
 
-  const block = options.asPlainText
-    ? cleanContent
-    : `${MEM_TAG_OPEN}\n${cleanContent}\n${MEM_TAG_CLOSE}`;
+  const block = `${MEM_TAG_OPEN}\n${cleanContent}\n${MEM_TAG_CLOSE}`;
 
   // 如果 base 为空，直接放入；否则换行追加
   const next = base ? `${base}\n\n${block}` : block;
