@@ -22,54 +22,55 @@ export function isPanelOpen() {
 function buildPanelHeader(title, showBack, onBack, compact = false) {
   if (showBack) {
     return `
-      <div style="
+      <div class="claw-panel-header claw-panel-header--with-back${compact ? ' claw-panel-header--compact' : ''}" style="
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: ${compact ? '12px 16px' : '20px 24px'};
+        min-height: ${compact ? '56px' : '64px'};
+        padding: 0 ${compact ? '16px' : '20px'};
       ">
-        <div style="display: flex; align-items: center; gap: ${compact ? '8px' : '12px'};">
-          <button class="claw-back-btn" style="
-            width: ${compact ? '28px' : '32px'};
-            height: ${compact ? '28px' : '32px'};
+        <div class="claw-panel-header-leading" style="display: flex; align-items: center; gap: ${compact ? '8px' : '12px'};">
+          <button type="button" class="claw-back-btn" style="
+            width: ${compact ? '36px' : '40px'};
+            height: ${compact ? '36px' : '40px'};
             border-radius: 50%;
             border: none;
-            background: rgba(58, 47, 40, 0.06);
+            background: transparent;
             cursor: pointer;
             padding: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #9a8b7a;
-            transition: all 0.4s ease;
+            color: #49454f;
+            transition: background-color 200ms ease, color 200ms ease, transform 200ms ease;
           " title="返回">
             <svg width="${compact ? '16' : '18'}" height="${compact ? '16' : '18'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"></line>
               <polyline points="12 19 5 12 12 5"></polyline>
             </svg>
           </button>
-          <h6 style="
+          <h6 class="claw-panel-title" style="
             margin: 0;
             font-size: ${compact ? '16px' : '18px'};
-            font-weight: 600;
-            color: #3a2f28;
+            font-weight: 500;
+            color: #21005d;
             font-family: Roboto, 'Noto Sans SC', sans-serif;
             letter-spacing: -0.01em;
           ">${title}</h6>
         </div>
-        <button class="claw-close-panel" style="
-          width: ${compact ? '28px' : '32px'};
-          height: ${compact ? '28px' : '32px'};
+        <button type="button" class="claw-close-panel" style="
+          width: ${compact ? '36px' : '40px'};
+          height: ${compact ? '36px' : '40px'};
           border-radius: 50%;
           border: none;
-          background: rgba(58, 47, 40, 0.06);
+          background: transparent;
           cursor: pointer;
           padding: 0;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #9a8b7a;
-          transition: all 0.4s ease;
+          color: #49454f;
+          transition: background-color 200ms ease, color 200ms ease, transform 200ms ease;
         " title="关闭">
           <svg width="${compact ? '16' : '18'}" height="${compact ? '16' : '18'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -80,33 +81,34 @@ function buildPanelHeader(title, showBack, onBack, compact = false) {
     `;
   } else {
     return `
-      <div style="
+      <div class="claw-panel-header" style="
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 28px 28px 20px;
+        min-height: 64px;
+        padding: 0 20px;
       ">
-        <h6 style="
+        <h6 class="claw-panel-title" style="
           margin: 0;
-          font-size: 22px;
-          font-weight: 700;
-          color: #3a2f28;
+          font-size: 18px;
+          font-weight: 500;
+          color: #21005d;
           font-family: Roboto, 'Noto Sans SC', sans-serif;
           letter-spacing: -0.01em;
         ">${title}</h6>
-        <button class="claw-close-panel" style="
-          width: 36px;
-          height: 36px;
+        <button type="button" class="claw-close-panel" style="
+          width: 40px;
+          height: 40px;
           border-radius: 50%;
           border: none;
-          background: rgba(58, 47, 40, 0.06);
-          color: #9a8b7a;
+          background: transparent;
+          color: #49454f;
           cursor: pointer;
           padding: 0;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: all 0.4s ease;
+          transition: background-color 200ms ease, color 200ms ease, transform 200ms ease;
         " title="关闭">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -123,12 +125,12 @@ function bindPanelEvents(container, showBack, onBack, closeMode = 'restore') {
     const backBtn = container.querySelector('.claw-back-btn');
     if (backBtn) {
       backBtn.addEventListener('mouseenter', () => {
-        backBtn.style.background = 'rgba(58, 47, 40, 0.12)';
-        backBtn.style.color = '#5a4f42';
+        backBtn.style.background = '#EADDFF';
+        backBtn.style.color = '#21005D';
       });
       backBtn.addEventListener('mouseleave', () => {
-        backBtn.style.background = 'rgba(58, 47, 40, 0.06)';
-        backBtn.style.color = '#9a8b7a';
+        backBtn.style.background = 'transparent';
+        backBtn.style.color = '#49454F';
       });
       backBtn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -141,12 +143,12 @@ function bindPanelEvents(container, showBack, onBack, closeMode = 'restore') {
   const closeBtn = container.querySelector('.claw-close-panel');
   if (closeBtn) {
     closeBtn.addEventListener('mouseenter', () => {
-      closeBtn.style.background = 'rgba(58, 47, 40, 0.12)';
-      closeBtn.style.color = '#5a4f42';
+      closeBtn.style.background = '#EADDFF';
+      closeBtn.style.color = '#21005D';
     });
     closeBtn.addEventListener('mouseleave', () => {
-      closeBtn.style.background = 'rgba(58, 47, 40, 0.06)';
-      closeBtn.style.color = '#9a8b7a';
+      closeBtn.style.background = 'transparent';
+      closeBtn.style.color = '#49454F';
     });
     closeBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -175,13 +177,13 @@ export function openCustomPanel(title, contentHtml, options = {}) {
       display: flex;
       flex-direction: column;
       height: 100%;
-      background: linear-gradient(180deg, #f5f0eb 0%, #ede7e0 100%);
+      background: linear-gradient(180deg, #FFFBFE 0%, #FEF7FF 100%);
     ">
       ${headerHtml}
       <div class="claw-custom-panel-body" style="
         flex: 1;
         overflow-y: auto;
-        padding: 8px 20px 28px;
+        padding: 20px 20px 28px;
       ">
         ${contentHtml}
       </div>
@@ -214,6 +216,8 @@ function createOverlayPanel(panelHtml, overlayConfig) {
       right: 0;
       bottom: 0;
       background: rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      transition: opacity 200ms ease;
       z-index: 9998;
     `;
     backdrop.addEventListener('click', restoreOriginalPanel);
@@ -225,6 +229,7 @@ function createOverlayPanel(panelHtml, overlayConfig) {
 
   const position = overlayConfig.position || 'right';
   const width = overlayConfig.width || '400px';
+  overlay.classList.add(`claw-overlay-panel--${position}`);
 
   let positionStyles = '';
   if (position === 'right') {
@@ -257,10 +262,10 @@ function createOverlayPanel(panelHtml, overlayConfig) {
   overlay.style.cssText = `
     position: fixed;
     ${positionStyles}
-    background: #f5f0eb;
+    background: #FFFBFE;
     z-index: 9999;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    transition: transform 0.3s ease;
+    box-shadow: 0 12px 36px rgba(33, 0, 93, 0.16);
+    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
     overflow: hidden;
   `;
 
@@ -268,6 +273,9 @@ function createOverlayPanel(panelHtml, overlayConfig) {
   document.body.appendChild(overlay);
 
   requestAnimationFrame(() => {
+    if (backdrop) {
+      backdrop.style.opacity = '1';
+    }
     if (position === 'right' || position === 'left') {
       overlay.style.transform = 'translateX(0)';
     } else if (position === 'center') {
@@ -341,7 +349,16 @@ export function getPanelBodyElement() {
  * 文档：docs/flows/panel-system/居中浮层.md
  */
 export function openCenterOverlay(title, contentHtml, options = {}) {
-  const { showBack = false, onBack = null, width, height, maxWidth, maxHeight, compactHeader = false } = options;
+  const {
+    showBack = false,
+    onBack = null,
+    width,
+    height,
+    maxWidth,
+    maxHeight,
+    compactHeader = false,
+    panelClass = ''
+  } = options;
 
   // 保存当前可能存在的 EchoMem overlay 面板（DeepSeek 场景）
   const existingOverlay = currentOverlayPanel;
@@ -360,7 +377,7 @@ export function openCenterOverlay(title, contentHtml, options = {}) {
       display: flex;
       flex-direction: column;
       height: 100%;
-      background: linear-gradient(180deg, #f5f0eb 0%, #ede7e0 100%);
+      background: linear-gradient(180deg, #FFFBFE 0%, #FEF7FF 100%);
     ">
       ${headerHtml}
       <div class="claw-custom-panel-body" style="
@@ -381,6 +398,9 @@ export function openCenterOverlay(title, contentHtml, options = {}) {
 
   // 调整居中浮层的尺寸
   if (currentOverlayPanel) {
+    if (typeof panelClass === 'string' && panelClass.trim()) {
+      currentOverlayPanel.classList.add(...panelClass.trim().split(/\s+/));
+    }
     currentOverlayPanel.style.maxWidth = maxWidth || '1000px';
     currentOverlayPanel.style.height = height || '80vh';
     currentOverlayPanel.style.maxHeight = maxHeight || '700px';

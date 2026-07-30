@@ -8,12 +8,14 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const TYPE_STYLES = {
   atom: { color: 0xcc66ff, emissive: 0x6633aa, size: 1.1, opacity: 0.88 },
   entity: { color: 0x00e6ff, emissive: 0x0066aa, size: 2.8, opacity: 0.92 },
+  episode: { color: 0xf093fb, emissive: 0xaa33aa, size: 4.0, opacity: 0.95 },
+  other: { color: 0x8899aa, emissive: 0x445566, size: 1.5, opacity: 0.7 },
 };
 
 // 关系颜色
 const REL_COLORS = {
-  about: 0x6688cc,
-  contains: 0x8888aa,
+  about: 0x66aaff,
+  contains: 0xaa88ff,
 };
 
 /**
@@ -127,13 +129,13 @@ function createEdgeMesh(sourceMesh, targetMesh, edgeData, edgeColor) {
   mid.y += 2 + Math.random() * 2;
 
   const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
-  const tubeGeo = new THREE.TubeGeometry(curve, 24, 0.05, 8, false);
+  const tubeGeo = new THREE.TubeGeometry(curve, 32, 0.09, 10, false);
   const tubeMat = new THREE.MeshPhysicalMaterial({
     color: edgeColor,
     emissive: edgeColor,
-    emissiveIntensity: 0.5,
+    emissiveIntensity: 0.7,
     transparent: true,
-    opacity: 0.4,
+    opacity: 0.6,
     metalness: 0.9,
     roughness: 0.1,
   });
@@ -254,7 +256,8 @@ function createPanels(container) {
   legend.innerHTML = `
     <h3 style="margin:0 0 10px;font-size:11px;color:#00e6ff;letter-spacing:2px;text-transform:uppercase;">// Node Types</h3>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#00e6ff;box-shadow:0 0 8px #00e6ff;"></span><span>Entity (实体)</span></div>
-    <div style="display:flex;align-items:center;gap:8px;"><span style="width:10px;height:10px;border-radius:50%;background:#cc66ff;box-shadow:0 0 8px #cc66ff;"></span><span>Atom (原子记忆)</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#cc66ff;box-shadow:0 0 8px #cc66ff;"></span><span>Atom (原子记忆)</span></div>
+    <div style="display:flex;align-items:center;gap:8px;"><span style="width:10px;height:10px;border-radius:50%;background:#8899aa;box-shadow:0 0 8px #8899aa;"></span><span>Other (其他)</span></div>
   `;
 
   const stats = document.createElement('div');
@@ -269,7 +272,8 @@ function createPanels(container) {
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Nodes</span><span style="color:#00e6ff;font-weight:700;" data-stat="nodes">0</span></div>
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Edges</span><span style="color:#00e6ff;font-weight:700;" data-stat="edges">0</span></div>
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Entities</span><span style="color:#00e6ff;font-weight:700;" data-stat="entities">0</span></div>
-    <div style="display:flex;justify-content:space-between;"><span>Atoms</span><span style="color:#00e6ff;font-weight:700;" data-stat="atoms">0</span></div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Atoms</span><span style="color:#00e6ff;font-weight:700;" data-stat="atoms">0</span></div>
+    <div style="display:flex;justify-content:space-between;"><span>Other</span><span style="color:#00e6ff;font-weight:700;" data-stat="other">0</span></div>
   `;
 
   const info = document.createElement('div');
@@ -298,10 +302,12 @@ function createPanels(container) {
 function updateStats(statsPanel, nodes, edges) {
   const entityCount = nodes.filter((n) => n.userData.node_type === 'entity').length;
   const atomCount = nodes.filter((n) => n.userData.node_type === 'atom').length;
+  const otherCount = nodes.filter((n) => n.userData.node_type === 'other').length;
   statsPanel.querySelector('[data-stat="nodes"]').textContent = nodes.length;
   statsPanel.querySelector('[data-stat="edges"]').textContent = edges.length;
   statsPanel.querySelector('[data-stat="entities"]').textContent = entityCount;
   statsPanel.querySelector('[data-stat="atoms"]').textContent = atomCount;
+  statsPanel.querySelector('[data-stat="other"]').textContent = otherCount;
 }
 
 /**
@@ -361,14 +367,14 @@ function updateEdgeGeometry(edgeObjects) {
     const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
     edge.userData.curve = curve;
     edge.geometry.dispose();
-    edge.geometry = new THREE.TubeGeometry(curve, 24, 0.05, 8, false);
+    edge.geometry = new THREE.TubeGeometry(curve, 32, 0.09, 10, false);
   });
 }
 
 /**
  * 初始化并渲染 3D 认知图谱
  */
-export function renderThreeGraph(container, graphData) {
+export function renderThreeGraph(container, graphData, options = {}) {
   cleanupThreeGraph(container);
   container.innerHTML = '';
   container.style.position = 'relative';
@@ -621,6 +627,12 @@ export function renderThreeGraph(container, graphData) {
       startTarget: controls.target.clone(),
       endTarget: targetPos.clone(),
     };
+  }
+
+  const initialFocusNode = options.focusNodeId ? nodesById[options.focusNodeId] : null;
+  if (initialFocusNode) {
+    selectNode(initialFocusNode);
+    focusOnNode(initialFocusNode);
   }
 
   function updateCameraAnimation(time) {

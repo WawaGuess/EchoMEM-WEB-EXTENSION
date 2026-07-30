@@ -9,43 +9,136 @@
 <body>
   <div class="container">
     <header class="header">
-      <h1>EchoMem</h1>
-      <span class="version">v1.0.0</span>
+      <div class="brand-row">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12a7 7 0 0 1 12-4.9" />
+              <path d="M19 12a7 7 0 0 1-12 4.9" />
+              <path d="M8.5 12a3.5 3.5 0 0 1 6.1-2.4" />
+              <path d="M15.5 12a3.5 3.5 0 0 1-6.1 2.4" />
+              <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+            </svg>
+          </span>
+          <div class="brand-copy">
+            <span class="brand-eyebrow">ECHO MEMORY</span>
+            <h1>EchoMem</h1>
+          </div>
+        </div>
+        <span class="version">v1.0.0</span>
+      </div>
+      <p class="header-description">为 Claw 与 AI 对话工作流提供持续、清晰的记忆增强。</p>
     </header>
 
     <main class="main">
-      <div class="section">
-        <h2>Claw 工作流增强</h2>
-        <p style="font-size: 13px; color: #666; line-height: 1.6;">
-          EchoMem Web Extension 面向多种 Claw/AI 聊天工作流提供增强能力。访问支持页面后，聊天框上方会出现 EchoMem 入口：
-        </p>
-        <ul style="font-size: 13px; color: #666; line-height: 1.8; padding-left: 18px; margin-top: 8px;">
-          <li><strong>资源管理</strong> - 管理文件资源</li>
-          <li><strong>输入联想</strong> - 开启/关闭智能联想</li>
-          <li><strong>认知反馈</strong> - 查看会话分析</li>
-          <li><strong>skill商店</strong> - 浏览和管理 Skill</li>
-          <li><strong>效能</strong> - 查看使用效率概览</li>
-        </ul>
-      </div>
-
-      <div class="section">
-        <h2>使用提示</h2>
-        <div style="
-          padding: 12px;
-          background: #f0f7ff;
-          border-radius: 8px;
-          font-size: 13px;
-          color: #666;
-          border-left: 3px solid #667eea;
-        ">
-          点击 EchoMem 后，右侧面板会显示统一功能导航。进入功能后可点左上角返回，或点右上角「×」关闭并恢复原页面。
+      <section class="section" aria-labelledby="config-title">
+        <div class="section-heading">
+          <span class="section-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 7h10" />
+              <path d="M7 17h10" />
+              <circle cx="9" cy="7" r="2" />
+              <circle cx="15" cy="17" r="2" />
+            </svg>
+          </span>
+          <div>
+            <span class="section-eyebrow">CONNECTION</span>
+            <h2 id="config-title">连接配置</h2>
+          </div>
         </div>
-      </div>
+
+        <div class="info-box">
+          <div class="field">
+            <label for="authKey">EchoMem Auth Key</label>
+            <input type="text" id="authKey" placeholder="输入 ek_ 开头的 Auth Key">
+          </div>
+          <div class="field">
+            <label for="baseUrl">EchoMem Base URL</label>
+            <input type="text" id="baseUrl" value="http://127.0.0.1:8010">
+          </div>
+          <button id="saveConfig" class="btn btn-primary" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 4h12l2 2v14H5V4Z" />
+              <path d="M8 4v6h8V4" />
+              <path d="M8 20v-6h8v6" />
+            </svg>
+            保存配置
+          </button>
+          <p id="configStatus" class="config-status" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="workflow-title">
+        <div class="section-heading">
+          <span class="section-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v4" />
+              <path d="M12 17v4" />
+              <path d="M3 12h4" />
+              <path d="M17 12h4" />
+              <circle cx="12" cy="12" r="5" />
+            </svg>
+          </span>
+          <div>
+            <span class="section-eyebrow">WORKFLOW</span>
+            <h2 id="workflow-title">Claw 工作流增强</h2>
+          </div>
+        </div>
+
+        <p class="section-description">访问支持页面后，聊天框上方会出现 EchoMem 入口，并提供以下能力。</p>
+        <div class="capability-list">
+          <div class="capability-item">
+            <span class="capability-icon" aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-11Z" /><path d="M3 10h18" /></svg>
+            </span>
+            <span><strong>资源管理</strong><small>管理文件资源</small></span>
+          </div>
+          <div class="capability-item">
+            <span class="capability-icon" aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0-3.7 10.7c.8.7 1.2 1.4 1.2 2.3h5c0-.9.4-1.6 1.2-2.3A6 6 0 0 0 12 3Z" /><path d="M9.5 19h5M10.5 22h3" /></svg>
+            </span>
+            <span><strong>输入联想</strong><small>控制智能联想</small></span>
+          </div>
+          <div class="capability-item">
+            <span class="capability-icon" aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9" /><path d="M10 19V5" /><path d="M16 19v-7" /><path d="M22 19V3" /></svg>
+            </span>
+            <span><strong>认知反馈</strong><small>查看会话分析</small></span>
+          </div>
+          <div class="capability-item">
+            <span class="capability-icon" aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.2 3.3 3.3 1.2-3.3 1.2L12 12l-1.2-3.3-3.3-1.2 3.3-1.2L12 3Z" /><path d="M18 13l.8 2.2L21 16l-2.2.8L18 19l-.8-2.2L15 16l2.2-.8L18 13Z" /><path d="M6 14l.9 2.6L9.5 17.5l-2.6.9L6 21l-.9-2.6-2.6-.9 2.6-.9L6 14Z" /></svg>
+            </span>
+            <span><strong>Skill 商店</strong><small>浏览和管理 Skill</small></span>
+          </div>
+          <div class="capability-item capability-item-wide">
+            <span class="capability-icon" aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15a8 8 0 1 1 16 0" /><path d="m12 15 4-5" /><path d="M5 19h14" /></svg>
+            </span>
+            <span><strong>效能</strong><small>查看使用效率概览</small></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section tip-section" aria-labelledby="tip-title">
+        <div class="tip-card">
+          <span class="tip-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" /></svg>
+          </span>
+          <div>
+            <h2 id="tip-title">使用提示</h2>
+            <p>点击 EchoMem 后，右侧面板会显示统一功能导航。进入功能后可从左上角返回，或用右上角关闭按钮恢复原页面。</p>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="footer">
-      <span style="font-size: 12px; color: #999;">EchoMem Web Extension v1.0.0</span>
+      <span class="footer-dot" aria-hidden="true"></span>
+      <span>EchoMem Web Extension</span>
+      <span>v1.0.0</span>
     </footer>
   </div>
+  <script src="popup.js"></script>
 </body>
 </html>

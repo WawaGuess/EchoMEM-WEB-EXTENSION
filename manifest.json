@@ -26,7 +26,11 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["dist/content.js"],
+      "js": [
+        "dist/content.js",
+        "dist/feedback-episode.js",
+        "dist/feedback-summary.js"
+      ],
       "css": ["content.css"],
       "run_at": "document_end"
     }

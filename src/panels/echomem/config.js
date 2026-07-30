@@ -21,70 +21,235 @@ function isHigoPlatform() {
 export function getEchoMemConfigContent() {
   const showOpenView = isHigoPlatform();
   const openViewSection = showOpenView ? `
-      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #eee;">
-        <div style="font-size: 14px; font-weight: 500; margin-bottom: 10px; color: #333;">EchoAgent 统计服务</div>
-        <div style="padding: 10px 12px; background: #f6f8fa; border-radius: 6px; border-left: 3px solid #10b981; font-size: 12px; color: #666; margin-bottom: 12px;">
-          用于获取用户会话 Token 统计汇总
+      <div class="config-card config-service-card">
+        <div class="config-card-heading">
+          <span class="config-card-icon config-card-icon-secondary" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
+          </span>
+          <div>
+            <p>EchoAgent 统计服务</p>
+            <span>会话 Token 统计汇总</span>
+          </div>
         </div>
 
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">服务地址</label>
-          <input id="cfg-openview-url" type="text"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
+        <div class="config-field">
+          <label for="cfg-openview-url">服务地址</label>
+          <input id="cfg-openview-url" class="config-input" type="text" />
         </div>
 
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">用户名</label>
-          <input id="cfg-openview-username" type="text"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
+        <div class="config-field">
+          <label for="cfg-openview-username">用户名</label>
+          <input id="cfg-openview-username" class="config-input" type="text" />
         </div>
 
-        <div style="margin-bottom: 12px;">
-          <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">密码</label>
-          <input id="cfg-openview-password" type="password"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-          />
+        <div class="config-field">
+          <label for="cfg-openview-password">密码</label>
+          <input id="cfg-openview-password" class="config-input" type="password" />
         </div>
 
-        <button id="cfg-openview-login-btn" style="width: 100%; padding: 10px; background: #10b981; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;"
-        >🔑 登录 EchoAgent</button>
+        <button id="cfg-openview-login-btn" class="config-button config-button-secondary" style="width: 100%;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          登录 EchoAgent
+        </button>
       </div>
   ` : '';
 
   return `
-    <div style="display: flex; flex-direction: column; gap: 14px; color: #333;">
-      <div style="padding: 10px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #667eea; font-size: 12px; color: #666;">
-        💡 此配置同时影响资源管理、输入联想等功能
+    <style>
+      .echomem-config-root {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        color: #1D1B20;
+        font-family: Roboto, "Noto Sans SC", sans-serif;
+      }
+      .echomem-config-root, .echomem-config-root * { box-sizing: border-box; }
+      .echomem-config-root .config-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        padding: 12px 14px;
+        border: 1px solid #E7E0EC;
+        border-radius: 14px;
+        background: #F3EDF7;
+        color: #49454F;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .echomem-config-root .config-note svg {
+        margin-top: 1px;
+        color: #6750A4;
+        flex: 0 0 auto;
+      }
+      .echomem-config-root .config-card {
+        padding: 16px;
+        border: 1px solid #E7E0EC;
+        border-radius: 18px;
+        background: #FFFFFF;
+        box-shadow: 0 1px 2px rgba(29, 27, 32, 0.04);
+      }
+      .echomem-config-root .config-service-card { background: #FEF7FF; }
+      .echomem-config-root .config-card-heading {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .echomem-config-root .config-card-heading p {
+        margin: 0;
+        color: #1D1B20;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+      .echomem-config-root .config-card-heading span:not(.config-card-icon) {
+        display: block;
+        margin-top: 2px;
+        color: #79747E;
+        font-size: 11px;
+        line-height: 1.4;
+      }
+      .echomem-config-root .config-card-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        background: #EADDFF;
+        color: #6750A4;
+        flex: 0 0 auto;
+      }
+      .echomem-config-root .config-card-icon-secondary {
+        background: #E8DEF8;
+        color: #625B71;
+      }
+      .echomem-config-root .config-field { margin-bottom: 12px; }
+      .echomem-config-root .config-field label {
+        display: block;
+        margin: 0 0 6px;
+        color: #49454F;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+      .echomem-config-root .config-input {
+        width: 100%;
+        min-height: 42px;
+        padding: 9px 12px;
+        border: 1px solid #CAC4D0;
+        border-radius: 12px;
+        background: #FFFBFE;
+        color: #1D1B20;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 400;
+        line-height: 1.45;
+        transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+      }
+      .echomem-config-root .config-input:hover { border-color: #79747E; }
+      .echomem-config-root .config-input:focus {
+        border-color: #6750A4;
+        background: #FFFFFF;
+        box-shadow: 0 0 0 3px rgba(103, 80, 164, 0.14);
+        outline: none;
+      }
+      .echomem-config-root .config-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 4px;
+      }
+      .echomem-config-root .config-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 42px;
+        padding: 10px 16px;
+        border-radius: 999px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.3;
+        cursor: pointer;
+        transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+      }
+      .echomem-config-root .config-button-primary {
+        border: 1px solid #6750A4;
+        background: #6750A4;
+        color: #FFFFFF;
+      }
+      .echomem-config-root .config-button-tonal {
+        border: 1px solid #E0D4F1;
+        background: #F3EDF7;
+        color: #6750A4;
+      }
+      .echomem-config-root .config-button-secondary {
+        border: 1px solid #D8CCE7;
+        background: #E8DEF8;
+        color: #1D192B;
+      }
+      .echomem-config-root .config-button:hover {
+        filter: brightness(0.97);
+        box-shadow: 0 4px 12px rgba(103, 80, 164, 0.16);
+      }
+      .echomem-config-root .config-button:active { transform: scale(0.985); }
+      .echomem-config-root .config-button:focus-visible {
+        outline: 3px solid rgba(103, 80, 164, 0.22);
+        outline-offset: 2px;
+      }
+      @media (max-width: 360px) {
+        .echomem-config-root .config-card { padding: 14px; border-radius: 16px; }
+        .echomem-config-root .config-actions { flex-direction: column; }
+        .echomem-config-root .config-actions .config-button { width: 100%; flex: none !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .echomem-config-root .config-input,
+        .echomem-config-root .config-button { transition: none !important; }
+      }
+    </style>
+    <div class="echomem-config-root">
+      <div class="config-note">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+        <span>此配置同时影响资源管理、输入联想等功能。</span>
       </div>
 
-      <div>
-        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">服务地址</label>
-        <input id="cfg-base-url" type="text"
-          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-        />
-      </div>
+      <div class="config-card">
+        <div class="config-card-heading">
+          <span class="config-card-icon" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M7 4v6M4 17h16M17 14v6"/></svg>
+          </span>
+          <div>
+            <p>记忆后端引擎</p>
+            <span>连接地址与身份认证</span>
+          </div>
+        </div>
 
-      <div>
-        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">认证密钥</label>
-        <input id="cfg-auth-key" type="password"
-          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-        />
-      </div>
+        <div class="config-field">
+          <label for="cfg-base-url">服务地址</label>
+          <input id="cfg-base-url" class="config-input" type="text" />
+        </div>
 
-      <div>
-        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #888;">Agent ID（留空使用平台默认值）</label>
-        <input id="cfg-agent-id" type="text"
-          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;"
-        />
-      </div>
+        <div class="config-field">
+          <label for="cfg-auth-key">认证密钥</label>
+          <input id="cfg-auth-key" class="config-input" type="password" />
+        </div>
 
-      <div style="display: flex; gap: 10px; margin-top: 4px;">
-        <button id="cfg-test-btn" style="flex: 1; padding: 10px; background: #f0f7ff; color: #667eea; border: 1px solid #c7d8f5; border-radius: 6px; font-size: 13px; cursor: pointer;"
-        >🔄 测试连接</button>
-        <button id="cfg-save-btn" style="flex: 1; padding: 10px; background: #667eea; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;"
-        >💾 保存配置</button>
+        <div class="config-field">
+          <label for="cfg-agent-id">Agent ID <span style="color: #79747E; font-weight: 400;">· 留空使用平台默认值</span></label>
+          <input id="cfg-agent-id" class="config-input" type="text" />
+        </div>
+
+        <div class="config-actions">
+          <button id="cfg-test-btn" class="config-button config-button-tonal" style="flex: 1;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66L20 14"/><path d="M20 8v6h-6"/></svg>
+            测试连接
+          </button>
+          <button id="cfg-save-btn" class="config-button config-button-primary" style="flex: 1;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+            保存配置
+          </button>
+        </div>
       </div>
 
       ${openViewSection}
