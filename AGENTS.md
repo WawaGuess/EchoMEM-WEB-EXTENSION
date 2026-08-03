@@ -84,10 +84,11 @@ Install dependencies from the lockfile and use the repository scripts:
 
 ```bash
 npm ci
+npm test
 npm run check
 ```
 
-`npm run check` rebuilds `dist/content.js`, checks JavaScript syntax, and validates the extension structure. Choose additional verification based on the change:
+`npm test` runs the focused Node.js unit tests under `tests/`; it does not replace browser or backend integration verification. `npm run check` rebuilds `dist/content.js`, checks JavaScript syntax, and validates the extension structure. Choose additional verification based on the change:
 
 - content-script source: run `npm run check`, confirm the generated `dist/content.js` changed as expected, reload the unpacked extension, and test the affected supported platform;
 - Background or messaging behavior: run `npm run check` and inspect the Service Worker console plus the content-page console;
@@ -96,7 +97,7 @@ npm run check
 - manifest, assets, packaging, or release change: run `npm run package` and validate `release/EchoMem-Extension/`; do not commit `release/`;
 - docs-only change: verify paths, commands, API names, and described behavior against the current checkout; a frontend build is not required unless generated or runtime files also changed.
 
-There is currently no general automated unit-test suite in `package.json`. Do not describe `npm run check` as unit tests. If browser or backend verification cannot be performed because a platform, account, secret, or external service is unavailable, state exactly what was skipped and why.
+Run the relevant focused tests for changed testable helpers or clients. Do not describe `npm run check` as unit tests or claim that `npm test` covers browser interaction or backend integration. If browser or backend verification cannot be performed because a platform, account, secret, or external service is unavailable, state exactly what was skipped and why.
 
 ## GitHub And Pull Requests
 

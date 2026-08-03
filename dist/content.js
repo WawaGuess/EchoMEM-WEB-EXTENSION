@@ -788,7 +788,10 @@
             return;
           }
           if (!response || !response.success) {
-            reject(new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error")));
+            const error = new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error"));
+            error.status = response == null ? void 0 : response.status;
+            error.payload = response == null ? void 0 : response.data;
+            reject(error);
             return;
           }
           resolve(response);
@@ -818,7 +821,10 @@
       });
       const data = response.data ?? response.text;
       if (data && data.status === "error") {
-        throw new Error(data.message || ((_a = data.error) == null ? void 0 : _a.message) || "EchoMem error");
+        const error = new Error(data.message || ((_a = data.error) == null ? void 0 : _a.message) || "EchoMem error");
+        error.status = response.status;
+        error.payload = data;
+        throw error;
       }
       return data.result !== void 0 ? data.result : data;
     }
@@ -1023,6 +1029,59 @@
       }
       return result;
     }
+    async listSkillVersions(name) {
+      var _a;
+      if (!name) throw new Error("name is required");
+      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/versions`;
+      if (this.cfg.debug) {
+        log("listSkillVersions request", name);
+      }
+      const result = await this._fetchJson(url, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        log("listSkillVersions response", `name=${name}`, `versions=${((_a = result == null ? void 0 : result.versions) == null ? void 0 : _a.length) || 0}`);
+      }
+      return result;
+    }
+    async readSkillVersion(name, version) {
+      if (!name) throw new Error("name is required");
+      if (!Number.isInteger(version) || version <= 0) {
+        throw new Error("version must be a positive integer");
+      }
+      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/versions/${version}`;
+      if (this.cfg.debug) {
+        log("readSkillVersion request", name, `version=${version}`);
+      }
+      const result = await this._fetchJson(url, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        log("readSkillVersion response", `name=${name}`, `version=${version}`);
+      }
+      return result;
+    }
+    async rollbackSkillVersion(name, version) {
+      if (!name) throw new Error("name is required");
+      if (!Number.isInteger(version) || version <= 0) {
+        throw new Error("version must be a positive integer");
+      }
+      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/rollback`;
+      if (this.cfg.debug) {
+        log("rollbackSkillVersion request", name, `version=${version}`);
+      }
+      const result = await this._fetchJson(url, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify({ version })
+      });
+      if (this.cfg.debug) {
+        log("rollbackSkillVersion response", `name=${name}`, `version=${version}`, `rolled_back=${result == null ? void 0 : result.rolled_back}`);
+      }
+      return result;
+    }
     // ── Filesystem ──
     async fsLs(uri, options = {}) {
       const params = new URLSearchParams({ uri });
@@ -1135,6 +1194,27 @@
     return new EchoMemClient(config);
   }
 
+  // src/core/text-insertion.js
+  function composePlainTextInsertion(existingValue, content, selectionStart, selectionEnd) {
+    const existing = String(existingValue ?? "");
+    const cleanContent = String(content ?? "").trim();
+    if (!cleanContent) return null;
+    const clamp2 = (value) => Math.max(0, Math.min(existing.length, value));
+    const start2 = Number.isInteger(selectionStart) ? clamp2(selectionStart) : existing.length;
+    const end = Number.isInteger(selectionEnd) ? clamp2(selectionEnd) : start2;
+    const from = Math.min(start2, end);
+    const to = Math.max(start2, end);
+    const before = existing.slice(0, from);
+    const after = existing.slice(to);
+    const prefix = before && !/\s$/.test(before) ? " " : "";
+    const suffix = after && /^\s/.test(after) ? "" : " ";
+    const inserted = `${prefix}${cleanContent}${suffix}`;
+    return {
+      value: `${before}${inserted}${after}`,
+      cursor: before.length + inserted.length
+    };
+  }
+
   // src/core/content-injector.js
   function findInputElement() {
     var _a, _b, _c, _d, _e;
@@ -1153,6 +1233,43 @@
     if (end === -1) return text.trim();
     return (text.slice(0, start2) + text.slice(end + MEM_TAG_CLOSE.length)).trim();
   }
+  function setTextControlValue(control, value) {
+    var _a, _b, _c, _d;
+    const view = (_a = control.ownerDocument) == null ? void 0 : _a.defaultView;
+    const prototype = control.tagName === "TEXTAREA" ? (_b = view == null ? void 0 : view.HTMLTextAreaElement) == null ? void 0 : _b.prototype : (_c = view == null ? void 0 : view.HTMLInputElement) == null ? void 0 : _c.prototype;
+    const nativeSetter = prototype ? (_d = Object.getOwnPropertyDescriptor(prototype, "value")) == null ? void 0 : _d.set : null;
+    if (nativeSetter) {
+      nativeSetter.call(control, value);
+    } else {
+      control.value = value;
+    }
+  }
+  function insertPlainText(content, options = {}) {
+    var _a, _b;
+    const textarea = findInputElement();
+    if (!textarea) {
+      console.warn("EchoMem: \u672A\u627E\u5230\u8F93\u5165\u6846\uFF0C\u65E0\u6CD5\u63D2\u5165\u6587\u672C");
+      return false;
+    }
+    const result = composePlainTextInsertion(
+      textarea.value,
+      content,
+      textarea.selectionStart,
+      textarea.selectionEnd
+    );
+    if (!result) return false;
+    setTextControlValue(textarea, result.value);
+    try {
+      textarea.selectionStart = textarea.selectionEnd = result.cursor;
+    } catch (_) {
+    }
+    const EventConstructor = ((_b = (_a = textarea.ownerDocument) == null ? void 0 : _a.defaultView) == null ? void 0 : _b.Event) || Event;
+    textarea.dispatchEvent(new EventConstructor("input", { bubbles: true }));
+    if (options.focus !== false) {
+      textarea.focus();
+    }
+    return true;
+  }
   function injectContent(content, options = {}) {
     const textarea = findInputElement();
     if (!textarea) {
@@ -1169,7 +1286,7 @@ ${MEM_TAG_CLOSE}`;
     const next = base ? `${base}
 
 ${block}` : block;
-    textarea.value = next;
+    setTextControlValue(textarea, next);
     try {
       textarea.selectionStart = textarea.selectionEnd = next.length;
     } catch (_) {
@@ -2425,7 +2542,7 @@ ${block}` : block;
     return { nodes, links, categories: CATEGORY_CONFIG };
   }
 
-  // ../EchoMEM-WEB-EXTENSION/node_modules/three/build/three.module.js
+  // node_modules/three/build/three.module.js
   var REVISION = "160";
   var MOUSE = { LEFT: 0, MIDDLE: 1, RIGHT: 2, ROTATE: 0, DOLLY: 1, PAN: 2 };
   var TOUCH = { ROTATE: 0, PAN: 1, DOLLY_PAN: 2, DOLLY_ROTATE: 3 };
@@ -23518,7 +23635,7 @@ ${block}` : block;
     }
   }
 
-  // ../EchoMEM-WEB-EXTENSION/node_modules/three/examples/jsm/controls/OrbitControls.js
+  // node_modules/three/examples/jsm/controls/OrbitControls.js
   var _changeEvent = { type: "change" };
   var _startEvent = { type: "start" };
   var _endEvent = { type: "end" };
@@ -25649,6 +25766,187 @@ ${block}` : block;
     return "\u672A\u547D\u540D";
   }
 
+  // src/panels/skill-store/version-history.js
+  var SOURCE_LABELS = {
+    manual_upload: "\u624B\u52A8\u4E0A\u4F20",
+    generated: "\u81EA\u52A8\u751F\u6210",
+    optimized: "\u81EA\u52A8\u4F18\u5316",
+    rollback: "\u5386\u53F2\u6062\u590D",
+    current: "\u5F53\u524D\u6587\u4EF6"
+  };
+  function toPositiveInteger(value) {
+    if (value === null || value === void 0 || value === "") return null;
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+  function toText(value) {
+    return value === null || value === void 0 ? "" : String(value);
+  }
+  function escapeHtml(value) {
+    return toText(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function formatVersionLabel(value) {
+    const raw = toText(value).trim();
+    if (!raw) return "\u2014";
+    const prefixed = raw.match(/^v(\d+)$/i);
+    if (prefixed) return `v${Number(prefixed[1])}`;
+    const version = toPositiveInteger(raw);
+    return version === null ? raw : `v${version}`;
+  }
+  function areSkillVersionsEquivalent(left, right) {
+    const normalize2 = (value) => {
+      const raw = toText(value).trim().replace(/^v/i, "");
+      return toPositiveInteger(raw);
+    };
+    const leftVersion = normalize2(left);
+    const rightVersion = normalize2(right);
+    return leftVersion !== null && leftVersion === rightVersion;
+  }
+  function formatVersionDate(value) {
+    if (!value) return "\u2014";
+    const date = typeof value === "number" ? new Date(value * 1e3) : new Date(value);
+    if (Number.isNaN(date.getTime())) return "\u2014";
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+  function getVersionSourceLabel(source) {
+    const normalized = toText(source).trim();
+    return SOURCE_LABELS[normalized] || "\u672A\u77E5\u6765\u6E90";
+  }
+  function getSkillApiName(skill) {
+    const dirName = toText(skill == null ? void 0 : skill.dirName).trim();
+    if (dirName) return dirName;
+    return toText(skill == null ? void 0 : skill.name).trim();
+  }
+  function formatSkillCommand(skill) {
+    const apiName = getSkillApiName(skill).replace(/^\/+/, "");
+    return apiName ? `/${apiName}` : "";
+  }
+  function classifyVersionError(error) {
+    const status = Number(error == null ? void 0 : error.status);
+    if (status === 404 || status === 405) return "unsupported";
+    if (status === 401 || status === 403) return "auth";
+    const message = toText(error == null ? void 0 : error.message).toLowerCase();
+    if ((error == null ? void 0 : error.name) === "AbortError" || message.includes("aborted") || message.includes("timeout")) {
+      return "timeout";
+    }
+    if (message.includes("failed to fetch") || message.includes("network")) {
+      return "network";
+    }
+    return "error";
+  }
+  function normalizeSkillVersionHistory(payload) {
+    var _a;
+    const rawPayload = payload && typeof payload === "object" ? payload : {};
+    const rawVersions = Array.isArray(rawPayload.versions) ? rawPayload.versions : [];
+    const versionsByNumber = /* @__PURE__ */ new Map();
+    for (const item of rawVersions) {
+      if (!item || typeof item !== "object") continue;
+      const version = toPositiveInteger(item.version);
+      if (version === null) continue;
+      versionsByNumber.set(version, {
+        version,
+        parentVersion: toPositiveInteger(item.parent_version),
+        source: toText(item.source),
+        runId: toText(item.run_id),
+        createdAt: toText(item.created_at),
+        current: item.current === true,
+        hash: toText(item.hash),
+        exists: item.exists !== false
+      });
+    }
+    let currentVersion = toPositiveInteger(rawPayload.current_version);
+    if (currentVersion === null) {
+      currentVersion = ((_a = [...versionsByNumber.values()].find((item) => item.current)) == null ? void 0 : _a.version) || null;
+    }
+    const versions = [...versionsByNumber.values()].map((item) => ({
+      ...item,
+      current: currentVersion !== null && item.version === currentVersion
+    })).sort((a, b) => b.version - a.version);
+    return {
+      name: toText(rawPayload.name),
+      currentVersion,
+      versions
+    };
+  }
+
+  // src/panels/skill-store/skill-list.js
+  function getEntryUpdatedAt(entry) {
+    return (entry == null ? void 0 : entry.updated_at) || (entry == null ? void 0 : entry.modTime) || (entry == null ? void 0 : entry.mtime) || (entry == null ? void 0 : entry.modifiedAt);
+  }
+  function getEntryBaseUri(entry, dirName, skillRootUri) {
+    if (typeof (entry == null ? void 0 : entry.uri) === "string" && entry.uri.trim()) {
+      return entry.uri.replace(/\/$/, "");
+    }
+    return `${skillRootUri}/${dirName}`;
+  }
+  async function readSkillEntry(entry, readSkill, options) {
+    var _a;
+    const dirName = getEntryName(entry);
+    const baseUri = getEntryBaseUri(entry, dirName, options.skillRootUri);
+    try {
+      const readResult = await readSkill(`${baseUri}/SKILL.md`);
+      const content = typeof readResult === "string" ? readResult : (readResult == null ? void 0 : readResult.content) ?? (readResult == null ? void 0 : readResult.text) ?? "";
+      const { frontmatter, body } = parseSkillMd(content);
+      return {
+        name: frontmatter.name || dirName,
+        dirName,
+        description: frontmatter.description || (entry == null ? void 0 : entry.abstract) || "",
+        uri: baseUri,
+        rawContent: body.slice(0, 1e3),
+        fullContent: content,
+        modifiedAt: getEntryUpdatedAt(entry),
+        version: frontmatter.version,
+        author: frontmatter.author
+      };
+    } catch (error) {
+      try {
+        (_a = options.onReadError) == null ? void 0 : _a.call(options, error, dirName);
+      } catch {
+      }
+      return {
+        name: dirName,
+        dirName,
+        description: (entry == null ? void 0 : entry.abstract) || "\u5185\u5BB9\u6682\u65F6\u65E0\u6CD5\u8BFB\u53D6",
+        uri: baseUri,
+        rawContent: "",
+        fullContent: "",
+        modifiedAt: getEntryUpdatedAt(entry),
+        contentUnavailable: true
+      };
+    }
+  }
+  async function readSkillEntries(entries, readSkill, options = {}) {
+    const sourceEntries = Array.isArray(entries) ? entries : [];
+    if (sourceEntries.length === 0) return [];
+    if (typeof readSkill !== "function") throw new TypeError("readSkill must be a function");
+    const requestedConcurrency = Number(options.concurrency);
+    const concurrency = Number.isInteger(requestedConcurrency) && requestedConcurrency > 0 ? requestedConcurrency : 6;
+    const settings = {
+      skillRootUri: options.skillRootUri || "echo://skills",
+      onReadError: options.onReadError
+    };
+    const results = new Array(sourceEntries.length);
+    let nextIndex = 0;
+    async function worker() {
+      while (nextIndex < sourceEntries.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        results[index] = await readSkillEntry(sourceEntries[index], readSkill, settings);
+      }
+    }
+    const workerCount = Math.min(concurrency, sourceEntries.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
+  }
+  function removeSkillByApiName(skills, apiName) {
+    const target = String(apiName || "").trim();
+    if (!Array.isArray(skills) || !target) return Array.isArray(skills) ? [...skills] : [];
+    return skills.filter((skill) => getSkillApiName(skill) !== target);
+  }
+  function isSkillUseActivationKey(key) {
+    return key === "Enter" || key === " ";
+  }
+
   // src/panels/skill-store/index.js
   var SKILL_ROOT_URI = "echo://skills";
   var SKILL_STORE_STYLES = `
@@ -25690,6 +25988,12 @@ ${block}` : block;
     .claw-skill-home,
     .claw-skill-list,
     .claw-skill-upload {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .claw-skill-list-page {
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -25784,8 +26088,13 @@ ${block}` : block;
     .claw-skill-refresh:focus-visible,
     .claw-skill-action:focus-visible,
     .claw-skill-dialog-button:focus-visible,
+    .claw-skill-btn-detail:focus-visible,
     .claw-skill-btn-delete:focus-visible,
-    .claw-skill-btn-view-full:focus-visible {
+    .claw-skill-btn-view-full:focus-visible,
+    .claw-skill-item-use-target:focus-visible,
+    .claw-skill-version-view:focus-visible,
+    .claw-skill-version-rollback:focus-visible,
+    .claw-skill-version-retry:focus-visible {
       outline: 3px solid rgba(103, 80, 164, 0.22);
       outline-offset: 2px;
     }
@@ -25900,6 +26209,7 @@ ${block}` : block;
     .claw-skill-refresh,
     .claw-skill-action,
     .claw-skill-dialog-button,
+    .claw-skill-btn-detail,
     .claw-skill-btn-view-full,
     .claw-skill-btn-delete {
       display: inline-flex;
@@ -25927,6 +26237,11 @@ ${block}` : block;
     .claw-skill-btn-view-full:hover {
       background: var(--skill-primary-container);
       border-color: #b69df8;
+    }
+
+    .claw-skill-refresh:disabled {
+      cursor: wait;
+      opacity: 0.65;
     }
 
     .claw-skill-notice {
@@ -25993,46 +26308,52 @@ ${block}` : block;
     }
 
     .claw-skill-item {
-      padding: 13px 14px;
+      padding: 14px;
       border: 1px solid var(--skill-outline-soft);
       border-radius: 16px;
-      background: rgba(255, 255, 255, 0.82);
+      background: rgba(255, 255, 255, 0.9);
       cursor: pointer;
       box-shadow: 0 1px 2px rgba(29, 27, 32, 0.035);
-      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
     }
 
     .claw-skill-item:hover {
+      transform: translateY(-1px);
       border-color: #d0bcff;
       background: var(--skill-surface-soft);
-      box-shadow: 0 5px 15px rgba(33, 0, 93, 0.06);
+      box-shadow: 0 7px 18px rgba(33, 0, 93, 0.08);
     }
 
     .claw-skill-item-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 10px;
+      display: block;
+    }
+
+    .claw-skill-item-use-target {
+      border-radius: 10px;
+      outline: none;
     }
 
     .claw-skill-item-copy {
       min-width: 0;
-      flex: 1;
     }
 
     .claw-skill-item-title {
-      margin: 0 0 3px;
+      display: -webkit-box;
+      overflow: hidden;
+      margin: 0 0 6px;
       color: var(--skill-text);
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
-      line-height: 1.4;
-      word-break: break-all;
+      line-height: 1.42;
+      overflow-wrap: anywhere;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
     }
 
     .claw-skill-item-desc {
       display: -webkit-box;
       overflow: hidden;
-      margin: 0 0 6px;
+      margin: 0;
       color: var(--skill-text-muted);
       font-size: 12px;
       line-height: 1.5;
@@ -26040,23 +26361,39 @@ ${block}` : block;
       -webkit-line-clamp: 2;
     }
 
+    .claw-skill-item-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 11px;
+      padding-top: 10px;
+      border-top: 1px solid var(--skill-outline-soft);
+    }
+
     .claw-skill-item-meta {
       display: inline-flex;
       align-items: center;
+      max-width: 100%;
       min-height: 22px;
       margin: 0;
       padding: 2px 8px;
+      overflow: hidden;
       border-radius: 999px;
       background: var(--skill-surface-strong);
       color: var(--skill-text-muted);
       font-size: 10px;
       line-height: 1.4;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .claw-skill-item-actions {
       display: flex;
       align-items: center;
       gap: 7px;
+      margin-left: auto;
       flex: 0 0 auto;
     }
 
@@ -26079,8 +26416,21 @@ ${block}` : block;
       opacity: 0.65;
     }
 
+    .claw-skill-btn-detail {
+      min-height: 28px;
+      padding: 0 11px;
+      border: 1px solid #d0bcff;
+      background: #ffffff;
+      color: var(--skill-primary);
+      font-size: 11px;
+    }
+
+    .claw-skill-btn-detail:hover {
+      background: var(--skill-primary-container);
+    }
+
     .claw-skill-toggle-icon {
-      margin-top: 7px;
+      margin-top: 0;
       color: var(--skill-outline);
       transition: transform 180ms ease, color 180ms ease;
     }
@@ -26095,66 +26445,341 @@ ${block}` : block;
       border-top: 1px solid var(--skill-outline-soft);
     }
 
-    .claw-skill-detail-description,
-    .claw-skill-detail-empty,
-    .claw-skill-code-preview {
-      padding: 10px 11px;
-      border-radius: 12px;
-      font-size: 12px;
-      line-height: 1.6;
+    .claw-skill-detail-page {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      outline: none;
     }
 
-    .claw-skill-detail-description {
-      margin-bottom: 9px;
-      border: 1px solid #d0bcff;
-      background: var(--skill-surface-soft);
-      color: var(--skill-text-muted);
-    }
-
-    .claw-skill-detail-empty {
-      margin-bottom: 9px;
+    .claw-skill-detail-hero {
+      position: relative;
+      overflow: hidden;
+      padding: 15px 16px 15px 18px;
       border: 1px solid var(--skill-outline-soft);
-      background: var(--skill-surface-strong);
-      color: var(--skill-outline);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 4px 14px rgba(29, 27, 32, 0.045);
     }
 
-    .claw-skill-code-preview {
-      max-height: 200px;
-      overflow-y: auto;
-      border: 1px solid var(--skill-outline-soft);
-      background: #f7f2fa;
-      color: #363139;
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-      white-space: pre-wrap;
+    .claw-skill-detail-hero::before {
+      content: "";
+      position: absolute;
+      inset: 12px auto 12px 0;
+      width: 4px;
+      border-radius: 0 4px 4px 0;
+      background: var(--skill-primary);
+    }
+
+    .claw-skill-detail-eyebrow {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--skill-primary);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
+
+    .claw-skill-detail-title {
+      margin: 0;
+      color: var(--skill-text);
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.4;
       word-break: break-word;
     }
 
-    .claw-skill-detail-footer {
+    .claw-skill-detail-summary {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-top: 9px;
+      flex-wrap: wrap;
+      gap: 7px 9px;
+      margin-top: 8px;
     }
 
-    .claw-skill-uri {
+    .claw-skill-detail-command {
+      display: inline-flex;
       min-width: 0;
+      padding: 3px 8px;
       overflow: hidden;
-      color: var(--skill-outline);
+      border-radius: 7px;
+      background: #f1e9ff;
+      color: var(--skill-on-primary-container);
       font-family: "SFMono-Regular", Consolas, monospace;
       font-size: 10px;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
+    .claw-skill-detail-meta {
+      margin: 0;
+      color: var(--skill-outline);
+      font-size: 10px;
+      line-height: 1.4;
+    }
+
+    .claw-skill-detail-sheet {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .claw-skill-detail-section {
+      padding: 14px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 1px 2px rgba(29, 27, 32, 0.03);
+    }
+
+    .claw-skill-detail > .claw-skill-detail-section {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .claw-skill-detail > .claw-skill-detail-section + .claw-skill-detail-section {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--skill-outline-soft);
+    }
+
+    .claw-skill-detail > .claw-skill-detail-resource {
+      margin-top: 12px;
+    }
+
+    .claw-skill-detail-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .claw-skill-detail-section-title {
+      margin: 0;
+      color: var(--skill-text);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .claw-skill-detail-description,
+    .claw-skill-detail-empty,
+    .claw-skill-code-preview {
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .claw-skill-detail-description {
+      margin: 0;
+      color: var(--skill-text-muted);
+    }
+
+    .claw-skill-detail-empty {
+      padding: 12px;
+      border-radius: 10px;
+      background: #f7f5f8;
+      color: var(--skill-outline);
+    }
+
+    .claw-skill-code-preview {
+      max-height: 260px;
+      padding: 12px;
+      overflow-y: auto;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 12px;
+      background: #f8f7f9;
+      color: #363139;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .claw-skill-detail-resource {
+      display: grid;
+      gap: 6px;
+      padding: 3px 2px;
+    }
+
+    .claw-skill-uri {
+      display: block;
+      width: 100%;
+      color: var(--skill-outline);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 10px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      word-break: break-word;
+    }
+
     .claw-skill-btn-view-full {
-      min-height: 32px;
+      min-height: 28px;
       flex: 0 0 auto;
-      padding: 0 11px;
-      border: 1px solid #d0bcff;
-      background: var(--skill-surface);
+      padding: 0 9px;
+      border: 1px solid var(--skill-outline-soft);
+      background: #ffffff;
       color: var(--skill-primary);
+      font-size: 10px;
+    }
+
+    .claw-skill-version-history {
+      min-height: 42px;
+    }
+
+    .claw-skill-version-state {
+      padding: 12px;
+      border-radius: 10px;
+      background: #f7f5f8;
+      color: var(--skill-outline);
       font-size: 11px;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .claw-skill-version-state-error {
+      border: 1px solid #f1c7c3;
+      background: #fff5f4;
+      color: var(--skill-error);
+      text-align: left;
+    }
+
+    .claw-skill-version-state-error p {
+      margin: 0;
+    }
+
+    .claw-skill-version-retry {
+      margin-top: 8px;
+      padding: 5px 10px;
+      border: 1px solid #e8aaa5;
+      border-radius: 999px;
+      background: #ffffff;
+      color: var(--skill-error);
+      font: inherit;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .claw-skill-version-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .claw-skill-version-item {
+      padding: 10px 11px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 12px;
+      background: #ffffff;
+    }
+
+    .claw-skill-version-item-current {
+      border-color: #d0bcff;
+      background: #fbf8ff;
+      box-shadow: inset 3px 0 0 var(--skill-primary);
+    }
+
+    .claw-skill-version-row,
+    .claw-skill-version-labels,
+    .claw-skill-version-actions {
+      display: flex;
+      align-items: center;
+    }
+
+    .claw-skill-version-row {
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 9px;
+    }
+
+    .claw-skill-version-main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .claw-skill-version-labels {
+      flex-wrap: wrap;
+      gap: 5px 7px;
+    }
+
+    .claw-skill-version-current-badge {
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--skill-primary);
+      color: var(--skill-on-primary);
+      font-size: 9px;
+      font-weight: 600;
+    }
+
+    .claw-skill-version-number {
+      color: var(--skill-text);
+      font-size: 12px;
+    }
+
+    .claw-skill-version-source,
+    .claw-skill-version-date {
+      color: var(--skill-text-muted);
+      font-size: 10px;
+    }
+
+    .claw-skill-version-date {
+      color: var(--skill-outline);
+    }
+
+    .claw-skill-version-details {
+      margin: 5px 0 0;
+      color: var(--skill-outline);
+      font-size: 9px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .claw-skill-version-actions {
+      flex: 0 0 auto;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 5px;
+    }
+
+    .claw-skill-version-view,
+    .claw-skill-version-rollback {
+      min-height: 27px;
+      padding: 0 9px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 999px;
+      background: #ffffff;
+      font: inherit;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .claw-skill-version-view {
+      color: var(--skill-primary);
+    }
+
+    .claw-skill-version-rollback {
+      border-color: #f0c99a;
+      background: #fffaf3;
+      color: #8a4c12;
+    }
+
+    .claw-skill-version-view:hover,
+    .claw-skill-version-rollback:hover {
+      background: var(--skill-primary-container);
+      border-color: #d0bcff;
+    }
+
+    .claw-skill-version-view:disabled,
+    .claw-skill-version-rollback:disabled {
+      border-color: var(--skill-outline-soft);
+      background: #f3f1f4;
+      color: #aaa4ad;
+      cursor: not-allowed;
     }
 
     .claw-skill-dropzone {
@@ -26430,9 +27055,6 @@ ${block}` : block;
     if (entry.kind) return entry.kind === "directory";
     return entry.isDir || entry.is_dir || ((_a = entry.stat) == null ? void 0 : _a.isDir) || ((_b = entry.stat) == null ? void 0 : _b.is_dir) || false;
   }
-  function getEntryUpdatedAt(entry) {
-    return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
-  }
   function getSkillStoreHomeContent() {
     const sections = [
       { id: "history", title: "\u6211\u7684 Skill", desc: "\u6D4F\u89C8\u5DF2\u4F7F\u7528\u7684\u80FD\u529B\u4E0E\u5185\u5BB9\u8BE6\u60C5", icon: "history" },
@@ -26470,35 +27092,40 @@ ${block}` : block;
     return getSkillListContent("\u5B89\u88C5\u7BA1\u7406", { showDelete: true });
   }
   function getSkillListContent(title, options = {}) {
-    const pageNote = options.showDelete ? "\u5C55\u5F00\u6761\u76EE\u67E5\u770B\u5185\u5BB9\uFF0C\u6216\u79FB\u9664\u4E0D\u518D\u9700\u8981\u7684 Skill\u3002" : "\u6309\u540D\u79F0\u6216\u63CF\u8FF0\u641C\u7D22\uFF0C\u5C55\u5F00\u6761\u76EE\u5373\u53EF\u67E5\u770B\u5185\u5BB9\u6458\u8981\u3002";
+    const pageNote = options.showDelete ? "\u5C55\u5F00\u6761\u76EE\u67E5\u770B\u5185\u5BB9\uFF0C\u6216\u79FB\u9664\u4E0D\u518D\u9700\u8981\u7684 Skill\u3002" : "\u70B9\u51FB\u5361\u7247\u76F4\u63A5\u4F7F\u7528\uFF1B\u70B9\u51FB\u300C\u8BE6\u60C5\u300D\u8FDB\u5165\u5B8C\u6574\u4FE1\u606F\u4E0E\u7248\u672C\u5386\u53F2\u3002";
     return `
     ${SKILL_STORE_STYLES}
     <div class="claw-skill-surface claw-skill-list">
-      <p class="claw-skill-page-note">${pageNote}</p>
-      <!-- \u641C\u7D22\u6846 -->
-      <div class="claw-skill-toolbar">
-        <div class="claw-skill-search-shell">
-          ${getSkillIcon("search", 17)}
-          <input class="claw-skill-search-input" type="text" id="claw-skill-search" placeholder="\u641C\u7D22 Skill \u540D\u79F0\u6216\u63CF\u8FF0..." aria-label="\u641C\u7D22 ${title}">
-        </div>
-        <button type="button" id="claw-skill-btn-refresh" class="claw-skill-refresh">
-          ${getSkillIcon("refresh", 15)}
-          \u5237\u65B0
-        </button>
-      </div>
-
-      <!-- Toast -->
+      <!-- \u5217\u8868\u4E0E\u8BE6\u60C5\u9875\u5171\u7528\u7684\u72B6\u6001\u63D0\u793A -->
       <div id="claw-skill-toast" class="claw-skill-notice claw-skill-toast" role="status" aria-live="polite" style="display: none;"></div>
 
-      <!-- \u52A0\u8F7D\u4E2D -->
-      <div id="claw-skill-list-loading" class="claw-skill-state" role="status" aria-live="polite">
-        <span class="claw-skill-state-icon">${getSkillIcon("spinner", 23, "claw-skill-spinner")}</span>
-        <p class="claw-skill-state-title">\u6B63\u5728\u52A0\u8F7D Skill</p>
-        <p class="claw-skill-state-copy">\u6B63\u5728\u540C\u6B65\u4F60\u7684\u80FD\u529B\u5217\u8868\uFF0C\u8BF7\u7A0D\u5019\u3002</p>
+      <div id="claw-skill-list-page" class="claw-skill-list-page">
+        <p class="claw-skill-page-note">${pageNote}</p>
+        <!-- \u641C\u7D22\u6846 -->
+        <div class="claw-skill-toolbar">
+          <div class="claw-skill-search-shell">
+            ${getSkillIcon("search", 17)}
+            <input class="claw-skill-search-input" type="text" id="claw-skill-search" placeholder="\u641C\u7D22 Skill \u540D\u79F0\u6216\u63CF\u8FF0..." aria-label="\u641C\u7D22 ${title}">
+          </div>
+          <button type="button" id="claw-skill-btn-refresh" class="claw-skill-refresh">
+            ${getSkillIcon("refresh", 15)}
+            \u5237\u65B0
+          </button>
+        </div>
+
+        <!-- \u52A0\u8F7D\u4E2D -->
+        <div id="claw-skill-list-loading" class="claw-skill-state" role="status" aria-live="polite">
+          <span class="claw-skill-state-icon">${getSkillIcon("spinner", 23, "claw-skill-spinner")}</span>
+          <p class="claw-skill-state-title">\u6B63\u5728\u52A0\u8F7D Skill</p>
+          <p class="claw-skill-state-copy">\u6B63\u5728\u540C\u6B65\u4F60\u7684\u80FD\u529B\u5217\u8868\uFF0C\u8BF7\u7A0D\u5019\u3002</p>
+        </div>
+
+        <!-- \u5217\u8868\u5185\u5BB9 -->
+        <div id="claw-skill-list-content" style="display: none;"></div>
       </div>
 
-      <!-- \u5217\u8868\u5185\u5BB9 -->
-      <div id="claw-skill-list-content" style="display: none;"></div>
+      <!-- \u72EC\u7ACB\u8BE6\u60C5\u9875 -->
+      <div id="claw-skill-detail-page" class="claw-skill-detail-page" tabindex="-1" style="display: none;"></div>
     </div>
   `;
   }
@@ -26616,6 +27243,7 @@ ${block}` : block;
           tags,
           allowedTools
         });
+        skillCache = null;
         showStatus(`Skill\u300C${skillResult.name || finalName || skillName}\u300D\u4E0A\u4F20\u6210\u529F`, "success");
       } catch (err) {
         showStatus(`\u4E0A\u4F20\u5931\u8D25\uFF1A${formatError(err)}`, "error");
@@ -26647,7 +27275,7 @@ ${block}` : block;
         showStatus("\u65E0\u6CD5\u8BFB\u53D6 Skill \u5185\u5BB9", "error");
         return;
       }
-      const safeName = skillName.replace(/\u0026/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      const safeName = escapeHtml(skillName);
       const dialogId = "claw-skill-confirm-" + Date.now();
       const dialogHtml = `
       <div id="${dialogId}" class="claw-skill-dialog">
@@ -26665,8 +27293,9 @@ ${block}` : block;
       openCenterOverlay("\u4E0A\u4F20\u786E\u8BA4", dialogHtml, {
         width: "360px",
         maxWidth: "360px",
-        height: "240px",
-        maxHeight: "280px"
+        height: "280px",
+        maxHeight: "calc(100vh - 16px)",
+        compactHeader: true
       });
       setTimeout(() => {
         const cancelBtn = document.getElementById("claw-skill-confirm-cancel");
@@ -26713,10 +27342,14 @@ ${block}` : block;
   }
   var skillCache = null;
   async function initSkillHistoryPanel(bodyElement) {
-    return initSkillListPanel(bodyElement, { showDelete: false });
+    return initSkillListPanel(bodyElement, {
+      showDelete: false,
+      showVersionHistory: true,
+      useOnCardClick: true
+    });
   }
   async function initSkillManagePanel(bodyElement) {
-    return initSkillListPanel(bodyElement, { showDelete: true });
+    return initSkillListPanel(bodyElement, { showDelete: true, showVersionHistory: false });
   }
   async function initSkillListPanel(bodyElement, options = {}) {
     if (!bodyElement) return;
@@ -26725,9 +27358,25 @@ ${block}` : block;
     const toastEl = bodyElement.querySelector("#claw-skill-toast");
     const loadingEl = bodyElement.querySelector("#claw-skill-list-loading");
     const contentEl = bodyElement.querySelector("#claw-skill-list-content");
-    if (!loadingEl || !contentEl) return;
+    const listPage = bodyElement.querySelector("#claw-skill-list-page");
+    const detailPage = bodyElement.querySelector("#claw-skill-detail-page");
+    const panel = bodyElement.closest(".claw-custom-panel");
+    const panelTitle = panel == null ? void 0 : panel.querySelector(".claw-panel-title");
+    const panelBackButton = panel == null ? void 0 : panel.querySelector(".claw-back-btn");
+    const panelBody = bodyElement.closest(".claw-custom-panel-body");
+    if (!loadingEl || !contentEl || !listPage || !detailPage) return;
     let allSkills = [];
     let filteredSkills = [];
+    const skillVersionCache = /* @__PURE__ */ new Map();
+    const skillVersionRequests = /* @__PURE__ */ new Map();
+    const skillVersionContentCache = /* @__PURE__ */ new Map();
+    const skillVersionContentRequests = /* @__PURE__ */ new Map();
+    const rollbackInFlight = /* @__PURE__ */ new Set();
+    let expandedSkillKey = null;
+    let isDetailPageOpen = false;
+    let listScrollTop = 0;
+    let loadGeneration = 0;
+    const listPageTitle = (panelTitle == null ? void 0 : panelTitle.textContent) || "\u6211\u7684 Skill";
     function showToast(msg, type = "info") {
       if (!toastEl) return;
       const colors = {
@@ -26754,6 +27403,392 @@ ${block}` : block;
       if (isNaN(d.getTime())) return "-";
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     }
+    function getVersionErrorMessage(error) {
+      const kind = classifyVersionError(error);
+      const messages = {
+        unsupported: "\u5F53\u524D EchoMem \u7248\u672C\u6682\u4E0D\u652F\u6301\u7248\u672C\u7BA1\u7406",
+        auth: "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\u7684 API Key",
+        timeout: "\u8BF7\u6C42\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u540E\u7AEF\u72B6\u6001\u6216\u7F51\u7EDC\u8FDE\u63A5",
+        network: "\u65E0\u6CD5\u8FDE\u63A5\u5230\u8BB0\u5FC6\u540E\u7AEF\u5F15\u64CE\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u7F51\u7EDC\u8FDE\u63A5"
+      };
+      return messages[kind] || (error == null ? void 0 : error.message) || "\u52A0\u8F7D\u7248\u672C\u4FE1\u606F\u5931\u8D25";
+    }
+    function getNestedCache(cache, skillKey, version) {
+      var _a;
+      return (_a = cache.get(skillKey)) == null ? void 0 : _a.get(version);
+    }
+    function setNestedCache(cache, skillKey, version, value) {
+      let bucket = cache.get(skillKey);
+      if (!bucket) {
+        bucket = /* @__PURE__ */ new Map();
+        cache.set(skillKey, bucket);
+      }
+      bucket.set(version, value);
+    }
+    function invalidateVersionCaches(skillKey = null) {
+      if (!skillKey) {
+        skillVersionCache.clear();
+        skillVersionRequests.clear();
+        skillVersionContentCache.clear();
+        skillVersionContentRequests.clear();
+        return;
+      }
+      skillVersionCache.delete(skillKey);
+      skillVersionRequests.delete(skillKey);
+      skillVersionContentCache.delete(skillKey);
+      skillVersionContentRequests.delete(skillKey);
+    }
+    function renderVersionLoading(container) {
+      if (!container) return;
+      container.innerHTML = `
+      <div class="claw-skill-version-state">
+        \u6B63\u5728\u52A0\u8F7D\u7248\u672C\u5386\u53F2...
+      </div>
+    `;
+    }
+    function renderVersionError(container, skill, error) {
+      var _a;
+      if (!container) return;
+      const kind = classifyVersionError(error);
+      const retryable = !["unsupported", "auth"].includes(kind);
+      container.innerHTML = `
+      <div class="claw-skill-version-state claw-skill-version-state-error">
+        <p>${escapeHtml(getVersionErrorMessage(error))}</p>
+        ${retryable ? `
+          <button type="button" class="claw-skill-version-retry">\u91CD\u8BD5</button>
+        ` : ""}
+      </div>
+    `;
+      (_a = container.querySelector(".claw-skill-version-retry")) == null ? void 0 : _a.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        loadSkillVersions(skill, container, { force: true });
+      });
+    }
+    function renderVersionHistory(container, skill, history) {
+      if (!container) return;
+      if (history.versions.length === 0) {
+        container.innerHTML = `
+        <div class="claw-skill-version-state">
+          \u6682\u65E0\u7248\u672C\u5386\u53F2
+        </div>
+      `;
+        return;
+      }
+      const rows = history.versions.map((item) => {
+        const details = [];
+        if (item.parentVersion) details.push(`\u57FA\u4E8E ${formatVersionLabel(item.parentVersion)}`);
+        if (item.runId) details.push(item.runId);
+        if (!item.exists) details.push("\u5185\u5BB9\u7F3A\u5931");
+        const viewDisabled = item.exists ? "" : "disabled";
+        const rollbackButton = !item.current ? `<button type="button" class="claw-skill-version-rollback" data-version="${item.version}" ${viewDisabled}>\u6062\u590D</button>` : "";
+        return `
+        <div class="claw-skill-version-item${item.current ? " claw-skill-version-item-current" : ""}">
+          <div class="claw-skill-version-row">
+            <div class="claw-skill-version-main">
+              <div class="claw-skill-version-labels">
+                ${item.current ? '<span class="claw-skill-version-current-badge">\u5F53\u524D</span>' : ""}
+                <strong class="claw-skill-version-number">${escapeHtml(formatVersionLabel(item.version))}</strong>
+                <span class="claw-skill-version-source">${escapeHtml(getVersionSourceLabel(item.source))}</span>
+                <span class="claw-skill-version-date">${escapeHtml(formatVersionDate(item.createdAt))}</span>
+              </div>
+              ${details.length ? `<p class="claw-skill-version-details">${details.map(escapeHtml).join(" \xB7 ")}</p>` : ""}
+            </div>
+            <div class="claw-skill-version-actions">
+              <button type="button" class="claw-skill-version-view" data-version="${item.version}" ${viewDisabled}>\u67E5\u770B</button>
+              ${rollbackButton}
+            </div>
+          </div>
+        </div>
+      `;
+      }).join("");
+      container.innerHTML = `<div class="claw-skill-version-list">${rows}</div>`;
+      container.querySelectorAll(".claw-skill-version-view").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (button.disabled) return;
+          const version = Number(button.dataset.version);
+          openVersionContent(skill, version, history);
+        });
+      });
+      container.querySelectorAll(".claw-skill-version-rollback").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (button.disabled) return;
+          const version = Number(button.dataset.version);
+          openRollbackDialog(skill, version, history);
+        });
+      });
+    }
+    async function loadSkillVersions(skill, container, requestOptions = {}) {
+      if (!options.showVersionHistory || !container) return null;
+      const skillKey = getSkillApiName(skill);
+      const force = requestOptions.force === true;
+      if (force) {
+        skillVersionCache.delete(skillKey);
+        skillVersionRequests.delete(skillKey);
+      }
+      const cached = skillVersionCache.get(skillKey);
+      if (cached) {
+        renderVersionHistory(container, skill, cached);
+        return cached;
+      }
+      renderVersionLoading(container);
+      let request2 = skillVersionRequests.get(skillKey);
+      if (!request2) {
+        request2 = (async () => {
+          const config = await getEchoMemConfig();
+          const client2 = createClient(config);
+          const payload = await client2.listSkillVersions(skillKey);
+          return normalizeSkillVersionHistory(payload);
+        })();
+        skillVersionRequests.set(skillKey, request2);
+      }
+      try {
+        const history = await request2;
+        const isCurrentRequest = skillVersionRequests.get(skillKey) === request2;
+        if (isCurrentRequest) {
+          skillVersionCache.set(skillKey, history);
+          if (container == null ? void 0 : container.isConnected) {
+            renderVersionHistory(container, skill, history);
+          }
+        }
+        return history;
+      } catch (error) {
+        if (skillVersionRequests.get(skillKey) === request2 && (container == null ? void 0 : container.isConnected)) {
+          renderVersionError(container, skill, error);
+        }
+        return null;
+      } finally {
+        if (skillVersionRequests.get(skillKey) === request2) {
+          skillVersionRequests.delete(skillKey);
+        }
+      }
+    }
+    async function getSkillVersionContent(skill, version, history) {
+      const skillKey = getSkillApiName(skill);
+      const cached = getNestedCache(skillVersionContentCache, skillKey, version);
+      if (cached !== void 0) return cached;
+      if (version === history.currentVersion && areSkillVersionsEquivalent(skill.version, history.currentVersion) && skill.fullContent) {
+        setNestedCache(skillVersionContentCache, skillKey, version, skill.fullContent);
+        return skill.fullContent;
+      }
+      let request2 = getNestedCache(skillVersionContentRequests, skillKey, version);
+      if (!request2) {
+        request2 = (async () => {
+          const config = await getEchoMemConfig();
+          const client2 = createClient(config);
+          const payload = await client2.readSkillVersion(skillKey, version);
+          if (typeof (payload == null ? void 0 : payload.text) !== "string") {
+            throw new Error("\u5386\u53F2\u7248\u672C\u5185\u5BB9\u4E3A\u7A7A");
+          }
+          return payload.text;
+        })();
+        setNestedCache(skillVersionContentRequests, skillKey, version, request2);
+      }
+      try {
+        const text = await request2;
+        if (getNestedCache(skillVersionContentRequests, skillKey, version) === request2) {
+          setNestedCache(skillVersionContentCache, skillKey, version, text);
+        }
+        return text;
+      } finally {
+        const requests = skillVersionContentRequests.get(skillKey);
+        if ((requests == null ? void 0 : requests.get(version)) === request2) {
+          requests.delete(version);
+          if (requests.size === 0) skillVersionContentRequests.delete(skillKey);
+        }
+      }
+    }
+    async function openVersionContent(skill, version, history) {
+      const contentId = `claw-skill-version-content-${Date.now()}-${version}`;
+      const title = `${skill.name} \xB7 ${formatVersionLabel(version)}`;
+      openCenterOverlay(escapeHtml(title), `
+      <div id="${contentId}" style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #6b7280; white-space: pre-wrap; word-break: break-word;">\u6B63\u5728\u52A0\u8F7D\u7248\u672C\u5185\u5BB9...</div>
+    `, {
+        showBack: true,
+        onBack: () => closeOverlayPanel()
+      });
+      const contentElement = document.getElementById(contentId);
+      try {
+        const text = await getSkillVersionContent(skill, version, history);
+        if (contentElement == null ? void 0 : contentElement.isConnected) {
+          contentElement.style.color = "#374151";
+          contentElement.textContent = text || "\u65E0\u5185\u5BB9";
+        }
+      } catch (error) {
+        if (contentElement == null ? void 0 : contentElement.isConnected) {
+          contentElement.style.color = "#b91c1c";
+          contentElement.textContent = `\u52A0\u8F7D\u5931\u8D25\uFF1A${getVersionErrorMessage(error)}`;
+        }
+      }
+    }
+    function openRollbackDialog(skill, version, history) {
+      const skillKey = getSkillApiName(skill);
+      if (rollbackInFlight.has(skillKey)) return;
+      const dialogId = `claw-skill-rollback-${Date.now()}`;
+      const currentLabel = formatVersionLabel(history.currentVersion || skill.version);
+      const targetLabel = formatVersionLabel(version);
+      const dialogHtml = `
+      <div id="${dialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="text-align: center;">
+          <span class="claw-skill-dialog-icon">${getSkillIcon("history", 23)}</span>
+          <p style="font-size: 15px; color: #333; font-weight: 600; margin: 6px 0 4px;">\u786E\u8BA4\u6062\u590D Skill</p>
+          <p style="font-size: 12px; color: #666; line-height: 1.5; margin: 0;">\u5C06 Skill\u300C<strong style="color: #111;">${escapeHtml(skill.name)}</strong>\u300D\u4ECE ${escapeHtml(currentLabel)} \u6062\u590D\u4E3A ${escapeHtml(targetLabel)}\u3002<br>\u6062\u590D\u540E\uFF0C\u5F53\u524D SKILL.md \u4F1A\u5207\u6362\u5230\u8BE5\u5386\u53F2\u5185\u5BB9\u3002</p>
+        </div>
+        <div class="claw-skill-rollback-status" style="display: none; padding: 8px; border-radius: 6px; font-size: 12px;"></div>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+          <button class="claw-skill-rollback-cancel" style="padding: 8px 20px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 500;">\u53D6\u6D88</button>
+          <button class="claw-skill-rollback-confirm" style="padding: 8px 20px; background: #ea580c; color: white; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 500;">\u786E\u8BA4\u6062\u590D</button>
+        </div>
+      </div>
+    `;
+      openCenterOverlay("\u6062\u590D\u7248\u672C", dialogHtml, {
+        width: "380px",
+        maxWidth: "380px",
+        height: "270px",
+        maxHeight: "320px"
+      });
+      setTimeout(() => {
+        const dialog = document.getElementById(dialogId);
+        const cancelButton = dialog == null ? void 0 : dialog.querySelector(".claw-skill-rollback-cancel");
+        const confirmButton = dialog == null ? void 0 : dialog.querySelector(".claw-skill-rollback-confirm");
+        const statusElement = dialog == null ? void 0 : dialog.querySelector(".claw-skill-rollback-status");
+        if (!dialog || !cancelButton || !confirmButton || !statusElement) return;
+        const closeDialogIfActive = () => {
+          const activeOverlay = getPanelContainer();
+          if (!dialog.isConnected || !(activeOverlay == null ? void 0 : activeOverlay.contains(dialog))) return false;
+          closeOverlayPanel();
+          return true;
+        };
+        cancelButton.addEventListener("click", closeDialogIfActive);
+        confirmButton.addEventListener("click", async () => {
+          if (rollbackInFlight.has(skillKey)) return;
+          rollbackInFlight.add(skillKey);
+          confirmButton.disabled = true;
+          cancelButton.disabled = true;
+          confirmButton.textContent = "\u6062\u590D\u4E2D...";
+          statusElement.style.display = "block";
+          statusElement.style.background = "#fff7ed";
+          statusElement.style.color = "#c2410c";
+          statusElement.textContent = "\u6B63\u5728\u6062\u590D\u5386\u53F2\u7248\u672C...";
+          try {
+            const config = await getEchoMemConfig();
+            const client2 = createClient(config);
+            const result = await client2.rollbackSkillVersion(skillKey, version);
+            if ((result == null ? void 0 : result.rolled_back) !== true) {
+              throw new Error("\u540E\u7AEF\u672A\u786E\u8BA4\u7248\u672C\u6062\u590D\u6210\u529F");
+            }
+            closeDialogIfActive();
+            invalidateVersionCaches(skillKey);
+            skillCache = null;
+            expandedSkillKey = skillKey;
+            if (searchInput) searchInput.value = "";
+            const reloadResult = await loadSkills({ force: true, preserveExisting: true });
+            if (reloadResult.ok) {
+              showToast(`Skill\u300C${skill.name}\u300D\u5DF2\u6062\u590D\u4E3A ${targetLabel}`, "success");
+            }
+          } catch (error) {
+            if (statusElement.isConnected) {
+              statusElement.style.background = "#fef2f2";
+              statusElement.style.color = "#b91c1c";
+              statusElement.textContent = `\u6062\u590D\u5931\u8D25\uFF1A${getVersionErrorMessage(error)}`;
+              confirmButton.disabled = false;
+              cancelButton.disabled = false;
+              confirmButton.textContent = "\u91CD\u65B0\u6062\u590D";
+            }
+          } finally {
+            rollbackInFlight.delete(skillKey);
+          }
+        });
+      }, 50);
+    }
+    function useSkill(skill) {
+      const command = formatSkillCommand(skill);
+      if (!command) {
+        showToast("\u65E0\u6CD5\u8BC6\u522B\u8BE5 Skill \u7684\u8C03\u7528\u540D\u79F0", "error");
+        return;
+      }
+      if (!insertPlainText(command)) {
+        showToast("\u672A\u627E\u5230\u5F53\u524D\u9875\u9762\u7684\u804A\u5929\u8F93\u5165\u6846", "error");
+        return;
+      }
+      closeOverlayPanel();
+    }
+    function openFullSkillContent(skill) {
+      if (!skill) return;
+      const text = skill.fullContent || skill.rawContent || "\u65E0\u5185\u5BB9";
+      const previewHtml = `<div class="claw-skill-preview-overlay">${escapeHtml(text)}</div>`;
+      openCenterOverlay(escapeHtml(skill.name), previewHtml, {
+        showBack: true,
+        onBack: () => closeOverlayPanel()
+      });
+    }
+    function bindFullContentButtons(container, resolveSkill) {
+      container == null ? void 0 : container.querySelectorAll(".claw-skill-btn-view-full").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openFullSkillContent(resolveSkill(button));
+        });
+      });
+    }
+    function closeSkillDetailPage() {
+      var _a;
+      if (!isDetailPageOpen) return;
+      const skillKey = expandedSkillKey;
+      isDetailPageOpen = false;
+      expandedSkillKey = null;
+      detailPage.style.display = "none";
+      listPage.style.display = "flex";
+      if (panelTitle) panelTitle.textContent = listPageTitle;
+      if (panelBody) panelBody.scrollTop = listScrollTop;
+      const returnIndex = filteredSkills.findIndex((skill) => getSkillApiName(skill) === skillKey);
+      (_a = contentEl.querySelector(`.claw-skill-btn-detail[data-index="${returnIndex}"]`)) == null ? void 0 : _a.focus({ preventScroll: true });
+    }
+    function openSkillDetailPage(skill, index) {
+      if (!skill) return;
+      const skillKey = getSkillApiName(skill);
+      if (!isDetailPageOpen) {
+        listScrollTop = (panelBody == null ? void 0 : panelBody.scrollTop) || 0;
+      }
+      const meta = [
+        skill.version ? formatVersionLabel(skill.version) : "",
+        skill.author || "",
+        skill.modifiedAt ? formatDate2(skill.modifiedAt) : ""
+      ].filter(Boolean).join(" \xB7 ");
+      detailPage.innerHTML = `
+      <section class="claw-skill-detail-hero">
+        <span class="claw-skill-detail-eyebrow">SKILL</span>
+        <p class="claw-skill-detail-title">${escapeHtml(skill.name || skillKey)}</p>
+        <div class="claw-skill-detail-summary">
+          <code class="claw-skill-detail-command">/${escapeHtml(skillKey)}</code>
+          <p class="claw-skill-detail-meta">${escapeHtml(meta || "\u6682\u65E0\u7248\u672C\u4FE1\u606F")}</p>
+        </div>
+      </section>
+      <section class="claw-skill-detail-sheet">
+        ${renderDetail(skill, index)}
+      </section>
+    `;
+      listPage.style.display = "none";
+      detailPage.style.display = "flex";
+      isDetailPageOpen = true;
+      expandedSkillKey = skillKey;
+      if (panelTitle) panelTitle.textContent = "Skill \u8BE6\u60C5";
+      if (panelBody) panelBody.scrollTop = 0;
+      detailPage.focus({ preventScroll: true });
+      bindFullContentButtons(detailPage, () => skill);
+      if (options.showVersionHistory) {
+        loadSkillVersions(skill, detailPage.querySelector(".claw-skill-version-history"));
+      }
+    }
+    panelBackButton == null ? void 0 : panelBackButton.addEventListener("click", (event) => {
+      if (!isDetailPageOpen) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeSkillDetailPage();
+    }, true);
     function renderSkills(skills) {
       if (skills.length === 0) {
         const hasSearchKeyword = Boolean(searchInput == null ? void 0 : searchInput.value.trim());
@@ -26770,30 +27805,45 @@ ${block}` : block;
       }
       const itemsHtml = skills.map((skill, index) => {
         const desc = skill.description || "\u6682\u65E0\u63CF\u8FF0";
-        const version = skill.version ? `v${skill.version}` : "";
+        const version = skill.version ? formatVersionLabel(skill.version) : "";
         const author = skill.author || "";
-        const metaParts = [version, author, formatDate2(skill.modifiedAt)].filter(Boolean);
+        const metaParts = [
+          version,
+          author,
+          formatDate2(skill.modifiedAt),
+          skill.contentUnavailable ? "\u6B63\u6587\u5F85\u91CD\u8BD5" : ""
+        ].filter(Boolean);
         const meta = metaParts.join(" \xB7 ") || "-";
-        const deleteBtnHtml = options.showDelete ? `<button type="button" class="claw-skill-btn-delete" data-name="${skill.name}" aria-label="\u5220\u9664 ${skill.name}">
+        const deleteBtnHtml = options.showDelete ? `<button type="button" class="claw-skill-btn-delete" data-index="${index}" aria-label="\u5220\u9664 ${escapeHtml(skill.name)}">
             ${getSkillIcon("trash", 13)}
             \u5220\u9664
           </button>` : "";
+        const detailControlHtml = options.useOnCardClick ? `<button type="button" class="claw-skill-btn-detail" data-index="${index}">
+            ${getSkillIcon("info", 13)}
+            <span>\u8BE6\u60C5</span>
+          </button>` : getSkillIcon("chevronDown", 17, "claw-skill-toggle-icon");
+        const useTargetClass = options.useOnCardClick ? " claw-skill-item-use-target" : "";
+        const useTargetAttributes = options.useOnCardClick ? ` role="button" tabindex="0" data-index="${index}" aria-label="\u4F7F\u7528 Skill\uFF1A${escapeHtml(skill.name)}"` : "";
         return `
         <div class="claw-skill-item" data-index="${index}">
-          <div class="claw-skill-item-head">
+          <div class="claw-skill-item-head${useTargetClass}"${useTargetAttributes}>
             <div class="claw-skill-item-copy">
-              <p class="claw-skill-item-title">${skill.name}</p>
-              <p class="claw-skill-item-desc">${desc}</p>
-              <p class="claw-skill-item-meta">${meta}</p>
+              <p class="claw-skill-item-title" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</p>
+              <p class="claw-skill-item-desc">${escapeHtml(desc)}</p>
             </div>
+          </div>
+          <div class="claw-skill-item-footer">
+            <p class="claw-skill-item-meta" title="${escapeHtml(meta)}">${escapeHtml(meta)}</p>
             <div class="claw-skill-item-actions">
               ${deleteBtnHtml}
-              ${getSkillIcon("chevronDown", 17, "claw-skill-toggle-icon")}
+              ${detailControlHtml}
             </div>
           </div>
-          <div class="claw-skill-detail" style="display: none;">
-            ${renderDetail(skill)}
-          </div>
+          ${options.useOnCardClick ? "" : `
+            <div class="claw-skill-detail" style="display: none;">
+              ${renderDetail(skill, index)}
+            </div>
+          `}
         </div>
       `;
       }).join("");
@@ -26802,28 +27852,69 @@ ${block}` : block;
         ${itemsHtml}
       </div>
     `;
+      function openSkillItem(item, skill) {
+        const detail = item.querySelector(".claw-skill-detail");
+        const icon = item.querySelector(".claw-skill-toggle-icon");
+        if (!detail) return;
+        contentEl.querySelectorAll(".claw-skill-detail").forEach((element) => element.style.display = "none");
+        contentEl.querySelectorAll(".claw-skill-toggle-icon").forEach((element) => element.style.transform = "none");
+        detail.style.display = "block";
+        if (icon) icon.style.transform = "rotate(180deg)";
+        expandedSkillKey = getSkillApiName(skill);
+        if (options.showVersionHistory) {
+          const versionContainer = detail.querySelector(".claw-skill-version-history");
+          loadSkillVersions(skill, versionContainer);
+        }
+      }
       contentEl.querySelectorAll(".claw-skill-item").forEach((item) => {
         item.addEventListener("click", (e) => {
-          if (e.target.closest(".claw-skill-btn-delete")) return;
+          if (e.target.closest("button")) return;
+          if (e.target.closest(".claw-skill-detail")) return;
+          const index = Number(item.dataset.index);
+          const skill = skills[index];
+          if (!skill) return;
+          if (options.useOnCardClick) {
+            useSkill(skill);
+            return;
+          }
           const detail = item.querySelector(".claw-skill-detail");
           const icon = item.querySelector(".claw-skill-toggle-icon");
           if (!detail) return;
           const isOpen = detail.style.display === "block";
-          contentEl.querySelectorAll(".claw-skill-detail").forEach((d) => d.style.display = "none");
-          contentEl.querySelectorAll(".claw-skill-toggle-icon").forEach((i) => i.style.transform = "none");
-          if (!isOpen) {
-            detail.style.display = "block";
-            if (icon) icon.style.transform = "rotate(180deg)";
+          if (isOpen) {
+            detail.style.display = "none";
+            if (icon) icon.style.transform = "none";
+            expandedSkillKey = null;
+            return;
           }
+          openSkillItem(item, skill);
+        });
+      });
+      contentEl.querySelectorAll(".claw-skill-item-use-target").forEach((target) => {
+        target.addEventListener("keydown", (event) => {
+          if (!isSkillUseActivationKey(event.key)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const skill = skills[Number(target.dataset.index)];
+          if (skill) useSkill(skill);
+        });
+      });
+      contentEl.querySelectorAll(".claw-skill-btn-detail").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const index = Number(btn.dataset.index);
+          openSkillDetailPage(skills[index], index);
         });
       });
       if (options.showDelete) {
         contentEl.querySelectorAll(".claw-skill-btn-delete").forEach((btn) => {
           btn.addEventListener("click", async (e) => {
             e.stopPropagation();
-            const name = btn.dataset.name;
-            if (!name) return;
-            const safeDelName = name.replace(/\u0026/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+            const skill = skills[Number(btn.dataset.index)];
+            const apiName = getSkillApiName(skill);
+            const displayName = (skill == null ? void 0 : skill.name) || apiName;
+            if (!apiName) return;
+            const safeDelName = escapeHtml(displayName);
             const delDialogHtml = `
             <div class="claw-skill-dialog">
               <div>
@@ -26840,8 +27931,9 @@ ${block}` : block;
             openCenterOverlay("\u5220\u9664\u786E\u8BA4", delDialogHtml, {
               width: "360px",
               maxWidth: "360px",
-              height: "240px",
-              maxHeight: "280px"
+              height: "280px",
+              maxHeight: "calc(100vh - 16px)",
+              compactHeader: true
             });
             setTimeout(() => {
               const cancelBtn = document.getElementById("claw-skill-del-cancel");
@@ -26856,10 +27948,15 @@ ${block}` : block;
                 try {
                   const config = await getEchoMemConfig();
                   const client2 = createClient(config);
-                  await client2.deleteSkill(name);
-                  showToast(`Skill\u300C${name || "\u672A\u547D\u540D"}\u300D\u5DF2\u5220\u9664`, "success");
-                  skillCache = null;
-                  await loadSkills();
+                  await client2.deleteSkill(apiName);
+                  invalidateVersionCaches(apiName);
+                  if (expandedSkillKey === apiName) expandedSkillKey = null;
+                  allSkills = removeSkillByApiName(allSkills, apiName);
+                  skillCache = allSkills;
+                  filteredSkills = getFilteredSkills(allSkills, (searchInput == null ? void 0 : searchInput.value) || "");
+                  renderSkills(filteredSkills);
+                  showToast(`Skill\u300C${displayName || "\u672A\u547D\u540D"}\u300D\u5DF2\u5220\u9664`, "success");
+                  await loadSkills({ force: true, preserveExisting: true });
                 } catch (err) {
                   showToast(`\u5220\u9664\u5931\u8D25\uFF1A${err.message}`, "error");
                   btn.textContent = "\u5220\u9664";
@@ -26871,136 +27968,157 @@ ${block}` : block;
           });
         });
       }
-      contentEl.querySelectorAll(".claw-skill-btn-view-full").forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const name = btn.dataset.name;
-          const skill = allSkills.find((s) => s.name === name);
-          if (!skill) return;
-          const text = skill.fullContent || skill.rawContent || "\u65E0\u5185\u5BB9";
-          const previewHtml = `<div class="claw-skill-preview-overlay">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
-          openCenterOverlay(skill.name, previewHtml, {
-            showBack: true,
-            onBack: () => closeOverlayPanel()
-          });
-        });
-      });
+      bindFullContentButtons(contentEl, (button) => skills[Number(button.dataset.index)]);
+      if (expandedSkillKey) {
+        const expandedIndex = skills.findIndex((skill) => getSkillApiName(skill) === expandedSkillKey);
+        const expandedItem = expandedIndex >= 0 ? contentEl.querySelector(`.claw-skill-item[data-index="${expandedIndex}"]`) : null;
+        if (expandedItem) {
+          if (options.useOnCardClick) {
+            openSkillDetailPage(skills[expandedIndex], expandedIndex);
+          } else {
+            openSkillItem(expandedItem, skills[expandedIndex]);
+          }
+        }
+      }
     }
-    function renderDetail(skill) {
-      const descHtml = skill.description ? `<div class="claw-skill-detail-description">${skill.description.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : `<div class="claw-skill-detail-empty">\u6682\u65E0\u63CF\u8FF0</div>`;
+    function renderDetail(skill, index) {
+      const descHtml = skill.description ? `<p class="claw-skill-detail-description">${escapeHtml(skill.description)}</p>` : `<div class="claw-skill-detail-empty">\u6682\u65E0\u63CF\u8FF0</div>`;
       const previewText = skill.rawContent || skill.fullContent || "";
-      const bodyPreview = previewText ? `<div class="claw-skill-code-preview">${previewText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : `<div class="claw-skill-detail-empty">\u6682\u65E0\u6B63\u6587</div>`;
+      const bodyPreview = previewText ? `<div class="claw-skill-code-preview">${escapeHtml(previewText)}</div>` : `<div class="claw-skill-detail-empty">\u6682\u65E0\u6B63\u6587</div>`;
+      const versionHistoryHtml = options.showVersionHistory ? `
+        <section class="claw-skill-detail-section">
+          <div class="claw-skill-detail-section-head">
+            <p class="claw-skill-detail-section-title">\u7248\u672C\u5386\u53F2</p>
+          </div>
+          <div class="claw-skill-version-history" data-index="${index}">
+            <div class="claw-skill-version-state">\u6253\u5F00\u8BE6\u60C5\u540E\u52A0\u8F7D\u7248\u672C\u5386\u53F2</div>
+          </div>
+        </section>
+      ` : "";
       return `
-      ${descHtml}
-      ${bodyPreview}
-      <div class="claw-skill-detail-footer">
-        <span class="claw-skill-uri">${skill.uri}</span>
-        <button type="button" class="claw-skill-btn-view-full" data-name="${skill.name}">
-          ${getSkillIcon("file", 13)}
-          \u67E5\u770B\u5B8C\u6574\u5185\u5BB9
-        </button>
+      <section class="claw-skill-detail-section">
+        <div class="claw-skill-detail-section-head">
+          <p class="claw-skill-detail-section-title">\u7B80\u4ECB</p>
+        </div>
+        ${descHtml}
+      </section>
+      <section class="claw-skill-detail-section">
+        <div class="claw-skill-detail-section-head">
+          <p class="claw-skill-detail-section-title">\u5F53\u524D\u5185\u5BB9</p>
+          <button type="button" class="claw-skill-btn-view-full" data-index="${index}">
+            ${getSkillIcon("file", 12)}
+            \u5B8C\u6574\u5185\u5BB9
+          </button>
+        </div>
+        ${bodyPreview}
+      </section>
+      ${versionHistoryHtml}
+      <div class="claw-skill-detail-resource">
+        <span class="claw-skill-detail-section-title">\u8D44\u6E90\u8DEF\u5F84</span>
+        <code class="claw-skill-uri" title="${escapeHtml(skill.uri)}">${escapeHtml(skill.uri)}</code>
       </div>
     `;
     }
-    function filterSkills(keyword) {
+    function getFilteredSkills(skills, keyword) {
       if (!keyword.trim()) {
-        filteredSkills = allSkills;
-      } else {
-        const k = keyword.toLowerCase();
-        filteredSkills = allSkills.filter(
-          (s) => s.name.toLowerCase().includes(k) || s.description && s.description.toLowerCase().includes(k)
-        );
+        return skills;
       }
+      const normalizedKeyword = keyword.toLowerCase();
+      return skills.filter(
+        (skill) => skill.name.toLowerCase().includes(normalizedKeyword) || skill.description && skill.description.toLowerCase().includes(normalizedKeyword)
+      );
+    }
+    function filterSkills(keyword) {
+      expandedSkillKey = null;
+      filteredSkills = getFilteredSkills(allSkills, keyword);
       renderSkills(filteredSkills);
     }
-    async function loadSkills() {
-      if (skillCache) {
+    async function listSkillDirectories(client2) {
+      const lsResult = await client2.fsLs(SKILL_ROOT_URI, {
+        output: "agent",
+        absLimit: 128,
+        showAllHidden: false
+      });
+      console.log("[EchoMem:skill] fsLs result:", lsResult);
+      const entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
+      return entries.filter((entry) => isDirectory(entry));
+    }
+    async function loadSkills(loadOptions = {}) {
+      const force = loadOptions.force === true;
+      const preserveExisting = loadOptions.preserveExisting === true;
+      if (!force && skillCache !== null) {
         allSkills = skillCache;
-        filteredSkills = allSkills;
+        filteredSkills = getFilteredSkills(allSkills, (searchInput == null ? void 0 : searchInput.value) || "");
         loadingEl.style.display = "none";
         contentEl.style.display = "block";
         renderSkills(filteredSkills);
-        return;
+        return { ok: true, cached: true, partialCount: 0 };
       }
-      loadingEl.style.display = "flex";
-      contentEl.style.display = "none";
+      const requestGeneration = ++loadGeneration;
+      const previousSkills = allSkills;
+      if (!preserveExisting || previousSkills.length === 0) {
+        loadingEl.style.display = "flex";
+        contentEl.style.display = "none";
+      }
       try {
         const config = await getEchoMemConfig();
         const client2 = createClient(config);
-        const lsResult = await client2.fsLs(SKILL_ROOT_URI, {
-          output: "agent",
-          absLimit: 128,
-          showAllHidden: false
-        });
-        console.log("[EchoMem:skill] fsLs result:", lsResult);
-        let entries = Array.isArray(lsResult) ? lsResult : (lsResult == null ? void 0 : lsResult.entries) || [];
-        entries = entries.filter((e) => isDirectory(e));
+        let entries = await listSkillDirectories(client2);
+        if (force && previousSkills.length > 0 && entries.length === 0) {
+          entries = await listSkillDirectories(client2);
+        }
+        if (requestGeneration !== loadGeneration) return { ok: false, stale: true };
         console.log("[EchoMem:skill] filtered entries:", entries);
         if (entries.length === 0) {
           allSkills = [];
           skillCache = allSkills;
+          filteredSkills = [];
           loadingEl.style.display = "none";
           contentEl.style.display = "block";
           renderSkills([]);
-          return;
+          return { ok: true, partialCount: 0 };
         }
-        const skills = await Promise.all(
-          entries.map(async (entry) => {
-            const dirName = getEntryName(entry);
-            try {
-              const baseUri = entry.uri.replace(/\/$/, "");
-              const skillUri = `${baseUri}/SKILL.md`;
-              console.log("[EchoMem:skill] reading:", skillUri, "dirName:", dirName);
-              const readResult = await client2.fsRead(skillUri);
-              console.log("[EchoMem:skill] readResult type:", typeof readResult, "preview:", String(readResult).slice(0, 60));
-              const content = typeof readResult === "string" ? readResult : (readResult == null ? void 0 : readResult.content) || "";
-              const { frontmatter, body } = parseSkillMd(content);
-              console.log("[EchoMem:skill] parsed frontmatter:", JSON.stringify(frontmatter));
-              return {
-                name: frontmatter.name || dirName,
-                dirName,
-                description: frontmatter.description || entry.abstract || "",
-                uri: baseUri,
-                rawContent: body.slice(0, 1e3),
-                fullContent: content,
-                modifiedAt: getEntryUpdatedAt(entry) || entry.mtime || entry.modifiedAt,
-                version: frontmatter.version,
-                author: frontmatter.author
-              };
-            } catch (err) {
-              console.warn(`Failed to read skill ${dirName}:`, err);
-              return {
-                name: dirName,
-                dirName,
-                description: "\u8BFB\u53D6\u5931\u8D25",
-                uri: entry.uri,
-                error: true
-              };
-            }
-          })
-        );
+        const skills = await readSkillEntries(entries, (uri) => client2.fsRead(uri), {
+          skillRootUri: SKILL_ROOT_URI,
+          concurrency: 6,
+          onReadError: (error, dirName) => {
+            console.warn(`Failed to read skill ${dirName}:`, error);
+          }
+        });
+        if (requestGeneration !== loadGeneration) return { ok: false, stale: true };
         console.log("[EchoMem:skill] final skills:", skills.map((s) => ({ name: s.name, dirName: s.dirName })));
-        allSkills = skills.filter((s) => !s.error);
+        allSkills = skills;
         allSkills.sort((a, b) => {
           const ta = a.modifiedAt ? new Date(a.modifiedAt).getTime() : 0;
           const tb = b.modifiedAt ? new Date(b.modifiedAt).getTime() : 0;
           return tb - ta;
         });
         skillCache = allSkills;
-        filteredSkills = allSkills;
+        filteredSkills = getFilteredSkills(allSkills, (searchInput == null ? void 0 : searchInput.value) || "");
         loadingEl.style.display = "none";
         contentEl.style.display = "block";
         renderSkills(filteredSkills);
+        const partialCount = allSkills.filter((skill) => skill.contentUnavailable).length;
+        if (partialCount > 0) {
+          showToast(`${partialCount} \u4E2A Skill \u7684\u6B63\u6587\u6682\u65F6\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5DF2\u4FDD\u7559\u76EE\u5F55\u6761\u76EE`, "info");
+        }
+        return { ok: true, partialCount };
       } catch (err) {
+        if (requestGeneration !== loadGeneration) return { ok: false, stale: true };
+        if (preserveExisting && previousSkills.length > 0) {
+          showToast(`\u5237\u65B0\u5931\u8D25\uFF0C\u5DF2\u4FDD\u7559\u4E0A\u6B21\u5217\u8868\uFF1A${err.message}`, "error");
+          return { ok: false, preserved: true, error: err };
+        }
         loadingEl.style.display = "none";
         contentEl.style.display = "block";
         contentEl.innerHTML = `
         <div class="claw-skill-state is-error" role="alert">
           <span class="claw-skill-state-icon">${getSkillIcon("alert", 22)}</span>
           <p class="claw-skill-state-title">\u52A0\u8F7D\u5931\u8D25</p>
-          <p class="claw-skill-state-copy">${err.message}</p>
+          <p class="claw-skill-state-copy">${escapeHtml(err.message)}</p>
         </div>
       `;
+        return { ok: false, error: err };
       }
     }
     let searchTimer = null;
@@ -27014,12 +28132,39 @@ ${block}` : block;
     }
     if (refreshBtn) {
       refreshBtn.addEventListener("click", async () => {
-        skillCache = null;
-        if (searchInput) searchInput.value = "";
-        await loadSkills();
+        if (refreshBtn.disabled) return;
+        refreshBtn.disabled = true;
+        refreshBtn.setAttribute("aria-busy", "true");
+        expandedSkillKey = null;
+        invalidateVersionCaches();
+        if (searchInput == null ? void 0 : searchInput.value) {
+          searchInput.value = "";
+          filteredSkills = allSkills;
+          renderSkills(filteredSkills);
+        }
+        try {
+          const result = await loadSkills({ force: true, preserveExisting: true });
+          if (result.ok && result.partialCount === 0) {
+            showToast("Skill \u5217\u8868\u5DF2\u5237\u65B0", "success");
+          }
+        } finally {
+          refreshBtn.disabled = false;
+          refreshBtn.removeAttribute("aria-busy");
+        }
       });
     }
-    await loadSkills();
+    if (refreshBtn) {
+      refreshBtn.disabled = true;
+      refreshBtn.setAttribute("aria-busy", "true");
+    }
+    try {
+      await loadSkills();
+    } finally {
+      if (refreshBtn) {
+        refreshBtn.disabled = false;
+        refreshBtn.removeAttribute("aria-busy");
+      }
+    }
   }
 
   // src/panels/registry.js
@@ -28159,7 +29304,7 @@ ${block}` : block;
     }
     return exactMatch + partialMatch;
   }
-  function escapeHtml(str) {
+  function escapeHtml2(str) {
     if (!str) return "";
     const div = document.createElement("div");
     div.textContent = String(str);
@@ -29385,9 +30530,9 @@ ${block}` : block;
       return `
       <div class="echomem-suggestion-item ${isActive ? "echomem-suggestion-active" : ""}"
            data-index="${i}"
-           data-key="${escapeHtml(key)}">
+           data-key="${escapeHtml2(key)}">
         <input type="checkbox" class="echomem-suggestion-check" tabindex="-1" />
-        <span class="suggestion-text">${escapeHtml(c.displayText || "")}</span>
+        <span class="suggestion-text">${escapeHtml2(c.displayText || "")}</span>
         <div class="suggestion-meta">
           ${sourceBadge}
           <span class="suggestion-score">${(c.score || 0).toFixed(2)}</span>

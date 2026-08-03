@@ -3,8 +3,25 @@
 
 import { getEchoMemConfig } from '../../services/config.js';
 import { createClient } from '../../services/echomem-client.js';
-import { parseSkillMd, getEntryName } from '../../utils/skill-parser.js';
-import { openCenterOverlay, closeOverlayPanel } from '../../core/panel-host.js';
+import { parseSkillMd } from '../../utils/skill-parser.js';
+import { insertPlainText } from '../../core/content-injector.js';
+import { openCenterOverlay, closeOverlayPanel, getPanelContainer } from '../../core/panel-host.js';
+import {
+  isSkillUseActivationKey,
+  readSkillEntries,
+  removeSkillByApiName,
+} from './skill-list.js';
+import {
+  areSkillVersionsEquivalent,
+  classifyVersionError,
+  escapeHtml,
+  formatSkillCommand,
+  formatVersionDate,
+  formatVersionLabel,
+  getSkillApiName,
+  getVersionSourceLabel,
+  normalizeSkillVersionHistory,
+} from './version-history.js';
 
 const SKILL_ROOT_URI = 'echo://skills';
 
@@ -47,6 +64,12 @@ const SKILL_STORE_STYLES = `
     .claw-skill-home,
     .claw-skill-list,
     .claw-skill-upload {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .claw-skill-list-page {
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -141,8 +164,13 @@ const SKILL_STORE_STYLES = `
     .claw-skill-refresh:focus-visible,
     .claw-skill-action:focus-visible,
     .claw-skill-dialog-button:focus-visible,
+    .claw-skill-btn-detail:focus-visible,
     .claw-skill-btn-delete:focus-visible,
-    .claw-skill-btn-view-full:focus-visible {
+    .claw-skill-btn-view-full:focus-visible,
+    .claw-skill-item-use-target:focus-visible,
+    .claw-skill-version-view:focus-visible,
+    .claw-skill-version-rollback:focus-visible,
+    .claw-skill-version-retry:focus-visible {
       outline: 3px solid rgba(103, 80, 164, 0.22);
       outline-offset: 2px;
     }
@@ -257,6 +285,7 @@ const SKILL_STORE_STYLES = `
     .claw-skill-refresh,
     .claw-skill-action,
     .claw-skill-dialog-button,
+    .claw-skill-btn-detail,
     .claw-skill-btn-view-full,
     .claw-skill-btn-delete {
       display: inline-flex;
@@ -284,6 +313,11 @@ const SKILL_STORE_STYLES = `
     .claw-skill-btn-view-full:hover {
       background: var(--skill-primary-container);
       border-color: #b69df8;
+    }
+
+    .claw-skill-refresh:disabled {
+      cursor: wait;
+      opacity: 0.65;
     }
 
     .claw-skill-notice {
@@ -350,46 +384,52 @@ const SKILL_STORE_STYLES = `
     }
 
     .claw-skill-item {
-      padding: 13px 14px;
+      padding: 14px;
       border: 1px solid var(--skill-outline-soft);
       border-radius: 16px;
-      background: rgba(255, 255, 255, 0.82);
+      background: rgba(255, 255, 255, 0.9);
       cursor: pointer;
       box-shadow: 0 1px 2px rgba(29, 27, 32, 0.035);
-      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
     }
 
     .claw-skill-item:hover {
+      transform: translateY(-1px);
       border-color: #d0bcff;
       background: var(--skill-surface-soft);
-      box-shadow: 0 5px 15px rgba(33, 0, 93, 0.06);
+      box-shadow: 0 7px 18px rgba(33, 0, 93, 0.08);
     }
 
     .claw-skill-item-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 10px;
+      display: block;
+    }
+
+    .claw-skill-item-use-target {
+      border-radius: 10px;
+      outline: none;
     }
 
     .claw-skill-item-copy {
       min-width: 0;
-      flex: 1;
     }
 
     .claw-skill-item-title {
-      margin: 0 0 3px;
+      display: -webkit-box;
+      overflow: hidden;
+      margin: 0 0 6px;
       color: var(--skill-text);
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
-      line-height: 1.4;
-      word-break: break-all;
+      line-height: 1.42;
+      overflow-wrap: anywhere;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
     }
 
     .claw-skill-item-desc {
       display: -webkit-box;
       overflow: hidden;
-      margin: 0 0 6px;
+      margin: 0;
       color: var(--skill-text-muted);
       font-size: 12px;
       line-height: 1.5;
@@ -397,23 +437,39 @@ const SKILL_STORE_STYLES = `
       -webkit-line-clamp: 2;
     }
 
+    .claw-skill-item-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 11px;
+      padding-top: 10px;
+      border-top: 1px solid var(--skill-outline-soft);
+    }
+
     .claw-skill-item-meta {
       display: inline-flex;
       align-items: center;
+      max-width: 100%;
       min-height: 22px;
       margin: 0;
       padding: 2px 8px;
+      overflow: hidden;
       border-radius: 999px;
       background: var(--skill-surface-strong);
       color: var(--skill-text-muted);
       font-size: 10px;
       line-height: 1.4;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .claw-skill-item-actions {
       display: flex;
       align-items: center;
       gap: 7px;
+      margin-left: auto;
       flex: 0 0 auto;
     }
 
@@ -436,8 +492,21 @@ const SKILL_STORE_STYLES = `
       opacity: 0.65;
     }
 
+    .claw-skill-btn-detail {
+      min-height: 28px;
+      padding: 0 11px;
+      border: 1px solid #d0bcff;
+      background: #ffffff;
+      color: var(--skill-primary);
+      font-size: 11px;
+    }
+
+    .claw-skill-btn-detail:hover {
+      background: var(--skill-primary-container);
+    }
+
     .claw-skill-toggle-icon {
-      margin-top: 7px;
+      margin-top: 0;
       color: var(--skill-outline);
       transition: transform 180ms ease, color 180ms ease;
     }
@@ -452,66 +521,341 @@ const SKILL_STORE_STYLES = `
       border-top: 1px solid var(--skill-outline-soft);
     }
 
-    .claw-skill-detail-description,
-    .claw-skill-detail-empty,
-    .claw-skill-code-preview {
-      padding: 10px 11px;
-      border-radius: 12px;
-      font-size: 12px;
-      line-height: 1.6;
+    .claw-skill-detail-page {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      outline: none;
     }
 
-    .claw-skill-detail-description {
-      margin-bottom: 9px;
-      border: 1px solid #d0bcff;
-      background: var(--skill-surface-soft);
-      color: var(--skill-text-muted);
-    }
-
-    .claw-skill-detail-empty {
-      margin-bottom: 9px;
+    .claw-skill-detail-hero {
+      position: relative;
+      overflow: hidden;
+      padding: 15px 16px 15px 18px;
       border: 1px solid var(--skill-outline-soft);
-      background: var(--skill-surface-strong);
-      color: var(--skill-outline);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 4px 14px rgba(29, 27, 32, 0.045);
     }
 
-    .claw-skill-code-preview {
-      max-height: 200px;
-      overflow-y: auto;
-      border: 1px solid var(--skill-outline-soft);
-      background: #f7f2fa;
-      color: #363139;
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-      white-space: pre-wrap;
+    .claw-skill-detail-hero::before {
+      content: "";
+      position: absolute;
+      inset: 12px auto 12px 0;
+      width: 4px;
+      border-radius: 0 4px 4px 0;
+      background: var(--skill-primary);
+    }
+
+    .claw-skill-detail-eyebrow {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--skill-primary);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
+
+    .claw-skill-detail-title {
+      margin: 0;
+      color: var(--skill-text);
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.4;
       word-break: break-word;
     }
 
-    .claw-skill-detail-footer {
+    .claw-skill-detail-summary {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-top: 9px;
+      flex-wrap: wrap;
+      gap: 7px 9px;
+      margin-top: 8px;
     }
 
-    .claw-skill-uri {
+    .claw-skill-detail-command {
+      display: inline-flex;
       min-width: 0;
+      padding: 3px 8px;
       overflow: hidden;
-      color: var(--skill-outline);
+      border-radius: 7px;
+      background: #f1e9ff;
+      color: var(--skill-on-primary-container);
       font-family: "SFMono-Regular", Consolas, monospace;
       font-size: 10px;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
+    .claw-skill-detail-meta {
+      margin: 0;
+      color: var(--skill-outline);
+      font-size: 10px;
+      line-height: 1.4;
+    }
+
+    .claw-skill-detail-sheet {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .claw-skill-detail-section {
+      padding: 14px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 1px 2px rgba(29, 27, 32, 0.03);
+    }
+
+    .claw-skill-detail > .claw-skill-detail-section {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .claw-skill-detail > .claw-skill-detail-section + .claw-skill-detail-section {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--skill-outline-soft);
+    }
+
+    .claw-skill-detail > .claw-skill-detail-resource {
+      margin-top: 12px;
+    }
+
+    .claw-skill-detail-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .claw-skill-detail-section-title {
+      margin: 0;
+      color: var(--skill-text);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .claw-skill-detail-description,
+    .claw-skill-detail-empty,
+    .claw-skill-code-preview {
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .claw-skill-detail-description {
+      margin: 0;
+      color: var(--skill-text-muted);
+    }
+
+    .claw-skill-detail-empty {
+      padding: 12px;
+      border-radius: 10px;
+      background: #f7f5f8;
+      color: var(--skill-outline);
+    }
+
+    .claw-skill-code-preview {
+      max-height: 260px;
+      padding: 12px;
+      overflow-y: auto;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 12px;
+      background: #f8f7f9;
+      color: #363139;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .claw-skill-detail-resource {
+      display: grid;
+      gap: 6px;
+      padding: 3px 2px;
+    }
+
+    .claw-skill-uri {
+      display: block;
+      width: 100%;
+      color: var(--skill-outline);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 10px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      word-break: break-word;
+    }
+
     .claw-skill-btn-view-full {
-      min-height: 32px;
+      min-height: 28px;
       flex: 0 0 auto;
-      padding: 0 11px;
-      border: 1px solid #d0bcff;
-      background: var(--skill-surface);
+      padding: 0 9px;
+      border: 1px solid var(--skill-outline-soft);
+      background: #ffffff;
       color: var(--skill-primary);
+      font-size: 10px;
+    }
+
+    .claw-skill-version-history {
+      min-height: 42px;
+    }
+
+    .claw-skill-version-state {
+      padding: 12px;
+      border-radius: 10px;
+      background: #f7f5f8;
+      color: var(--skill-outline);
       font-size: 11px;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .claw-skill-version-state-error {
+      border: 1px solid #f1c7c3;
+      background: #fff5f4;
+      color: var(--skill-error);
+      text-align: left;
+    }
+
+    .claw-skill-version-state-error p {
+      margin: 0;
+    }
+
+    .claw-skill-version-retry {
+      margin-top: 8px;
+      padding: 5px 10px;
+      border: 1px solid #e8aaa5;
+      border-radius: 999px;
+      background: #ffffff;
+      color: var(--skill-error);
+      font: inherit;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .claw-skill-version-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .claw-skill-version-item {
+      padding: 10px 11px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 12px;
+      background: #ffffff;
+    }
+
+    .claw-skill-version-item-current {
+      border-color: #d0bcff;
+      background: #fbf8ff;
+      box-shadow: inset 3px 0 0 var(--skill-primary);
+    }
+
+    .claw-skill-version-row,
+    .claw-skill-version-labels,
+    .claw-skill-version-actions {
+      display: flex;
+      align-items: center;
+    }
+
+    .claw-skill-version-row {
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 9px;
+    }
+
+    .claw-skill-version-main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .claw-skill-version-labels {
+      flex-wrap: wrap;
+      gap: 5px 7px;
+    }
+
+    .claw-skill-version-current-badge {
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--skill-primary);
+      color: var(--skill-on-primary);
+      font-size: 9px;
+      font-weight: 600;
+    }
+
+    .claw-skill-version-number {
+      color: var(--skill-text);
+      font-size: 12px;
+    }
+
+    .claw-skill-version-source,
+    .claw-skill-version-date {
+      color: var(--skill-text-muted);
+      font-size: 10px;
+    }
+
+    .claw-skill-version-date {
+      color: var(--skill-outline);
+    }
+
+    .claw-skill-version-details {
+      margin: 5px 0 0;
+      color: var(--skill-outline);
+      font-size: 9px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .claw-skill-version-actions {
+      flex: 0 0 auto;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 5px;
+    }
+
+    .claw-skill-version-view,
+    .claw-skill-version-rollback {
+      min-height: 27px;
+      padding: 0 9px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 999px;
+      background: #ffffff;
+      font: inherit;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .claw-skill-version-view {
+      color: var(--skill-primary);
+    }
+
+    .claw-skill-version-rollback {
+      border-color: #f0c99a;
+      background: #fffaf3;
+      color: #8a4c12;
+    }
+
+    .claw-skill-version-view:hover,
+    .claw-skill-version-rollback:hover {
+      background: var(--skill-primary-container);
+      border-color: #d0bcff;
+    }
+
+    .claw-skill-version-view:disabled,
+    .claw-skill-version-rollback:disabled {
+      border-color: var(--skill-outline-soft);
+      background: #f3f1f4;
+      color: #aaa4ad;
+      cursor: not-allowed;
     }
 
     .claw-skill-dropzone {
@@ -790,10 +1134,6 @@ function isDirectory(entry) {
   return entry.isDir || entry.is_dir || entry.stat?.isDir || entry.stat?.is_dir || false;
 }
 
-function getEntryUpdatedAt(entry) {
-  return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
-}
-
 // ═══════════════════════════════════════════════════════════
 //  HTML 生成
 // ═══════════════════════════════════════════════════════════
@@ -842,35 +1182,40 @@ export function getSkillManageContent() {
 function getSkillListContent(title, options = {}) {
   const pageNote = options.showDelete
     ? '展开条目查看内容，或移除不再需要的 Skill。'
-    : '按名称或描述搜索，展开条目即可查看内容摘要。';
+    : '点击卡片直接使用；点击「详情」进入完整信息与版本历史。';
   return `
     ${SKILL_STORE_STYLES}
     <div class="claw-skill-surface claw-skill-list">
-      <p class="claw-skill-page-note">${pageNote}</p>
-      <!-- 搜索框 -->
-      <div class="claw-skill-toolbar">
-        <div class="claw-skill-search-shell">
-          ${getSkillIcon('search', 17)}
-          <input class="claw-skill-search-input" type="text" id="claw-skill-search" placeholder="搜索 Skill 名称或描述..." aria-label="搜索 ${title}">
-        </div>
-        <button type="button" id="claw-skill-btn-refresh" class="claw-skill-refresh">
-          ${getSkillIcon('refresh', 15)}
-          刷新
-        </button>
-      </div>
-
-      <!-- Toast -->
+      <!-- 列表与详情页共用的状态提示 -->
       <div id="claw-skill-toast" class="claw-skill-notice claw-skill-toast" role="status" aria-live="polite" style="display: none;"></div>
 
-      <!-- 加载中 -->
-      <div id="claw-skill-list-loading" class="claw-skill-state" role="status" aria-live="polite">
-        <span class="claw-skill-state-icon">${getSkillIcon('spinner', 23, 'claw-skill-spinner')}</span>
-        <p class="claw-skill-state-title">正在加载 Skill</p>
-        <p class="claw-skill-state-copy">正在同步你的能力列表，请稍候。</p>
+      <div id="claw-skill-list-page" class="claw-skill-list-page">
+        <p class="claw-skill-page-note">${pageNote}</p>
+        <!-- 搜索框 -->
+        <div class="claw-skill-toolbar">
+          <div class="claw-skill-search-shell">
+            ${getSkillIcon('search', 17)}
+            <input class="claw-skill-search-input" type="text" id="claw-skill-search" placeholder="搜索 Skill 名称或描述..." aria-label="搜索 ${title}">
+          </div>
+          <button type="button" id="claw-skill-btn-refresh" class="claw-skill-refresh">
+            ${getSkillIcon('refresh', 15)}
+            刷新
+          </button>
+        </div>
+
+        <!-- 加载中 -->
+        <div id="claw-skill-list-loading" class="claw-skill-state" role="status" aria-live="polite">
+          <span class="claw-skill-state-icon">${getSkillIcon('spinner', 23, 'claw-skill-spinner')}</span>
+          <p class="claw-skill-state-title">正在加载 Skill</p>
+          <p class="claw-skill-state-copy">正在同步你的能力列表，请稍候。</p>
+        </div>
+
+        <!-- 列表内容 -->
+        <div id="claw-skill-list-content" style="display: none;"></div>
       </div>
 
-      <!-- 列表内容 -->
-      <div id="claw-skill-list-content" style="display: none;"></div>
+      <!-- 独立详情页 -->
+      <div id="claw-skill-detail-page" class="claw-skill-detail-page" tabindex="-1" style="display: none;"></div>
     </div>
   `;
 }
@@ -1006,6 +1351,7 @@ export async function initSkillUploadPanel(bodyElement) {
         allowedTools,
       });
 
+      skillCache = null;
       showStatus(`Skill「${skillResult.name || finalName || skillName}」上传成功`, 'success');
     } catch (err) {
       showStatus(`上传失败：${formatError(err)}`, 'error');
@@ -1043,7 +1389,7 @@ export async function initSkillUploadPanel(bodyElement) {
     }
 
     // 使用居中浮层替代原生 confirm
-    const safeName = skillName.replace(/\u0026/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const safeName = escapeHtml(skillName);
     const dialogId = 'claw-skill-confirm-' + Date.now();
     const dialogHtml = `
       <div id="${dialogId}" class="claw-skill-dialog">
@@ -1062,8 +1408,9 @@ export async function initSkillUploadPanel(bodyElement) {
     openCenterOverlay('上传确认', dialogHtml, {
       width: '360px',
       maxWidth: '360px',
-      height: '240px',
-      maxHeight: '280px'
+      height: '280px',
+      maxHeight: 'calc(100vh - 16px)',
+      compactHeader: true
     });
 
     setTimeout(() => {
@@ -1123,11 +1470,15 @@ export async function initSkillUploadPanel(bodyElement) {
 let skillCache = null;
 
 export async function initSkillHistoryPanel(bodyElement) {
-  return initSkillListPanel(bodyElement, { showDelete: false });
+  return initSkillListPanel(bodyElement, {
+    showDelete: false,
+    showVersionHistory: true,
+    useOnCardClick: true,
+  });
 }
 
 export async function initSkillManagePanel(bodyElement) {
-  return initSkillListPanel(bodyElement, { showDelete: true });
+  return initSkillListPanel(bodyElement, { showDelete: true, showVersionHistory: false });
 }
 
 async function initSkillListPanel(bodyElement, options = {}) {
@@ -1138,11 +1489,27 @@ async function initSkillListPanel(bodyElement, options = {}) {
   const toastEl = bodyElement.querySelector('#claw-skill-toast');
   const loadingEl = bodyElement.querySelector('#claw-skill-list-loading');
   const contentEl = bodyElement.querySelector('#claw-skill-list-content');
+  const listPage = bodyElement.querySelector('#claw-skill-list-page');
+  const detailPage = bodyElement.querySelector('#claw-skill-detail-page');
+  const panel = bodyElement.closest('.claw-custom-panel');
+  const panelTitle = panel?.querySelector('.claw-panel-title');
+  const panelBackButton = panel?.querySelector('.claw-back-btn');
+  const panelBody = bodyElement.closest('.claw-custom-panel-body');
 
-  if (!loadingEl || !contentEl) return;
+  if (!loadingEl || !contentEl || !listPage || !detailPage) return;
 
   let allSkills = [];
   let filteredSkills = [];
+  const skillVersionCache = new Map();
+  const skillVersionRequests = new Map();
+  const skillVersionContentCache = new Map();
+  const skillVersionContentRequests = new Map();
+  const rollbackInFlight = new Set();
+  let expandedSkillKey = null;
+  let isDetailPageOpen = false;
+  let listScrollTop = 0;
+  let loadGeneration = 0;
+  const listPageTitle = panelTitle?.textContent || '我的 Skill';
 
   function showToast(msg, type = 'info') {
     if (!toastEl) return;
@@ -1172,6 +1539,439 @@ async function initSkillListPanel(bodyElement, options = {}) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
+  function getVersionErrorMessage(error) {
+    const kind = classifyVersionError(error);
+    const messages = {
+      unsupported: '当前 EchoMem 版本暂不支持版本管理',
+      auth: '认证失败，请检查记忆后端引擎的 API Key',
+      timeout: '请求超时，请检查后端状态或网络连接',
+      network: '无法连接到记忆后端引擎，请检查服务地址和网络连接',
+    };
+    return messages[kind] || error?.message || '加载版本信息失败';
+  }
+
+  function getNestedCache(cache, skillKey, version) {
+    return cache.get(skillKey)?.get(version);
+  }
+
+  function setNestedCache(cache, skillKey, version, value) {
+    let bucket = cache.get(skillKey);
+    if (!bucket) {
+      bucket = new Map();
+      cache.set(skillKey, bucket);
+    }
+    bucket.set(version, value);
+  }
+
+  function invalidateVersionCaches(skillKey = null) {
+    if (!skillKey) {
+      skillVersionCache.clear();
+      skillVersionRequests.clear();
+      skillVersionContentCache.clear();
+      skillVersionContentRequests.clear();
+      return;
+    }
+
+    skillVersionCache.delete(skillKey);
+    skillVersionRequests.delete(skillKey);
+    skillVersionContentCache.delete(skillKey);
+    skillVersionContentRequests.delete(skillKey);
+  }
+
+  function renderVersionLoading(container) {
+    if (!container) return;
+    container.innerHTML = `
+      <div class="claw-skill-version-state">
+        正在加载版本历史...
+      </div>
+    `;
+  }
+
+  function renderVersionError(container, skill, error) {
+    if (!container) return;
+    const kind = classifyVersionError(error);
+    const retryable = !['unsupported', 'auth'].includes(kind);
+    container.innerHTML = `
+      <div class="claw-skill-version-state claw-skill-version-state-error">
+        <p>${escapeHtml(getVersionErrorMessage(error))}</p>
+        ${retryable ? `
+          <button type="button" class="claw-skill-version-retry">重试</button>
+        ` : ''}
+      </div>
+    `;
+
+    container.querySelector('.claw-skill-version-retry')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      loadSkillVersions(skill, container, { force: true });
+    });
+  }
+
+  function renderVersionHistory(container, skill, history) {
+    if (!container) return;
+    if (history.versions.length === 0) {
+      container.innerHTML = `
+        <div class="claw-skill-version-state">
+          暂无版本历史
+        </div>
+      `;
+      return;
+    }
+
+    const rows = history.versions.map(item => {
+      const details = [];
+      if (item.parentVersion) details.push(`基于 ${formatVersionLabel(item.parentVersion)}`);
+      if (item.runId) details.push(item.runId);
+      if (!item.exists) details.push('内容缺失');
+
+      const viewDisabled = item.exists ? '' : 'disabled';
+      const rollbackButton = !item.current
+        ? `<button type="button" class="claw-skill-version-rollback" data-version="${item.version}" ${viewDisabled}>恢复</button>`
+        : '';
+
+      return `
+        <div class="claw-skill-version-item${item.current ? ' claw-skill-version-item-current' : ''}">
+          <div class="claw-skill-version-row">
+            <div class="claw-skill-version-main">
+              <div class="claw-skill-version-labels">
+                ${item.current ? '<span class="claw-skill-version-current-badge">当前</span>' : ''}
+                <strong class="claw-skill-version-number">${escapeHtml(formatVersionLabel(item.version))}</strong>
+                <span class="claw-skill-version-source">${escapeHtml(getVersionSourceLabel(item.source))}</span>
+                <span class="claw-skill-version-date">${escapeHtml(formatVersionDate(item.createdAt))}</span>
+              </div>
+              ${details.length ? `<p class="claw-skill-version-details">${details.map(escapeHtml).join(' · ')}</p>` : ''}
+            </div>
+            <div class="claw-skill-version-actions">
+              <button type="button" class="claw-skill-version-view" data-version="${item.version}" ${viewDisabled}>查看</button>
+              ${rollbackButton}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = `<div class="claw-skill-version-list">${rows}</div>`;
+
+    container.querySelectorAll('.claw-skill-version-view').forEach(button => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (button.disabled) return;
+        const version = Number(button.dataset.version);
+        openVersionContent(skill, version, history);
+      });
+    });
+
+    container.querySelectorAll('.claw-skill-version-rollback').forEach(button => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (button.disabled) return;
+        const version = Number(button.dataset.version);
+        openRollbackDialog(skill, version, history);
+      });
+    });
+  }
+
+  async function loadSkillVersions(skill, container, requestOptions = {}) {
+    if (!options.showVersionHistory || !container) return null;
+    const skillKey = getSkillApiName(skill);
+    const force = requestOptions.force === true;
+    if (force) {
+      skillVersionCache.delete(skillKey);
+      skillVersionRequests.delete(skillKey);
+    }
+
+    const cached = skillVersionCache.get(skillKey);
+    if (cached) {
+      renderVersionHistory(container, skill, cached);
+      return cached;
+    }
+
+    renderVersionLoading(container);
+    let request = skillVersionRequests.get(skillKey);
+    if (!request) {
+      request = (async () => {
+        const config = await getEchoMemConfig();
+        const client = createClient(config);
+        const payload = await client.listSkillVersions(skillKey);
+        return normalizeSkillVersionHistory(payload);
+      })();
+      skillVersionRequests.set(skillKey, request);
+    }
+
+    try {
+      const history = await request;
+      const isCurrentRequest = skillVersionRequests.get(skillKey) === request;
+      if (isCurrentRequest) {
+        skillVersionCache.set(skillKey, history);
+        if (container?.isConnected) {
+          renderVersionHistory(container, skill, history);
+        }
+      }
+      return history;
+    } catch (error) {
+      if (skillVersionRequests.get(skillKey) === request && container?.isConnected) {
+        renderVersionError(container, skill, error);
+      }
+      return null;
+    } finally {
+      if (skillVersionRequests.get(skillKey) === request) {
+        skillVersionRequests.delete(skillKey);
+      }
+    }
+  }
+
+  async function getSkillVersionContent(skill, version, history) {
+    const skillKey = getSkillApiName(skill);
+    const cached = getNestedCache(skillVersionContentCache, skillKey, version);
+    if (cached !== undefined) return cached;
+
+    if (
+      version === history.currentVersion
+      && areSkillVersionsEquivalent(skill.version, history.currentVersion)
+      && skill.fullContent
+    ) {
+      setNestedCache(skillVersionContentCache, skillKey, version, skill.fullContent);
+      return skill.fullContent;
+    }
+
+    let request = getNestedCache(skillVersionContentRequests, skillKey, version);
+    if (!request) {
+      request = (async () => {
+        const config = await getEchoMemConfig();
+        const client = createClient(config);
+        const payload = await client.readSkillVersion(skillKey, version);
+        if (typeof payload?.text !== 'string') {
+          throw new Error('历史版本内容为空');
+        }
+        return payload.text;
+      })();
+      setNestedCache(skillVersionContentRequests, skillKey, version, request);
+    }
+
+    try {
+      const text = await request;
+      if (getNestedCache(skillVersionContentRequests, skillKey, version) === request) {
+        setNestedCache(skillVersionContentCache, skillKey, version, text);
+      }
+      return text;
+    } finally {
+      const requests = skillVersionContentRequests.get(skillKey);
+      if (requests?.get(version) === request) {
+        requests.delete(version);
+        if (requests.size === 0) skillVersionContentRequests.delete(skillKey);
+      }
+    }
+  }
+
+  async function openVersionContent(skill, version, history) {
+    const contentId = `claw-skill-version-content-${Date.now()}-${version}`;
+    const title = `${skill.name} · ${formatVersionLabel(version)}`;
+    openCenterOverlay(escapeHtml(title), `
+      <div id="${contentId}" style="padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.7; color: #6b7280; white-space: pre-wrap; word-break: break-word;">正在加载版本内容...</div>
+    `, {
+      showBack: true,
+      onBack: () => closeOverlayPanel()
+    });
+
+    const contentElement = document.getElementById(contentId);
+    try {
+      const text = await getSkillVersionContent(skill, version, history);
+      if (contentElement?.isConnected) {
+        contentElement.style.color = '#374151';
+        contentElement.textContent = text || '无内容';
+      }
+    } catch (error) {
+      if (contentElement?.isConnected) {
+        contentElement.style.color = '#b91c1c';
+        contentElement.textContent = `加载失败：${getVersionErrorMessage(error)}`;
+      }
+    }
+  }
+
+  function openRollbackDialog(skill, version, history) {
+    const skillKey = getSkillApiName(skill);
+    if (rollbackInFlight.has(skillKey)) return;
+    const dialogId = `claw-skill-rollback-${Date.now()}`;
+    const currentLabel = formatVersionLabel(history.currentVersion || skill.version);
+    const targetLabel = formatVersionLabel(version);
+    const dialogHtml = `
+      <div id="${dialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="text-align: center;">
+          <span class="claw-skill-dialog-icon">${getSkillIcon('history', 23)}</span>
+          <p style="font-size: 15px; color: #333; font-weight: 600; margin: 6px 0 4px;">确认恢复 Skill</p>
+          <p style="font-size: 12px; color: #666; line-height: 1.5; margin: 0;">将 Skill「<strong style="color: #111;">${escapeHtml(skill.name)}</strong>」从 ${escapeHtml(currentLabel)} 恢复为 ${escapeHtml(targetLabel)}。<br>恢复后，当前 SKILL.md 会切换到该历史内容。</p>
+        </div>
+        <div class="claw-skill-rollback-status" style="display: none; padding: 8px; border-radius: 6px; font-size: 12px;"></div>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+          <button class="claw-skill-rollback-cancel" style="padding: 8px 20px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 500;">取消</button>
+          <button class="claw-skill-rollback-confirm" style="padding: 8px 20px; background: #ea580c; color: white; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 500;">确认恢复</button>
+        </div>
+      </div>
+    `;
+
+    openCenterOverlay('恢复版本', dialogHtml, {
+      width: '380px',
+      maxWidth: '380px',
+      height: '270px',
+      maxHeight: '320px'
+    });
+
+    setTimeout(() => {
+      const dialog = document.getElementById(dialogId);
+      const cancelButton = dialog?.querySelector('.claw-skill-rollback-cancel');
+      const confirmButton = dialog?.querySelector('.claw-skill-rollback-confirm');
+      const statusElement = dialog?.querySelector('.claw-skill-rollback-status');
+      if (!dialog || !cancelButton || !confirmButton || !statusElement) return;
+
+      const closeDialogIfActive = () => {
+        const activeOverlay = getPanelContainer();
+        if (!dialog.isConnected || !activeOverlay?.contains(dialog)) return false;
+        closeOverlayPanel();
+        return true;
+      };
+
+      cancelButton.addEventListener('click', closeDialogIfActive);
+      confirmButton.addEventListener('click', async () => {
+        if (rollbackInFlight.has(skillKey)) return;
+        rollbackInFlight.add(skillKey);
+        confirmButton.disabled = true;
+        cancelButton.disabled = true;
+        confirmButton.textContent = '恢复中...';
+        statusElement.style.display = 'block';
+        statusElement.style.background = '#fff7ed';
+        statusElement.style.color = '#c2410c';
+        statusElement.textContent = '正在恢复历史版本...';
+
+        try {
+          const config = await getEchoMemConfig();
+          const client = createClient(config);
+          const result = await client.rollbackSkillVersion(skillKey, version);
+          if (result?.rolled_back !== true) {
+            throw new Error('后端未确认版本恢复成功');
+          }
+
+          closeDialogIfActive();
+          invalidateVersionCaches(skillKey);
+          skillCache = null;
+          expandedSkillKey = skillKey;
+          if (searchInput) searchInput.value = '';
+          const reloadResult = await loadSkills({ force: true, preserveExisting: true });
+          if (reloadResult.ok) {
+            showToast(`Skill「${skill.name}」已恢复为 ${targetLabel}`, 'success');
+          }
+        } catch (error) {
+          if (statusElement.isConnected) {
+            statusElement.style.background = '#fef2f2';
+            statusElement.style.color = '#b91c1c';
+            statusElement.textContent = `恢复失败：${getVersionErrorMessage(error)}`;
+            confirmButton.disabled = false;
+            cancelButton.disabled = false;
+            confirmButton.textContent = '重新恢复';
+          }
+        } finally {
+          rollbackInFlight.delete(skillKey);
+        }
+      });
+    }, 50);
+  }
+
+  function useSkill(skill) {
+    const command = formatSkillCommand(skill);
+    if (!command) {
+      showToast('无法识别该 Skill 的调用名称', 'error');
+      return;
+    }
+
+    if (!insertPlainText(command)) {
+      showToast('未找到当前页面的聊天输入框', 'error');
+      return;
+    }
+
+    closeOverlayPanel();
+  }
+
+  function openFullSkillContent(skill) {
+    if (!skill) return;
+    const text = skill.fullContent || skill.rawContent || '无内容';
+    const previewHtml = `<div class="claw-skill-preview-overlay">${escapeHtml(text)}</div>`;
+    openCenterOverlay(escapeHtml(skill.name), previewHtml, {
+      showBack: true,
+      onBack: () => closeOverlayPanel()
+    });
+  }
+
+  function bindFullContentButtons(container, resolveSkill) {
+    container?.querySelectorAll('.claw-skill-btn-view-full').forEach(button => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openFullSkillContent(resolveSkill(button));
+      });
+    });
+  }
+
+  function closeSkillDetailPage() {
+    if (!isDetailPageOpen) return;
+    const skillKey = expandedSkillKey;
+    isDetailPageOpen = false;
+    expandedSkillKey = null;
+    detailPage.style.display = 'none';
+    listPage.style.display = 'flex';
+    if (panelTitle) panelTitle.textContent = listPageTitle;
+    if (panelBody) panelBody.scrollTop = listScrollTop;
+    const returnIndex = filteredSkills.findIndex(skill => getSkillApiName(skill) === skillKey);
+    contentEl.querySelector(`.claw-skill-btn-detail[data-index="${returnIndex}"]`)?.focus({ preventScroll: true });
+  }
+
+  function openSkillDetailPage(skill, index) {
+    if (!skill) return;
+    const skillKey = getSkillApiName(skill);
+    if (!isDetailPageOpen) {
+      listScrollTop = panelBody?.scrollTop || 0;
+    }
+
+    const meta = [
+      skill.version ? formatVersionLabel(skill.version) : '',
+      skill.author || '',
+      skill.modifiedAt ? formatDate(skill.modifiedAt) : '',
+    ].filter(Boolean).join(' · ');
+
+    detailPage.innerHTML = `
+      <section class="claw-skill-detail-hero">
+        <span class="claw-skill-detail-eyebrow">SKILL</span>
+        <p class="claw-skill-detail-title">${escapeHtml(skill.name || skillKey)}</p>
+        <div class="claw-skill-detail-summary">
+          <code class="claw-skill-detail-command">/${escapeHtml(skillKey)}</code>
+          <p class="claw-skill-detail-meta">${escapeHtml(meta || '暂无版本信息')}</p>
+        </div>
+      </section>
+      <section class="claw-skill-detail-sheet">
+        ${renderDetail(skill, index)}
+      </section>
+    `;
+
+    listPage.style.display = 'none';
+    detailPage.style.display = 'flex';
+    isDetailPageOpen = true;
+    expandedSkillKey = skillKey;
+    if (panelTitle) panelTitle.textContent = 'Skill 详情';
+    if (panelBody) panelBody.scrollTop = 0;
+    detailPage.focus({ preventScroll: true });
+
+    bindFullContentButtons(detailPage, () => skill);
+    if (options.showVersionHistory) {
+      loadSkillVersions(skill, detailPage.querySelector('.claw-skill-version-history'));
+    }
+  }
+
+  panelBackButton?.addEventListener('click', (event) => {
+    if (!isDetailPageOpen) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closeSkillDetailPage();
+  }, true);
+
   function renderSkills(skills) {
     if (skills.length === 0) {
       const hasSearchKeyword = Boolean(searchInput?.value.trim());
@@ -1191,34 +1991,55 @@ async function initSkillListPanel(bodyElement, options = {}) {
 
     const itemsHtml = skills.map((skill, index) => {
       const desc = skill.description || '暂无描述';
-      const version = skill.version ? `v${skill.version}` : '';
+      const version = skill.version ? formatVersionLabel(skill.version) : '';
       const author = skill.author || '';
-      const metaParts = [version, author, formatDate(skill.modifiedAt)].filter(Boolean);
+      const metaParts = [
+        version,
+        author,
+        formatDate(skill.modifiedAt),
+        skill.contentUnavailable ? '正文待重试' : '',
+      ].filter(Boolean);
       const meta = metaParts.join(' · ') || '-';
 
       const deleteBtnHtml = options.showDelete
-        ? `<button type="button" class="claw-skill-btn-delete" data-name="${skill.name}" aria-label="删除 ${skill.name}">
+        ? `<button type="button" class="claw-skill-btn-delete" data-index="${index}" aria-label="删除 ${escapeHtml(skill.name)}">
             ${getSkillIcon('trash', 13)}
             删除
           </button>`
         : '';
 
+      const detailControlHtml = options.useOnCardClick
+        ? `<button type="button" class="claw-skill-btn-detail" data-index="${index}">
+            ${getSkillIcon('info', 13)}
+            <span>详情</span>
+          </button>`
+        : getSkillIcon('chevronDown', 17, 'claw-skill-toggle-icon');
+
+      const useTargetClass = options.useOnCardClick ? ' claw-skill-item-use-target' : '';
+      const useTargetAttributes = options.useOnCardClick
+        ? ` role="button" tabindex="0" data-index="${index}" aria-label="使用 Skill：${escapeHtml(skill.name)}"`
+        : '';
+
       return `
         <div class="claw-skill-item" data-index="${index}">
-          <div class="claw-skill-item-head">
+          <div class="claw-skill-item-head${useTargetClass}"${useTargetAttributes}>
             <div class="claw-skill-item-copy">
-              <p class="claw-skill-item-title">${skill.name}</p>
-              <p class="claw-skill-item-desc">${desc}</p>
-              <p class="claw-skill-item-meta">${meta}</p>
+              <p class="claw-skill-item-title" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</p>
+              <p class="claw-skill-item-desc">${escapeHtml(desc)}</p>
             </div>
+          </div>
+          <div class="claw-skill-item-footer">
+            <p class="claw-skill-item-meta" title="${escapeHtml(meta)}">${escapeHtml(meta)}</p>
             <div class="claw-skill-item-actions">
               ${deleteBtnHtml}
-              ${getSkillIcon('chevronDown', 17, 'claw-skill-toggle-icon')}
+              ${detailControlHtml}
             </div>
           </div>
-          <div class="claw-skill-detail" style="display: none;">
-            ${renderDetail(skill)}
-          </div>
+          ${options.useOnCardClick ? '' : `
+            <div class="claw-skill-detail" style="display: none;">
+              ${renderDetail(skill, index)}
+            </div>
+          `}
         </div>
       `;
     }).join('');
@@ -1229,25 +2050,69 @@ async function initSkillListPanel(bodyElement, options = {}) {
       </div>
     `;
 
-    // Bind click to toggle detail
+    function openSkillItem(item, skill) {
+      const detail = item.querySelector('.claw-skill-detail');
+      const icon = item.querySelector('.claw-skill-toggle-icon');
+      if (!detail) return;
+
+      contentEl.querySelectorAll('.claw-skill-detail').forEach(element => element.style.display = 'none');
+      contentEl.querySelectorAll('.claw-skill-toggle-icon').forEach(element => element.style.transform = 'none');
+      detail.style.display = 'block';
+      if (icon) icon.style.transform = 'rotate(180deg)';
+      expandedSkillKey = getSkillApiName(skill);
+
+      if (options.showVersionHistory) {
+        const versionContainer = detail.querySelector('.claw-skill-version-history');
+        loadSkillVersions(skill, versionContainer);
+      }
+    }
+
+    // 「我的 Skill」点击卡片直接使用；管理页继续沿用卡片展开详情。
     contentEl.querySelectorAll('.claw-skill-item').forEach(item => {
       item.addEventListener('click', (e) => {
-        // Don't toggle if clicking delete button
-        if (e.target.closest('.claw-skill-btn-delete')) return;
+        if (e.target.closest('button')) return;
+        if (e.target.closest('.claw-skill-detail')) return;
+
+        const index = Number(item.dataset.index);
+        const skill = skills[index];
+        if (!skill) return;
+
+        if (options.useOnCardClick) {
+          useSkill(skill);
+          return;
+        }
 
         const detail = item.querySelector('.claw-skill-detail');
         const icon = item.querySelector('.claw-skill-toggle-icon');
         if (!detail) return;
 
         const isOpen = detail.style.display === 'block';
-        // Close all others
-        contentEl.querySelectorAll('.claw-skill-detail').forEach(d => d.style.display = 'none');
-        contentEl.querySelectorAll('.claw-skill-toggle-icon').forEach(i => i.style.transform = 'none');
-
-        if (!isOpen) {
-          detail.style.display = 'block';
-          if (icon) icon.style.transform = 'rotate(180deg)';
+        if (isOpen) {
+          detail.style.display = 'none';
+          if (icon) icon.style.transform = 'none';
+          expandedSkillKey = null;
+          return;
         }
+
+        openSkillItem(item, skill);
+      });
+    });
+
+    contentEl.querySelectorAll('.claw-skill-item-use-target').forEach(target => {
+      target.addEventListener('keydown', (event) => {
+        if (!isSkillUseActivationKey(event.key)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const skill = skills[Number(target.dataset.index)];
+        if (skill) useSkill(skill);
+      });
+    });
+
+    contentEl.querySelectorAll('.claw-skill-btn-detail').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const index = Number(btn.dataset.index);
+        openSkillDetailPage(skills[index], index);
       });
     });
 
@@ -1256,9 +2121,11 @@ async function initSkillListPanel(bodyElement, options = {}) {
       contentEl.querySelectorAll('.claw-skill-btn-delete').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          const name = btn.dataset.name;
-          if (!name) return;
-          const safeDelName = name.replace(/\u0026/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          const skill = skills[Number(btn.dataset.index)];
+          const apiName = getSkillApiName(skill);
+          const displayName = skill?.name || apiName;
+          if (!apiName) return;
+          const safeDelName = escapeHtml(displayName);
           const delDialogHtml = `
             <div class="claw-skill-dialog">
               <div>
@@ -1276,8 +2143,9 @@ async function initSkillListPanel(bodyElement, options = {}) {
           openCenterOverlay('删除确认', delDialogHtml, {
             width: '360px',
             maxWidth: '360px',
-            height: '240px',
-            maxHeight: '280px'
+            height: '280px',
+            maxHeight: 'calc(100vh - 16px)',
+            compactHeader: true
           });
 
           setTimeout(() => {
@@ -1295,10 +2163,15 @@ async function initSkillListPanel(bodyElement, options = {}) {
               try {
                 const config = await getEchoMemConfig();
                 const client = createClient(config);
-                await client.deleteSkill(name);
-                showToast(`Skill「${name || '未命名'}」已删除`, 'success');
-                skillCache = null;
-                await loadSkills();
+                await client.deleteSkill(apiName);
+                invalidateVersionCaches(apiName);
+                if (expandedSkillKey === apiName) expandedSkillKey = null;
+                allSkills = removeSkillByApiName(allSkills, apiName);
+                skillCache = allSkills;
+                filteredSkills = getFilteredSkills(allSkills, searchInput?.value || '');
+                renderSkills(filteredSkills);
+                showToast(`Skill「${displayName || '未命名'}」已删除`, 'success');
+                await loadSkills({ force: true, preserveExisting: true });
               } catch (err) {
                 showToast(`删除失败：${err.message}`, 'error');
                 btn.textContent = '删除';
@@ -1311,138 +2184,149 @@ async function initSkillListPanel(bodyElement, options = {}) {
       });
     }
 
-    // Bind view full content buttons
-    contentEl.querySelectorAll('.claw-skill-btn-view-full').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const name = btn.dataset.name;
-        const skill = allSkills.find(s => s.name === name);
-        if (!skill) return;
-        const text = skill.fullContent || skill.rawContent || '无内容';
-        const previewHtml = `<div class="claw-skill-preview-overlay">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`;
-        openCenterOverlay(skill.name, previewHtml, {
-          showBack: true,
-          onBack: () => closeOverlayPanel()
-        });
-      });
-    });
+    bindFullContentButtons(contentEl, button => skills[Number(button.dataset.index)]);
+
+    if (expandedSkillKey) {
+      const expandedIndex = skills.findIndex(skill => getSkillApiName(skill) === expandedSkillKey);
+      const expandedItem = expandedIndex >= 0
+        ? contentEl.querySelector(`.claw-skill-item[data-index="${expandedIndex}"]`)
+        : null;
+      if (expandedItem) {
+        if (options.useOnCardClick) {
+          openSkillDetailPage(skills[expandedIndex], expandedIndex);
+        } else {
+          openSkillItem(expandedItem, skills[expandedIndex]);
+        }
+      }
+    }
   }
 
-  function renderDetail(skill) {
+  function renderDetail(skill, index) {
     const descHtml = skill.description
-      ? `<div class="claw-skill-detail-description">${skill.description.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
+      ? `<p class="claw-skill-detail-description">${escapeHtml(skill.description)}</p>`
       : `<div class="claw-skill-detail-empty">暂无描述</div>`;
 
     const previewText = skill.rawContent || skill.fullContent || '';
     const bodyPreview = previewText
-      ? `<div class="claw-skill-code-preview">${previewText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
+      ? `<div class="claw-skill-code-preview">${escapeHtml(previewText)}</div>`
       : `<div class="claw-skill-detail-empty">暂无正文</div>`;
 
+    const versionHistoryHtml = options.showVersionHistory
+      ? `
+        <section class="claw-skill-detail-section">
+          <div class="claw-skill-detail-section-head">
+            <p class="claw-skill-detail-section-title">版本历史</p>
+          </div>
+          <div class="claw-skill-version-history" data-index="${index}">
+            <div class="claw-skill-version-state">打开详情后加载版本历史</div>
+          </div>
+        </section>
+      `
+      : '';
+
     return `
-      ${descHtml}
-      ${bodyPreview}
-      <div class="claw-skill-detail-footer">
-        <span class="claw-skill-uri">${skill.uri}</span>
-        <button type="button" class="claw-skill-btn-view-full" data-name="${skill.name}">
-          ${getSkillIcon('file', 13)}
-          查看完整内容
-        </button>
+      <section class="claw-skill-detail-section">
+        <div class="claw-skill-detail-section-head">
+          <p class="claw-skill-detail-section-title">简介</p>
+        </div>
+        ${descHtml}
+      </section>
+      <section class="claw-skill-detail-section">
+        <div class="claw-skill-detail-section-head">
+          <p class="claw-skill-detail-section-title">当前内容</p>
+          <button type="button" class="claw-skill-btn-view-full" data-index="${index}">
+            ${getSkillIcon('file', 12)}
+            完整内容
+          </button>
+        </div>
+        ${bodyPreview}
+      </section>
+      ${versionHistoryHtml}
+      <div class="claw-skill-detail-resource">
+        <span class="claw-skill-detail-section-title">资源路径</span>
+        <code class="claw-skill-uri" title="${escapeHtml(skill.uri)}">${escapeHtml(skill.uri)}</code>
       </div>
     `;
   }
 
-  function filterSkills(keyword) {
+  function getFilteredSkills(skills, keyword) {
     if (!keyword.trim()) {
-      filteredSkills = allSkills;
-    } else {
-      const k = keyword.toLowerCase();
-      filteredSkills = allSkills.filter(s =>
-        s.name.toLowerCase().includes(k) ||
-        (s.description && s.description.toLowerCase().includes(k))
-      );
+      return skills;
     }
+    const normalizedKeyword = keyword.toLowerCase();
+    return skills.filter(skill =>
+      skill.name.toLowerCase().includes(normalizedKeyword) ||
+      (skill.description && skill.description.toLowerCase().includes(normalizedKeyword))
+    );
+  }
+
+  function filterSkills(keyword) {
+    expandedSkillKey = null;
+    filteredSkills = getFilteredSkills(allSkills, keyword);
     renderSkills(filteredSkills);
   }
 
-  async function loadSkills() {
-    if (skillCache) {
+  async function listSkillDirectories(client) {
+    const lsResult = await client.fsLs(SKILL_ROOT_URI, {
+      output: 'agent',
+      absLimit: 128,
+      showAllHidden: false,
+    });
+    console.log('[EchoMem:skill] fsLs result:', lsResult);
+    const entries = Array.isArray(lsResult) ? lsResult : (lsResult?.entries || []);
+    return entries.filter(entry => isDirectory(entry));
+  }
+
+  async function loadSkills(loadOptions = {}) {
+    const force = loadOptions.force === true;
+    const preserveExisting = loadOptions.preserveExisting === true;
+    if (!force && skillCache !== null) {
       allSkills = skillCache;
-      filteredSkills = allSkills;
+      filteredSkills = getFilteredSkills(allSkills, searchInput?.value || '');
       loadingEl.style.display = 'none';
       contentEl.style.display = 'block';
       renderSkills(filteredSkills);
-      return;
+      return { ok: true, cached: true, partialCount: 0 };
     }
 
-    loadingEl.style.display = 'flex';
-    contentEl.style.display = 'none';
+    const requestGeneration = ++loadGeneration;
+    const previousSkills = allSkills;
+    if (!preserveExisting || previousSkills.length === 0) {
+      loadingEl.style.display = 'flex';
+      contentEl.style.display = 'none';
+    }
 
     try {
       const config = await getEchoMemConfig();
       const client = createClient(config);
-
-      const lsResult = await client.fsLs(SKILL_ROOT_URI, {
-        output: 'agent',
-        absLimit: 128,
-        showAllHidden: false,
-      });
-      console.log('[EchoMem:skill] fsLs result:', lsResult);
-
-      let entries = Array.isArray(lsResult) ? lsResult : (lsResult?.entries || []);
-      entries = entries.filter(e => isDirectory(e));
+      let entries = await listSkillDirectories(client);
+      if (force && previousSkills.length > 0 && entries.length === 0) {
+        entries = await listSkillDirectories(client);
+      }
+      if (requestGeneration !== loadGeneration) return { ok: false, stale: true };
       console.log('[EchoMem:skill] filtered entries:', entries);
 
       if (entries.length === 0) {
         allSkills = [];
         skillCache = allSkills;
+        filteredSkills = [];
         loadingEl.style.display = 'none';
         contentEl.style.display = 'block';
         renderSkills([]);
-        return;
+        return { ok: true, partialCount: 0 };
       }
 
-      // Parallel read each skill's SKILL.md
-      const skills = await Promise.all(
-        entries.map(async (entry) => {
-          const dirName = getEntryName(entry);
-          try {
-            const baseUri = entry.uri.replace(/\/$/, '');
-            const skillUri = `${baseUri}/SKILL.md`;
-            console.log('[EchoMem:skill] reading:', skillUri, 'dirName:', dirName);
-            const readResult = await client.fsRead(skillUri);
-            console.log('[EchoMem:skill] readResult type:', typeof readResult, 'preview:', String(readResult).slice(0, 60));
-            const content = typeof readResult === 'string'
-              ? readResult
-              : (readResult?.content || '');
-            const { frontmatter, body } = parseSkillMd(content);
-            console.log('[EchoMem:skill] parsed frontmatter:', JSON.stringify(frontmatter));
-
-            return {
-              name: frontmatter.name || dirName,
-              dirName,
-              description: frontmatter.description || entry.abstract || '',
-              uri: baseUri,
-              rawContent: body.slice(0, 1000),
-              fullContent: content,
-              modifiedAt: getEntryUpdatedAt(entry) || entry.mtime || entry.modifiedAt,
-              version: frontmatter.version,
-              author: frontmatter.author,
-            };
-          } catch (err) {
-            console.warn(`Failed to read skill ${dirName}:`, err);
-            return {
-              name: dirName,
-              dirName,
-              description: '读取失败',
-              uri: entry.uri,
-              error: true,
-            };
-          }
-        })
-      );
+      const skills = await readSkillEntries(entries, uri => client.fsRead(uri), {
+        skillRootUri: SKILL_ROOT_URI,
+        concurrency: 6,
+        onReadError: (error, dirName) => {
+          console.warn(`Failed to read skill ${dirName}:`, error);
+        },
+      });
+      if (requestGeneration !== loadGeneration) return { ok: false, stale: true };
       console.log('[EchoMem:skill] final skills:', skills.map(s => ({ name: s.name, dirName: s.dirName })));
 
-      allSkills = skills.filter(s => !s.error);
+      allSkills = skills;
       // Sort by modified time descending
       allSkills.sort((a, b) => {
         const ta = a.modifiedAt ? new Date(a.modifiedAt).getTime() : 0;
@@ -1451,21 +2335,32 @@ async function initSkillListPanel(bodyElement, options = {}) {
       });
 
       skillCache = allSkills;
-      filteredSkills = allSkills;
+      filteredSkills = getFilteredSkills(allSkills, searchInput?.value || '');
 
       loadingEl.style.display = 'none';
       contentEl.style.display = 'block';
       renderSkills(filteredSkills);
+      const partialCount = allSkills.filter(skill => skill.contentUnavailable).length;
+      if (partialCount > 0) {
+        showToast(`${partialCount} 个 Skill 的正文暂时无法读取，已保留目录条目`, 'info');
+      }
+      return { ok: true, partialCount };
     } catch (err) {
+      if (requestGeneration !== loadGeneration) return { ok: false, stale: true };
+      if (preserveExisting && previousSkills.length > 0) {
+        showToast(`刷新失败，已保留上次列表：${err.message}`, 'error');
+        return { ok: false, preserved: true, error: err };
+      }
       loadingEl.style.display = 'none';
       contentEl.style.display = 'block';
       contentEl.innerHTML = `
         <div class="claw-skill-state is-error" role="alert">
           <span class="claw-skill-state-icon">${getSkillIcon('alert', 22)}</span>
           <p class="claw-skill-state-title">加载失败</p>
-          <p class="claw-skill-state-copy">${err.message}</p>
+          <p class="claw-skill-state-copy">${escapeHtml(err.message)}</p>
         </div>
       `;
+      return { ok: false, error: err };
     }
   }
 
@@ -1483,11 +2378,38 @@ async function initSkillListPanel(bodyElement, options = {}) {
   // Refresh button
   if (refreshBtn) {
     refreshBtn.addEventListener('click', async () => {
-      skillCache = null;
-      if (searchInput) searchInput.value = '';
-      await loadSkills();
+      if (refreshBtn.disabled) return;
+      refreshBtn.disabled = true;
+      refreshBtn.setAttribute('aria-busy', 'true');
+      expandedSkillKey = null;
+      invalidateVersionCaches();
+      if (searchInput?.value) {
+        searchInput.value = '';
+        filteredSkills = allSkills;
+        renderSkills(filteredSkills);
+      }
+      try {
+        const result = await loadSkills({ force: true, preserveExisting: true });
+        if (result.ok && result.partialCount === 0) {
+          showToast('Skill 列表已刷新', 'success');
+        }
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.removeAttribute('aria-busy');
+      }
     });
   }
 
-  await loadSkills();
+  if (refreshBtn) {
+    refreshBtn.disabled = true;
+    refreshBtn.setAttribute('aria-busy', 'true');
+  }
+  try {
+    await loadSkills();
+  } finally {
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.removeAttribute('aria-busy');
+    }
+  }
 }

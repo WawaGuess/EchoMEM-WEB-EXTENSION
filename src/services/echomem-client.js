@@ -31,7 +31,10 @@ function fetchViaBackground(url, options = {}) {
           return;
         }
         if (!response || !response.success) {
-          reject(new Error(response?.error || (response?.status ? `HTTP ${response.status}` : 'Unknown background error')));
+          const error = new Error(response?.error || (response?.status ? `HTTP ${response.status}` : 'Unknown background error'));
+          error.status = response?.status;
+          error.payload = response?.data;
+          reject(error);
           return;
         }
         // Return full response so callers can choose JSON data or raw text.
@@ -66,7 +69,10 @@ class EchoMemClient {
     const data = response.data ?? response.text;
 
     if (data && data.status === 'error') {
-      throw new Error(data.message || data.error?.message || 'EchoMem error');
+      const error = new Error(data.message || data.error?.message || 'EchoMem error');
+      error.status = response.status;
+      error.payload = data;
+      throw error;
     }
 
     return data.result !== undefined ? data.result : data;
@@ -314,6 +320,73 @@ class EchoMemClient {
 
     if (this.cfg.debug) {
       log('deleteSkill response', result);
+    }
+
+    return result;
+  }
+
+  async listSkillVersions(name) {
+    if (!name) throw new Error('name is required');
+    const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/versions`;
+
+    if (this.cfg.debug) {
+      log('listSkillVersions request', name);
+    }
+
+    const result = await this._fetchJson(url, {
+      method: 'GET',
+      headers: this._buildHeaders(false),
+    });
+
+    if (this.cfg.debug) {
+      log('listSkillVersions response', `name=${name}`, `versions=${result?.versions?.length || 0}`);
+    }
+
+    return result;
+  }
+
+  async readSkillVersion(name, version) {
+    if (!name) throw new Error('name is required');
+    if (!Number.isInteger(version) || version <= 0) {
+      throw new Error('version must be a positive integer');
+    }
+    const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/versions/${version}`;
+
+    if (this.cfg.debug) {
+      log('readSkillVersion request', name, `version=${version}`);
+    }
+
+    const result = await this._fetchJson(url, {
+      method: 'GET',
+      headers: this._buildHeaders(false),
+    });
+
+    if (this.cfg.debug) {
+      log('readSkillVersion response', `name=${name}`, `version=${version}`);
+    }
+
+    return result;
+  }
+
+  async rollbackSkillVersion(name, version) {
+    if (!name) throw new Error('name is required');
+    if (!Number.isInteger(version) || version <= 0) {
+      throw new Error('version must be a positive integer');
+    }
+    const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/rollback`;
+
+    if (this.cfg.debug) {
+      log('rollbackSkillVersion request', name, `version=${version}`);
+    }
+
+    const result = await this._fetchJson(url, {
+      method: 'POST',
+      headers: this._buildHeaders(true),
+      body: JSON.stringify({ version }),
+    });
+
+    if (this.cfg.debug) {
+      log('rollbackSkillVersion response', `name=${name}`, `version=${version}`, `rolled_back=${result?.rolled_back}`);
     }
 
     return result;

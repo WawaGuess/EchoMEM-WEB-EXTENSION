@@ -32,7 +32,8 @@ docs/
 │   │   └── 导入流程.md
 │   ├── skill-store/
 │   │   ├── 上传流程.md
-│   │   └── 列表读取流程.md
+│   │   ├── 列表读取流程.md
+│   │   └── 版本历史与回退设计.md
 │   └── performance/
 │       └── Token指标流程.md
 ├── reference/                         # 配置参考、接口清单
@@ -60,7 +61,7 @@ docs/
 | 输入联想 | — | input-association/补全流程 | — |
 | 会话录制 | — | session-recording/录制流程 | — |
 | 资源管理 | — | resource/导入流程 | — |
-| Skill 管理 | — | skill-store/上传流程、列表读取流程 | — |
+| Skill 管理 | — | skill-store/上传流程、列表读取流程、版本历史与回退设计 | — |
 | 效能概览 | — | performance/Token指标流程 | — |
 | 设计风格 | 003-Organic-Liquid设计风格 | — | — |
 | 模块化架构 | 004-模块化内容架构 | — | — |

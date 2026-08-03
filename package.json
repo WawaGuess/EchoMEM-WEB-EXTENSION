@@ -1,6 +1,7 @@
 {
   "name": "echomem-web-extension",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "description": "EchoMem Web Extension",
   "scripts": {
@@ -9,6 +10,7 @@
     "build:feedback-summary": "esbuild src/entry/feedback-summary.js --bundle --format=iife --target=chrome88 --outfile=dist/feedback-summary.js",
     "build": "npm run build:content && npm run build:feedback-episode && npm run build:feedback-summary",
     "check": "npm run build && node --check dist/content.js && node --check dist/feedback-episode.js && node --check dist/feedback-summary.js && node --check background.js && node scripts/validate-extension.js",
+    "test": "node --test tests/*.test.js",
     "package": "npm run build && ./scripts/package-release.sh && node scripts/validate-extension.js release/EchoMem-Extension"
   },
   "devDependencies": {
