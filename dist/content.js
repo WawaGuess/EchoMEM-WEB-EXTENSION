@@ -26591,21 +26591,21 @@ ${block}` : block;
     }
 
     .claw-skill-detail-resource {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+      display: grid;
+      gap: 6px;
       padding: 3px 2px;
     }
 
     .claw-skill-uri {
-      min-width: 0;
-      overflow: hidden;
+      display: block;
+      width: 100%;
       color: var(--skill-outline);
       font-family: "SFMono-Regular", Consolas, monospace;
       font-size: 10px;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      word-break: break-word;
     }
 
     .claw-skill-btn-view-full {
