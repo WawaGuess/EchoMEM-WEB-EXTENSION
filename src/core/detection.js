@@ -3,6 +3,10 @@
 
 import { PLATFORM_CONFIGS } from '../platforms/index.js';
 import { getPlatform, setPlatform } from './state.js';
+import {
+  matchesAllowedHostname,
+  matchesPathnamePrefixes,
+} from './location-matcher.mjs';
 
 export function getCurrentPlatform() {
   return getPlatform();
@@ -25,7 +29,26 @@ function getSelector(feature) {
 export function detectPlatformMultiLayer(detection) {
   const logs = [];
 
-  // 第一层：URL 路径检测
+  // 第一层：站点与路径检测
+  if (detection.hostnames) {
+    const hostMatch = matchesAllowedHostname(window.location.hostname, detection.hostnames);
+    if (!hostMatch) {
+      console.log('Claw Extension: 平台检测未通过 - 主机不匹配');
+      return false;
+    }
+    logs.push('✓ 主机匹配');
+  }
+
+  if (detection.pathnamePrefixes) {
+    const pathMatch = matchesPathnamePrefixes(window.location.pathname, detection.pathnamePrefixes);
+    if (!pathMatch) {
+      console.log('Claw Extension: 平台检测未通过 - 路径不匹配');
+      return false;
+    }
+    logs.push('✓ 路径匹配');
+  }
+
+  // 兼容尚未迁移到结构化站点与路径配置的平台
   if (detection.urlPatterns) {
     const urlMatch = detection.urlPatterns.some(pattern =>
       window.location.href.includes(pattern)

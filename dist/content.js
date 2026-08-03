@@ -9,7 +9,8 @@
         enabled: true,
         record: false,
         detection: {
-          urlPatterns: ["/home/session/", "/home/workspace/"],
+          hostnames: ["localhost", "127.0.0.1", "echo-agent.online", "higo.world"],
+          pathnamePrefixes: ["/home"],
           titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
           domFeatures: {
             required: [".MuiDrawer-root", ".MuiPaper-root"],
@@ -242,6 +243,33 @@
     state.panel.currentRoute = route;
   }
 
+  // src/core/location-matcher.mjs
+  function normalizeHostname(hostname) {
+    return String(hostname || "").trim().toLowerCase().replace(/\.$/, "");
+  }
+  function normalizePathPrefix(prefix) {
+    const normalized = String(prefix || "").trim();
+    if (!normalized || normalized === "/") return normalized;
+    return normalized.replace(/\/+$/, "");
+  }
+  function matchesAllowedHostname(hostname, allowedHostnames) {
+    if (!Array.isArray(allowedHostnames) || allowedHostnames.length === 0) return true;
+    const normalizedHostname = normalizeHostname(hostname);
+    return allowedHostnames.some(
+      (allowedHostname) => normalizedHostname === normalizeHostname(allowedHostname)
+    );
+  }
+  function matchesPathnamePrefixes(pathname, pathnamePrefixes) {
+    if (!Array.isArray(pathnamePrefixes) || pathnamePrefixes.length === 0) return true;
+    const normalizedPathname = String(pathname || "");
+    return pathnamePrefixes.some((prefix) => {
+      const normalizedPrefix = normalizePathPrefix(prefix);
+      if (!normalizedPrefix) return false;
+      if (normalizedPrefix === "/") return normalizedPathname.startsWith("/");
+      return normalizedPathname === normalizedPrefix || normalizedPathname.startsWith(`${normalizedPrefix}/`);
+    });
+  }
+
   // src/core/detection.js
   function getCurrentPlatform() {
     return getPlatform();
@@ -256,6 +284,22 @@
   }
   function detectPlatformMultiLayer(detection) {
     const logs = [];
+    if (detection.hostnames) {
+      const hostMatch = matchesAllowedHostname(window.location.hostname, detection.hostnames);
+      if (!hostMatch) {
+        console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u4E3B\u673A\u4E0D\u5339\u914D");
+        return false;
+      }
+      logs.push("\u2713 \u4E3B\u673A\u5339\u914D");
+    }
+    if (detection.pathnamePrefixes) {
+      const pathMatch = matchesPathnamePrefixes(window.location.pathname, detection.pathnamePrefixes);
+      if (!pathMatch) {
+        console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u8DEF\u5F84\u4E0D\u5339\u914D");
+        return false;
+      }
+      logs.push("\u2713 \u8DEF\u5F84\u5339\u914D");
+    }
     if (detection.urlPatterns) {
       const urlMatch = detection.urlPatterns.some(
         (pattern) => window.location.href.includes(pattern)
