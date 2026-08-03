@@ -23,55 +23,47 @@ function isHigoPlatform() {
 // ── 骨架屏 HTML（带 id，供后续异步更新） ───────────────────────────────
 
 function skeletonValue(width = '60px') {
-  return `<span class="perf-skeleton" style="
-    display: inline-block;
-    width: ${width}; height: 20px;
-    background: #e5e7eb;
-    border-radius: 4px;
-    animation: perf-skeleton-pulse 1.5s ease-in-out infinite;
-  "></span>`;
+  return `<span class="perf-skeleton" style="width: ${width};"></span>`;
 }
 
 export function getPerformanceContent() {
   const showSessionStats = isHigoPlatform();
   const totalSection = showSessionStats ? `
       <!-- 核心指标：总 Token 消耗 -->
-      <div style="
-        padding: 18px 16px;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-        border: 1px solid #bfdbfe;
-        text-align: center;
-      ">
-        <div style="font-size: 12px; color: #2563eb; font-weight: 500; margin-bottom: 6px;">总 Token 消耗</div>
-        <div id="perf-total" style="font-size: 32px; font-weight: 800; color: #1d4ed8; line-height: 1;">${skeletonValue('100px')}</div>
+      <div class="perf-hero-card">
+        <div class="perf-hero-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
+        </div>
+        <div class="perf-label perf-hero-label">总 Token 消耗</div>
+        <div id="perf-total" class="perf-total-value">${skeletonValue('100px')}</div>
+        <div class="perf-unit perf-hero-unit">tokens</div>
       </div>
   ` : '';
 
   const sessionStatsSection = showSessionStats ? `
       <!-- 会话统计 -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">会话数</p>
-          <p id="perf-sessions" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('60px')}</p>
+      <div class="perf-grid">
+        <div class="perf-metric-card">
+          <p class="perf-label">会话数</p>
+          <p id="perf-sessions" class="perf-metric-value">${skeletonValue('60px')}</p>
         </div>
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">轮次数</p>
-          <p id="perf-turns" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('60px')}</p>
+        <div class="perf-metric-card">
+          <p class="perf-label">轮次数</p>
+          <p id="perf-turns" class="perf-metric-value">${skeletonValue('60px')}</p>
         </div>
       </div>
 
       <!-- Input / Output 拆分 -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">Input Tokens</p>
-          <p id="perf-input" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('80px')}</p>
-          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
+      <div class="perf-grid">
+        <div class="perf-metric-card">
+          <p class="perf-label">Input Tokens</p>
+          <p id="perf-input" class="perf-metric-value">${skeletonValue('80px')}</p>
+          <p class="perf-unit">tokens</p>
         </div>
-        <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-          <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">Output Tokens</p>
-          <p id="perf-output" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('80px')}</p>
-          <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
+        <div class="perf-metric-card">
+          <p class="perf-label">Output Tokens</p>
+          <p id="perf-output" class="perf-metric-value">${skeletonValue('80px')}</p>
+          <p class="perf-unit">tokens</p>
         </div>
       </div>
   ` : '';
@@ -79,37 +71,188 @@ export function getPerformanceContent() {
   return `
     <style>
       @keyframes perf-skeleton-pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.4; }
+        0%, 100% { opacity: 0.95; }
+        50% { opacity: 0.42; }
+      }
+      #perf-root {
+        color: #1D1B20;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        font-family: Roboto, "Noto Sans SC", sans-serif;
+      }
+      #perf-root, #perf-root * { box-sizing: border-box; }
+      #perf-root .perf-hero-card {
+        position: relative;
+        overflow: hidden;
+        padding: 20px 16px 18px;
+        border: 1px solid #D8CCE7;
+        border-radius: 20px;
+        background: linear-gradient(145deg, #F3E9FF 0%, #EADDFF 58%, #F8F2FF 100%);
+        box-shadow: 0 6px 20px rgba(103, 80, 164, 0.12);
+        text-align: center;
+      }
+      #perf-root .perf-hero-card::after {
+        content: '';
+        position: absolute;
+        top: -34px;
+        right: -30px;
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.38);
+        pointer-events: none;
+      }
+      #perf-root .perf-hero-icon {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.64);
+        color: #6750A4;
+      }
+      #perf-root .perf-label {
+        margin: 0 0 6px;
+        color: #625F66;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+      #perf-root .perf-hero-label { color: #6750A4; }
+      #perf-root .perf-total-value {
+        position: relative;
+        z-index: 1;
+        color: #21005D;
+        font-size: 32px;
+        font-weight: 750;
+        letter-spacing: -0.025em;
+        line-height: 1.08;
+      }
+      #perf-root .perf-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      #perf-root .perf-metric-card {
+        min-width: 0;
+        padding: 14px;
+        border: 1px solid #E7E0EC;
+        border-radius: 16px;
+        background: #FFFFFF;
+        box-shadow: 0 1px 2px rgba(29, 27, 32, 0.04);
+      }
+      #perf-root .perf-backend-card {
+        background: #FEF7FF;
+        border-color: #E0D4F1;
+      }
+      #perf-root .perf-metric-value {
+        margin: 0;
+        overflow: hidden;
+        color: #1D1B20;
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+      }
+      #perf-root .perf-unit {
+        margin: 4px 0 0;
+        color: #79747E;
+        font-size: 10px;
+        line-height: 1.4;
+      }
+      #perf-root .perf-hero-unit { color: #625B71; }
+      #perf-root .perf-skeleton {
+        display: inline-block;
+        height: 20px;
+        max-width: 100%;
+        border-radius: 8px;
+        background: linear-gradient(90deg, #DED6E3, #F3EDF7, #DED6E3);
+        animation: perf-skeleton-pulse 1.5s ease-in-out infinite;
+        vertical-align: middle;
+      }
+      #perf-root .perf-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+      }
+      #perf-root .perf-refresh {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 36px;
+        padding: 7px 13px;
+        border: 1px solid #E0D4F1;
+        border-radius: 999px;
+        background: #F3EDF7;
+        color: #6750A4;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.3;
+        cursor: pointer;
+        transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+      }
+      #perf-root .perf-refresh:hover {
+        background: #EADDFF;
+        box-shadow: 0 3px 10px rgba(103, 80, 164, 0.14);
+      }
+      #perf-root .perf-refresh:active { transform: scale(0.98); }
+      #perf-root .perf-refresh:focus-visible {
+        outline: 3px solid rgba(103, 80, 164, 0.22);
+        outline-offset: 2px;
+      }
+      #perf-root .perf-refresh:disabled { cursor: wait; opacity: 0.62; }
+      #perf-root .perf-refresh::before {
+        content: '↻';
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1;
+      }
+      #perf-root .perf-description {
+        padding: 13px 14px;
+        border: 1px solid #E7E0EC;
+        border-radius: 14px;
+        background: #FFFFFF;
+        color: #625F66;
+        font-size: 12px;
+        line-height: 1.65;
+      }
+      @media (max-width: 360px) {
+        #perf-root .perf-grid { grid-template-columns: 1fr; }
+        #perf-root .perf-hero-card { padding: 18px 14px 16px; }
+        #perf-root .perf-total-value { font-size: 28px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #perf-root .perf-skeleton { animation: none; }
+        #perf-root .perf-refresh { transition: none; }
       }
     </style>
-    <div id="perf-root" style="color: #374151; display: flex; flex-direction: column; gap: 12px;">
+    <div id="perf-root">
       ${totalSection}
 
       ${sessionStatsSection}
 
       <!-- 后端消耗 -->
-      <div style="padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-        <p style="margin: 0 0 6px; font-size: 12px; color: #6b7280;">EchoMem 后端消耗</p>
-        <p id="perf-backend" style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${skeletonValue('80px')}</p>
-        <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">tokens</p>
+      <div class="perf-metric-card perf-backend-card">
+        <p class="perf-label">EchoMem 后端消耗</p>
+        <p id="perf-backend" class="perf-metric-value">${skeletonValue('80px')}</p>
+        <p class="perf-unit">tokens</p>
       </div>
 
       <!-- 说明 -->
-      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
-        <button id="perf-refresh-btn" style="padding: 4px 10px; font-size: 12px; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; cursor: pointer;"
-        >🔄 刷新</button>
+      <div class="perf-toolbar">
+        <button id="perf-refresh-btn" class="perf-refresh">
+          刷新
+        </button>
       </div>
-      <div id="perf-desc" style="
-        padding: 12px 14px;
-        border-radius: 8px;
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        font-size: 12px;
-        color: #6b7280;
-        line-height: 1.6;
-      ">
-        <span style="color: #2563eb; font-weight: 600;">正在加载数据…</span>
+      <div id="perf-desc" class="perf-description">
+        <span style="color: #6750A4; font-weight: 600;">正在加载数据…</span>
       </div>
     </div>
   `;
@@ -183,10 +326,10 @@ function updatePerformanceDOM(bodyElement, data, showSessionStats = true) {
   if (backendEl) {
     if (data.backendTokens !== undefined && data.backendTokens !== null) {
       backendEl.textContent = FMT(data.backendTokens);
-      backendEl.style.color = '#111827';
+      backendEl.style.color = '#1D1B20';
     } else {
       backendEl.textContent = '--';
-      backendEl.style.color = '#9ca3af';
+      backendEl.style.color = '#79747E';
     }
   }
 
@@ -196,18 +339,18 @@ function updatePerformanceDOM(bodyElement, data, showSessionStats = true) {
       : '统计范围：全部历史会话';
     if (showSessionStats) {
       descEl.innerHTML = `
-        <span style="color: #2563eb; font-weight: 600;">Token 统计：</span>
+        <span style="color: #6750A4; font-weight: 600;">Token 统计：</span>
         累计 ${FMT(data.totalSessions ?? 0)} 个会话，${FMT(data.totalTurns ?? 0)} 轮对话；
-        会话消耗 <strong style="color: #111827;">${FMT(sessionTokens)}</strong> tokens，
-        EchoMem 后端消耗 <strong style="color: #111827;">${FMT(backendTokens)}</strong> tokens，
-        合计 <strong style="color: #111827;">${FMT(totalTokens)}</strong> tokens。
-        <br><span style="color: #9ca3af;">${sinceText}</span>
+        会话消耗 <strong style="color: #1D1B20;">${FMT(sessionTokens)}</strong> tokens，
+        EchoMem 后端消耗 <strong style="color: #1D1B20;">${FMT(backendTokens)}</strong> tokens，
+        合计 <strong style="color: #1D1B20;">${FMT(totalTokens)}</strong> tokens。
+        <br><span style="color: #79747E;">${sinceText}</span>
       `;
     } else {
       descEl.innerHTML = `
-        <span style="color: #2563eb; font-weight: 600;">Token 统计：</span>
+        <span style="color: #6750A4; font-weight: 600;">Token 统计：</span>
         当前平台仅展示 EchoMem 后端 Token 消耗。
-        <br><span style="color: #9ca3af;">会话级 Token 统计仅在 HIGO 平台可用</span>
+        <br><span style="color: #79747E;">会话级 Token 统计仅在 HIGO 平台可用</span>
       `;
     }
   }
@@ -267,7 +410,7 @@ export function initPerformancePanel(bodyElement, options = {}) {
       console.warn('EchoMem: performance data refresh failed', err);
       const descEl = bodyElement?.querySelector('#perf-desc');
       if (descEl && !destroyed) {
-        descEl.innerHTML = `<span style="color: #dc2626;">数据加载失败，请稍后重试</span>`;
+        descEl.innerHTML = `<span style="color: #B3261E; font-weight: 600;">数据加载失败，请稍后重试</span>`;
       }
     }
   }

@@ -26,7 +26,9 @@ const PLATFORM_AGENT_IDS = {
 export async function getEchoMemConfig() {
   try {
     const result = await chrome.storage.local.get('echomemConfig');
-    return { ...DEFAULT_ECHOMEM_CONFIG, ...(result.echomemConfig || {}) };
+    const stored = result.echomemConfig || {};
+    // 不再硬编码默认 authKey；用户需通过 popup 配置，未配置时请求会失败并提示。
+    return { ...DEFAULT_ECHOMEM_CONFIG, ...stored };
   } catch {
     return { ...DEFAULT_ECHOMEM_CONFIG };
   }
