@@ -9,7 +9,7 @@
         enabled: true,
         record: false,
         detection: {
-          urlPatterns: ["/home/session/", "/home/workspace/"],
+          urlPatterns: ["/home"],
           titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
           domFeatures: {
             required: [".MuiDrawer-root", ".MuiPaper-root"],
@@ -2425,7 +2425,7 @@ ${block}` : block;
     return { nodes, links, categories: CATEGORY_CONFIG };
   }
 
-  // ../EchoMEM-WEB-EXTENSION/node_modules/three/build/three.module.js
+  // node_modules/three/build/three.module.js
   var REVISION = "160";
   var MOUSE = { LEFT: 0, MIDDLE: 1, RIGHT: 2, ROTATE: 0, DOLLY: 1, PAN: 2 };
   var TOUCH = { ROTATE: 0, PAN: 1, DOLLY_PAN: 2, DOLLY_ROTATE: 3 };
@@ -23518,7 +23518,7 @@ ${block}` : block;
     }
   }
 
-  // ../EchoMEM-WEB-EXTENSION/node_modules/three/examples/jsm/controls/OrbitControls.js
+  // node_modules/three/examples/jsm/controls/OrbitControls.js
   var _changeEvent = { type: "change" };
   var _startEvent = { type: "start" };
   var _endEvent = { type: "end" };
