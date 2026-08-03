@@ -375,46 +375,47 @@ const SKILL_STORE_STYLES = `
     }
 
     .claw-skill-item {
-      padding: 13px 14px;
+      padding: 14px;
       border: 1px solid var(--skill-outline-soft);
       border-radius: 16px;
-      background: rgba(255, 255, 255, 0.82);
+      background: rgba(255, 255, 255, 0.9);
       cursor: pointer;
       box-shadow: 0 1px 2px rgba(29, 27, 32, 0.035);
-      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
     }
 
     .claw-skill-item:hover {
+      transform: translateY(-1px);
       border-color: #d0bcff;
       background: var(--skill-surface-soft);
-      box-shadow: 0 5px 15px rgba(33, 0, 93, 0.06);
+      box-shadow: 0 7px 18px rgba(33, 0, 93, 0.08);
     }
 
     .claw-skill-item-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 10px;
+      display: block;
     }
 
     .claw-skill-item-copy {
       min-width: 0;
-      flex: 1;
     }
 
     .claw-skill-item-title {
-      margin: 0 0 3px;
+      display: -webkit-box;
+      overflow: hidden;
+      margin: 0 0 6px;
       color: var(--skill-text);
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
-      line-height: 1.4;
-      word-break: break-all;
+      line-height: 1.42;
+      overflow-wrap: anywhere;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
     }
 
     .claw-skill-item-desc {
       display: -webkit-box;
       overflow: hidden;
-      margin: 0 0 6px;
+      margin: 0;
       color: var(--skill-text-muted);
       font-size: 12px;
       line-height: 1.5;
@@ -422,23 +423,39 @@ const SKILL_STORE_STYLES = `
       -webkit-line-clamp: 2;
     }
 
+    .claw-skill-item-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 11px;
+      padding-top: 10px;
+      border-top: 1px solid var(--skill-outline-soft);
+    }
+
     .claw-skill-item-meta {
       display: inline-flex;
       align-items: center;
+      max-width: 100%;
       min-height: 22px;
       margin: 0;
       padding: 2px 8px;
+      overflow: hidden;
       border-radius: 999px;
       background: var(--skill-surface-strong);
       color: var(--skill-text-muted);
       font-size: 10px;
       line-height: 1.4;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .claw-skill-item-actions {
       display: flex;
       align-items: center;
       gap: 7px;
+      margin-left: auto;
       flex: 0 0 auto;
     }
 
@@ -462,10 +479,10 @@ const SKILL_STORE_STYLES = `
     }
 
     .claw-skill-btn-detail {
-      min-height: 30px;
-      padding: 0 10px;
+      min-height: 28px;
+      padding: 0 11px;
       border: 1px solid #d0bcff;
-      background: var(--skill-surface);
+      background: #ffffff;
       color: var(--skill-primary);
       font-size: 11px;
     }
@@ -477,7 +494,12 @@ const SKILL_STORE_STYLES = `
     .claw-skill-use-hint {
       display: inline-flex;
       align-items: center;
-      min-height: 30px;
+      gap: 3px;
+      min-height: 28px;
+      padding: 0 8px;
+      border: 1px solid #c8e6c9;
+      border-radius: 999px;
+      background: var(--skill-success-container);
       color: var(--skill-success);
       font-size: 10px;
       font-weight: 600;
@@ -485,7 +507,7 @@ const SKILL_STORE_STYLES = `
     }
 
     .claw-skill-toggle-icon {
-      margin-top: 7px;
+      margin-top: 0;
       color: var(--skill-outline);
       transition: transform 180ms ease, color 180ms ease;
     }
@@ -1760,17 +1782,19 @@ async function initSkillListPanel(bodyElement, options = {}) {
         : getSkillIcon('chevronDown', 17, 'claw-skill-toggle-icon');
 
       const useHintHtml = options.useOnCardClick
-        ? '<span class="claw-skill-use-hint">点击使用</span>'
+        ? `<span class="claw-skill-use-hint">点击使用 ${getSkillIcon('chevronRight', 12)}</span>`
         : '';
 
       return `
         <div class="claw-skill-item" data-index="${index}">
           <div class="claw-skill-item-head">
             <div class="claw-skill-item-copy">
-              <p class="claw-skill-item-title">${escapeHtml(skill.name)}</p>
+              <p class="claw-skill-item-title" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</p>
               <p class="claw-skill-item-desc">${escapeHtml(desc)}</p>
-              <p class="claw-skill-item-meta">${escapeHtml(meta)}</p>
             </div>
+          </div>
+          <div class="claw-skill-item-footer">
+            <p class="claw-skill-item-meta" title="${escapeHtml(meta)}">${escapeHtml(meta)}</p>
             <div class="claw-skill-item-actions">
               ${useHintHtml}
               ${deleteBtnHtml}
