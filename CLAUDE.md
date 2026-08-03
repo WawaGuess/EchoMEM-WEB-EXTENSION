@@ -110,7 +110,7 @@ EchoMEM-WEB-EXTENSION/
 ## 常见开发任务
 
 ### 修改后重新加载扩展
-修改 `src/` 下的内容脚本源码后，先执行 `npm run build`。修改 `background.js`、`manifest.json` 或其他直接加载文件时无需单独构建内容脚本。完成任何运行时修改后，都要到 `chrome://extensions/` 点击扩展卡片上的刷新图标或使用“更新”按钮；提交前执行 `npm run check`。
+修改 `src/` 下的内容脚本源码后，先执行 `npm run build`。修改 `background.js`、`manifest.json` 或其他直接加载文件时无需单独构建内容脚本。完成任何运行时修改后，都要到 `chrome://extensions/` 点击扩展卡片上的刷新图标或使用“更新”按钮；提交前执行 `npm test` 和 `npm run check`。`npm test` 只覆盖 `tests/` 下的聚焦单元测试，不能替代浏览器或后端集成验证。
 
 ### 调试工具栏入口与 Background Script
 - 进入 `chrome://extensions/`
@@ -134,7 +134,7 @@ EchoMEM-WEB-EXTENSION/
 - **资源管理**：上传区域和资源列表
 - **输入联想**：可开关的输入联想功能
 - **认知反馈**：基于 Three.js 的 3D 认知知识图谱，以及会话统计分析
-- **Skill 商店**：Skill 列表（我的 Skill）、上传 Skill、安装管理
+- **Skill 商店**：Skill 列表（「我的 Skill」卡片点击写入 `/dirName`，独立详情入口承载版本历史）、上传 Skill、安装管理
 - **效能概览**：Token 消耗概览，支持 HIGO 平台会话级统计与 EchoMem 后端 Usage 统计
 
 功能面板源码模块位于 `src/panels/`，每个主要 EchoMem 入口一个目录：

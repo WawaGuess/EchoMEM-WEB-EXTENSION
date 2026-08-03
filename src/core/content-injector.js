@@ -1,6 +1,7 @@
-// 内容注入工具 — 将资源内容插入聊天输入框
+// 内容注入工具 — 将资源内容或普通文本插入聊天输入框
 
 import { getCurrentPlatform } from './detection.js';
+import { composePlainTextInsertion } from './text-insertion.js';
 
 function findInputElement() {
   const platform = getCurrentPlatform();
@@ -20,6 +21,60 @@ function stripMemoryBlock(text) {
   const end = text.indexOf(MEM_TAG_CLOSE, start);
   if (end === -1) return text.trim();
   return (text.slice(0, start) + text.slice(end + MEM_TAG_CLOSE.length)).trim();
+}
+
+function setTextControlValue(control, value) {
+  const view = control.ownerDocument?.defaultView;
+  const prototype = control.tagName === 'TEXTAREA'
+    ? view?.HTMLTextAreaElement?.prototype
+    : view?.HTMLInputElement?.prototype;
+  const nativeSetter = prototype
+    ? Object.getOwnPropertyDescriptor(prototype, 'value')?.set
+    : null;
+
+  if (nativeSetter) {
+    nativeSetter.call(control, value);
+  } else {
+    control.value = value;
+  }
+}
+
+/**
+ * 将普通文本插入当前光标位置，不添加记忆标签。
+ * @param {string} content 要插入的文本
+ * @param {Object} options
+ * @param {boolean} options.focus 插入后是否聚焦输入框
+ */
+export function insertPlainText(content, options = {}) {
+  const textarea = findInputElement();
+  if (!textarea) {
+    console.warn('EchoMem: 未找到输入框，无法插入文本');
+    return false;
+  }
+
+  const result = composePlainTextInsertion(
+    textarea.value,
+    content,
+    textarea.selectionStart,
+    textarea.selectionEnd
+  );
+  if (!result) return false;
+
+  setTextControlValue(textarea, result.value);
+  try {
+    textarea.selectionStart = textarea.selectionEnd = result.cursor;
+  } catch (_) {
+    // 某些受控组件可能不允许直接设置 selection，忽略即可
+  }
+
+  const EventConstructor = textarea.ownerDocument?.defaultView?.Event || Event;
+  textarea.dispatchEvent(new EventConstructor('input', { bubbles: true }));
+
+  if (options.focus !== false) {
+    textarea.focus();
+  }
+
+  return true;
 }
 
 /**
@@ -52,7 +107,7 @@ export function injectContent(content, options = {}) {
   // 如果 base 为空，直接放入；否则换行追加
   const next = base ? `${base}\n\n${block}` : block;
 
-  textarea.value = next;
+  setTextControlValue(textarea, next);
 
   try {
     textarea.selectionStart = textarea.selectionEnd = next.length;

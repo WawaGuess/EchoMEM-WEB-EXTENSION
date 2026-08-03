@@ -84,10 +84,11 @@ EchoMem Web Extension 是一个基于 Manifest V3 的 Chrome/Edge 扩展。它�
 
 ```bash
 npm ci
+npm test
 npm run check
 ```
 
-`npm run check` 会重新生成 `dist/content.js`、检查 JavaScript 语法并校验扩展结构。根据变更类型补充验证：
+`npm test` 会运行 `tests/` 下聚焦的 Node.js 单元测试，但不能替代浏览器或后端集成验证。`npm run check` 会重新生成 `dist/content.js`、检查 JavaScript 语法并校验扩展结构。根据变更类型补充验证：
 
 - 内容脚本源码：执行 `npm run check`，确认生成的 `dist/content.js` 符合预期，重新加载未打包扩展，并在受影响的平台上验证；
 - Background 或消息通信：执行 `npm run check`，同时检查 Service Worker 控制台和内容页面控制台；
@@ -96,7 +97,7 @@ npm run check
 - manifest、资源、打包或发布：执行 `npm run package` 并校验 `release/EchoMem-Extension/`，但不要提交 `release/`；
 - 纯文档变更：对照当前 checkout 核实路径、命令、API 名称和行为；除非同时修改了生成文件或运行文件，否则无需执行前端构建。
 
-当前 `package.json` 中没有通用自动化单元测试套件，不得把 `npm run check` 描述成单元测试。如果因缺少目标平台、账号、密钥或外部服务而无法完成浏览器/后端验证，必须明确说明跳过了什么以及原因。
+对于已变更且可测试的辅助函数或客户端，应运行对应的聚焦测试。不得把 `npm run check` 描述成单元测试，也不得声称 `npm test` 覆盖了浏览器交互或后端集成。如果因缺少目标平台、账号、密钥或外部服务而无法完成浏览器/后端验证，必须明确说明跳过了什么以及原因。
 
 ## GitHub 与 Pull Request
 
