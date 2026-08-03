@@ -1412,8 +1412,9 @@ export async function initSkillUploadPanel(bodyElement) {
     openCenterOverlay('上传确认', dialogHtml, {
       width: '360px',
       maxWidth: '360px',
-      height: '240px',
-      maxHeight: '280px'
+      height: '280px',
+      maxHeight: 'calc(100vh - 16px)',
+      compactHeader: true
     });
 
     setTimeout(() => {
@@ -2125,8 +2126,9 @@ async function initSkillListPanel(bodyElement, options = {}) {
           openCenterOverlay('删除确认', delDialogHtml, {
             width: '360px',
             maxWidth: '360px',
-            height: '240px',
-            maxHeight: '280px'
+            height: '280px',
+            maxHeight: 'calc(100vh - 16px)',
+            compactHeader: true
           });
 
           setTimeout(() => {

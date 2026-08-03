@@ -27285,8 +27285,9 @@ ${block}` : block;
       openCenterOverlay("\u4E0A\u4F20\u786E\u8BA4", dialogHtml, {
         width: "360px",
         maxWidth: "360px",
-        height: "240px",
-        maxHeight: "280px"
+        height: "280px",
+        maxHeight: "calc(100vh - 16px)",
+        compactHeader: true
       });
       setTimeout(() => {
         const cancelBtn = document.getElementById("claw-skill-confirm-cancel");
@@ -27907,8 +27908,9 @@ ${block}` : block;
             openCenterOverlay("\u5220\u9664\u786E\u8BA4", delDialogHtml, {
               width: "360px",
               maxWidth: "360px",
-              height: "240px",
-              maxHeight: "280px"
+              height: "280px",
+              maxHeight: "calc(100vh - 16px)",
+              compactHeader: true
             });
             setTimeout(() => {
               const cancelBtn = document.getElementById("claw-skill-del-cancel");
