@@ -87,3 +87,7 @@ export function removeSkillByApiName(skills, apiName) {
   if (!Array.isArray(skills) || !target) return Array.isArray(skills) ? [...skills] : [];
   return skills.filter(skill => getSkillApiName(skill) !== target);
 }
+
+export function isSkillUseActivationKey(key) {
+  return key === 'Enter' || key === ' ';
+}

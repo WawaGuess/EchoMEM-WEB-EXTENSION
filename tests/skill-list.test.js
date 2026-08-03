@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { readSkillEntries, removeSkillByApiName } from '../src/panels/skill-store/skill-list.js';
+import {
+  isSkillUseActivationKey,
+  readSkillEntries,
+  removeSkillByApiName,
+} from '../src/panels/skill-store/skill-list.js';
 
 test('readSkillEntries keeps directory entries whose content read fails', async () => {
   const errors = [];
@@ -55,4 +59,11 @@ test('removeSkillByApiName removes the canonical directory entry without mutatin
 
   assert.deepEqual(remaining, [{ dirName: 'keep-skill', name: '保留' }]);
   assert.equal(skills.length, 2);
+});
+
+test('Skill use keyboard activation accepts Enter and Space only', () => {
+  assert.equal(isSkillUseActivationKey('Enter'), true);
+  assert.equal(isSkillUseActivationKey(' '), true);
+  assert.equal(isSkillUseActivationKey('Escape'), false);
+  assert.equal(isSkillUseActivationKey('Spacebar'), false);
 });

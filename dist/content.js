@@ -25943,6 +25943,9 @@ ${block}` : block;
     if (!Array.isArray(skills) || !target) return Array.isArray(skills) ? [...skills] : [];
     return skills.filter((skill) => getSkillApiName(skill) !== target);
   }
+  function isSkillUseActivationKey(key) {
+    return key === "Enter" || key === " ";
+  }
 
   // src/panels/skill-store/index.js
   var SKILL_ROOT_URI = "echo://skills";
@@ -26088,7 +26091,7 @@ ${block}` : block;
     .claw-skill-btn-detail:focus-visible,
     .claw-skill-btn-delete:focus-visible,
     .claw-skill-btn-view-full:focus-visible,
-    .claw-skill-btn-use:focus-visible,
+    .claw-skill-item-use-target:focus-visible,
     .claw-skill-version-view:focus-visible,
     .claw-skill-version-rollback:focus-visible,
     .claw-skill-version-retry:focus-visible {
@@ -26325,6 +26328,11 @@ ${block}` : block;
       display: block;
     }
 
+    .claw-skill-item-use-target {
+      border-radius: 10px;
+      outline: none;
+    }
+
     .claw-skill-item-copy {
       min-width: 0;
     }
@@ -26419,29 +26427,6 @@ ${block}` : block;
 
     .claw-skill-btn-detail:hover {
       background: var(--skill-primary-container);
-    }
-
-    .claw-skill-btn-use {
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      min-height: 28px;
-      padding: 0 8px;
-      border: 1px solid #c8e6c9;
-      border-radius: 999px;
-      background: var(--skill-success-container);
-      color: var(--skill-success);
-      cursor: pointer;
-      font-family: inherit;
-      font-size: 10px;
-      font-weight: 600;
-      white-space: nowrap;
-      transition: background 180ms ease, border-color 180ms ease;
-    }
-
-    .claw-skill-btn-use:hover {
-      border-color: #9fcea2;
-      background: #dff0e0;
     }
 
     .claw-skill-toggle-icon {
@@ -27837,13 +27822,11 @@ ${block}` : block;
             ${getSkillIcon("info", 13)}
             <span>\u8BE6\u60C5</span>
           </button>` : getSkillIcon("chevronDown", 17, "claw-skill-toggle-icon");
-        const useButtonHtml = options.useOnCardClick ? `<button type="button" class="claw-skill-btn-use" data-index="${index}" aria-label="\u4F7F\u7528 Skill\uFF1A${escapeHtml(skill.name)}">
-            \u4F7F\u7528
-            ${getSkillIcon("chevronRight", 12)}
-          </button>` : "";
+        const useTargetClass = options.useOnCardClick ? " claw-skill-item-use-target" : "";
+        const useTargetAttributes = options.useOnCardClick ? ` role="button" tabindex="0" data-index="${index}" aria-label="\u4F7F\u7528 Skill\uFF1A${escapeHtml(skill.name)}"` : "";
         return `
         <div class="claw-skill-item" data-index="${index}">
-          <div class="claw-skill-item-head">
+          <div class="claw-skill-item-head${useTargetClass}"${useTargetAttributes}>
             <div class="claw-skill-item-copy">
               <p class="claw-skill-item-title" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</p>
               <p class="claw-skill-item-desc">${escapeHtml(desc)}</p>
@@ -27852,7 +27835,6 @@ ${block}` : block;
           <div class="claw-skill-item-footer">
             <p class="claw-skill-item-meta" title="${escapeHtml(meta)}">${escapeHtml(meta)}</p>
             <div class="claw-skill-item-actions">
-              ${useButtonHtml}
               ${deleteBtnHtml}
               ${detailControlHtml}
             </div>
@@ -27908,10 +27890,12 @@ ${block}` : block;
           openSkillItem(item, skill);
         });
       });
-      contentEl.querySelectorAll(".claw-skill-btn-use").forEach((button) => {
-        button.addEventListener("click", (event) => {
+      contentEl.querySelectorAll(".claw-skill-item-use-target").forEach((target) => {
+        target.addEventListener("keydown", (event) => {
+          if (!isSkillUseActivationKey(event.key)) return;
+          event.preventDefault();
           event.stopPropagation();
-          const skill = skills[Number(button.dataset.index)];
+          const skill = skills[Number(target.dataset.index)];
           if (skill) useSkill(skill);
         });
       });
