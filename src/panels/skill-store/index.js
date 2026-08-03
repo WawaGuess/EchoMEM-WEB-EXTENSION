@@ -63,6 +63,12 @@ const SKILL_STORE_STYLES = `
       gap: 12px;
     }
 
+    .claw-skill-list-page {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
     .claw-skill-intro {
       position: relative;
       overflow: hidden;
@@ -488,6 +494,58 @@ const SKILL_STORE_STYLES = `
       border-top: 1px solid var(--skill-outline-soft);
     }
 
+    .claw-skill-detail-page {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      outline: none;
+    }
+
+    .claw-skill-detail-hero,
+    .claw-skill-detail-sheet {
+      border: 1px solid var(--skill-outline-soft);
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: 0 1px 2px rgba(29, 27, 32, 0.035);
+    }
+
+    .claw-skill-detail-hero {
+      padding: 16px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #fef7ff 0%, #f3edff 100%);
+    }
+
+    .claw-skill-detail-title {
+      margin: 0;
+      color: var(--skill-on-primary-container);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    .claw-skill-detail-command {
+      display: inline-flex;
+      margin-top: 7px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: var(--skill-primary-container);
+      color: var(--skill-on-primary-container);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+    }
+
+    .claw-skill-detail-meta {
+      margin: 8px 0 0;
+      color: var(--skill-text-muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .claw-skill-detail-sheet {
+      padding: 14px;
+      border-radius: 16px;
+    }
+
     .claw-skill-detail-description,
     .claw-skill-detail-empty,
     .claw-skill-code-preview {
@@ -878,35 +936,40 @@ export function getSkillManageContent() {
 function getSkillListContent(title, options = {}) {
   const pageNote = options.showDelete
     ? '展开条目查看内容，或移除不再需要的 Skill。'
-    : '按名称或描述搜索，展开条目即可查看内容摘要。';
+    : '点击卡片直接使用；点击「详情」进入完整信息与版本历史。';
   return `
     ${SKILL_STORE_STYLES}
     <div class="claw-skill-surface claw-skill-list">
-      <p class="claw-skill-page-note">${pageNote}</p>
-      <!-- 搜索框 -->
-      <div class="claw-skill-toolbar">
-        <div class="claw-skill-search-shell">
-          ${getSkillIcon('search', 17)}
-          <input class="claw-skill-search-input" type="text" id="claw-skill-search" placeholder="搜索 Skill 名称或描述..." aria-label="搜索 ${title}">
+      <div id="claw-skill-list-page" class="claw-skill-list-page">
+        <p class="claw-skill-page-note">${pageNote}</p>
+        <!-- 搜索框 -->
+        <div class="claw-skill-toolbar">
+          <div class="claw-skill-search-shell">
+            ${getSkillIcon('search', 17)}
+            <input class="claw-skill-search-input" type="text" id="claw-skill-search" placeholder="搜索 Skill 名称或描述..." aria-label="搜索 ${title}">
+          </div>
+          <button type="button" id="claw-skill-btn-refresh" class="claw-skill-refresh">
+            ${getSkillIcon('refresh', 15)}
+            刷新
+          </button>
         </div>
-        <button type="button" id="claw-skill-btn-refresh" class="claw-skill-refresh">
-          ${getSkillIcon('refresh', 15)}
-          刷新
-        </button>
+
+        <!-- Toast -->
+        <div id="claw-skill-toast" class="claw-skill-notice claw-skill-toast" role="status" aria-live="polite" style="display: none;"></div>
+
+        <!-- 加载中 -->
+        <div id="claw-skill-list-loading" class="claw-skill-state" role="status" aria-live="polite">
+          <span class="claw-skill-state-icon">${getSkillIcon('spinner', 23, 'claw-skill-spinner')}</span>
+          <p class="claw-skill-state-title">正在加载 Skill</p>
+          <p class="claw-skill-state-copy">正在同步你的能力列表，请稍候。</p>
+        </div>
+
+        <!-- 列表内容 -->
+        <div id="claw-skill-list-content" style="display: none;"></div>
       </div>
 
-      <!-- Toast -->
-      <div id="claw-skill-toast" class="claw-skill-notice claw-skill-toast" role="status" aria-live="polite" style="display: none;"></div>
-
-      <!-- 加载中 -->
-      <div id="claw-skill-list-loading" class="claw-skill-state" role="status" aria-live="polite">
-        <span class="claw-skill-state-icon">${getSkillIcon('spinner', 23, 'claw-skill-spinner')}</span>
-        <p class="claw-skill-state-title">正在加载 Skill</p>
-        <p class="claw-skill-state-copy">正在同步你的能力列表，请稍候。</p>
-      </div>
-
-      <!-- 列表内容 -->
-      <div id="claw-skill-list-content" style="display: none;"></div>
+      <!-- 独立详情页 -->
+      <div id="claw-skill-detail-page" class="claw-skill-detail-page" tabindex="-1" style="display: none;"></div>
     </div>
   `;
 }
@@ -1179,8 +1242,14 @@ async function initSkillListPanel(bodyElement, options = {}) {
   const toastEl = bodyElement.querySelector('#claw-skill-toast');
   const loadingEl = bodyElement.querySelector('#claw-skill-list-loading');
   const contentEl = bodyElement.querySelector('#claw-skill-list-content');
+  const listPage = bodyElement.querySelector('#claw-skill-list-page');
+  const detailPage = bodyElement.querySelector('#claw-skill-detail-page');
+  const panel = bodyElement.closest('.claw-custom-panel');
+  const panelTitle = panel?.querySelector('.claw-panel-title');
+  const panelBackButton = panel?.querySelector('.claw-back-btn');
+  const panelBody = bodyElement.closest('.claw-custom-panel-body');
 
-  if (!loadingEl || !contentEl) return;
+  if (!loadingEl || !contentEl || !listPage || !detailPage) return;
 
   let allSkills = [];
   let filteredSkills = [];
@@ -1190,6 +1259,9 @@ async function initSkillListPanel(bodyElement, options = {}) {
   const skillVersionContentRequests = new Map();
   const rollbackInFlight = new Set();
   let expandedSkillKey = null;
+  let isDetailPageOpen = false;
+  let listScrollTop = 0;
+  const listPageTitle = panelTitle?.textContent || '我的 Skill';
 
   function showToast(msg, type = 'info') {
     if (!toastEl) return;
@@ -1562,6 +1634,83 @@ async function initSkillListPanel(bodyElement, options = {}) {
     closeOverlayPanel();
   }
 
+  function openFullSkillContent(skill) {
+    if (!skill) return;
+    const text = skill.fullContent || skill.rawContent || '无内容';
+    const previewHtml = `<div class="claw-skill-preview-overlay">${escapeHtml(text)}</div>`;
+    openCenterOverlay(escapeHtml(skill.name), previewHtml, {
+      showBack: true,
+      onBack: () => closeOverlayPanel()
+    });
+  }
+
+  function bindFullContentButtons(container, resolveSkill) {
+    container?.querySelectorAll('.claw-skill-btn-view-full').forEach(button => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openFullSkillContent(resolveSkill(button));
+      });
+    });
+  }
+
+  function closeSkillDetailPage() {
+    if (!isDetailPageOpen) return;
+    const skillKey = expandedSkillKey;
+    isDetailPageOpen = false;
+    expandedSkillKey = null;
+    detailPage.style.display = 'none';
+    listPage.style.display = 'flex';
+    if (panelTitle) panelTitle.textContent = listPageTitle;
+    if (panelBody) panelBody.scrollTop = listScrollTop;
+    const returnIndex = filteredSkills.findIndex(skill => getSkillApiName(skill) === skillKey);
+    contentEl.querySelector(`.claw-skill-btn-detail[data-index="${returnIndex}"]`)?.focus({ preventScroll: true });
+  }
+
+  function openSkillDetailPage(skill, index) {
+    if (!skill) return;
+    const skillKey = getSkillApiName(skill);
+    if (!isDetailPageOpen) {
+      listScrollTop = panelBody?.scrollTop || 0;
+    }
+
+    const meta = [
+      skill.version ? formatVersionLabel(skill.version) : '',
+      skill.author || '',
+      skill.modifiedAt ? formatDate(skill.modifiedAt) : '',
+    ].filter(Boolean).join(' · ');
+
+    detailPage.innerHTML = `
+      <section class="claw-skill-detail-hero">
+        <p class="claw-skill-detail-title">${escapeHtml(skill.name || skillKey)}</p>
+        <code class="claw-skill-detail-command">/${escapeHtml(skillKey)}</code>
+        <p class="claw-skill-detail-meta">${escapeHtml(meta || '暂无版本信息')}</p>
+      </section>
+      <section class="claw-skill-detail-sheet">
+        ${renderDetail(skill, index)}
+      </section>
+    `;
+
+    listPage.style.display = 'none';
+    detailPage.style.display = 'flex';
+    isDetailPageOpen = true;
+    expandedSkillKey = skillKey;
+    if (panelTitle) panelTitle.textContent = skill.name || 'Skill 详情';
+    if (panelBody) panelBody.scrollTop = 0;
+    detailPage.focus({ preventScroll: true });
+
+    bindFullContentButtons(detailPage, () => skill);
+    if (options.showVersionHistory) {
+      loadSkillVersions(skill, detailPage.querySelector('.claw-skill-version-history'));
+    }
+  }
+
+  panelBackButton?.addEventListener('click', (event) => {
+    if (!isDetailPageOpen) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closeSkillDetailPage();
+  }, true);
+
   function renderSkills(skills) {
     if (skills.length === 0) {
       const hasSearchKeyword = Boolean(searchInput?.value.trim());
@@ -1618,9 +1767,11 @@ async function initSkillListPanel(bodyElement, options = {}) {
               ${detailControlHtml}
             </div>
           </div>
-          <div class="claw-skill-detail" style="display: none;">
-            ${renderDetail(skill, index)}
-          </div>
+          ${options.useOnCardClick ? '' : `
+            <div class="claw-skill-detail" style="display: none;">
+              ${renderDetail(skill, index)}
+            </div>
+          `}
         </div>
       `;
     }).join('');
@@ -1631,23 +1782,15 @@ async function initSkillListPanel(bodyElement, options = {}) {
       </div>
     `;
 
-    function setDetailButtonLabel(button, label) {
-      const labelElement = button?.querySelector('span');
-      if (labelElement) labelElement.textContent = label;
-    }
-
     function openSkillItem(item, skill) {
       const detail = item.querySelector('.claw-skill-detail');
       const icon = item.querySelector('.claw-skill-toggle-icon');
-      const detailButton = item.querySelector('.claw-skill-btn-detail');
       if (!detail) return;
 
       contentEl.querySelectorAll('.claw-skill-detail').forEach(element => element.style.display = 'none');
       contentEl.querySelectorAll('.claw-skill-toggle-icon').forEach(element => element.style.transform = 'none');
-      contentEl.querySelectorAll('.claw-skill-btn-detail').forEach(element => setDetailButtonLabel(element, '详情'));
       detail.style.display = 'block';
       if (icon) icon.style.transform = 'rotate(180deg)';
-      setDetailButtonLabel(detailButton, '收起');
       expandedSkillKey = getSkillApiName(skill);
 
       if (options.showVersionHistory) {
@@ -1690,19 +1833,8 @@ async function initSkillListPanel(bodyElement, options = {}) {
     contentEl.querySelectorAll('.claw-skill-btn-detail').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const item = btn.closest('.claw-skill-item');
-        const skill = skills[Number(btn.dataset.index)];
-        const detail = item?.querySelector('.claw-skill-detail');
-        if (!item || !skill || !detail) return;
-
-        if (detail.style.display === 'block') {
-          detail.style.display = 'none';
-          setDetailButtonLabel(btn, '详情');
-          expandedSkillKey = null;
-          return;
-        }
-
-        openSkillItem(item, skill);
+        const index = Number(btn.dataset.index);
+        openSkillDetailPage(skills[index], index);
       });
     });
 
@@ -1769,20 +1901,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
       });
     }
 
-    // Bind view full content buttons
-    contentEl.querySelectorAll('.claw-skill-btn-view-full').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const skill = skills[Number(btn.dataset.index)];
-        if (!skill) return;
-        const text = skill.fullContent || skill.rawContent || '无内容';
-        const previewHtml = `<div class="claw-skill-preview-overlay">${escapeHtml(text)}</div>`;
-        openCenterOverlay(escapeHtml(skill.name), previewHtml, {
-          showBack: true,
-          onBack: () => closeOverlayPanel()
-        });
-      });
-    });
+    bindFullContentButtons(contentEl, button => skills[Number(button.dataset.index)]);
 
     if (expandedSkillKey) {
       const expandedIndex = skills.findIndex(skill => getSkillApiName(skill) === expandedSkillKey);
@@ -1790,7 +1909,11 @@ async function initSkillListPanel(bodyElement, options = {}) {
         ? contentEl.querySelector(`.claw-skill-item[data-index="${expandedIndex}"]`)
         : null;
       if (expandedItem) {
-        openSkillItem(expandedItem, skills[expandedIndex]);
+        if (options.useOnCardClick) {
+          openSkillDetailPage(skills[expandedIndex], expandedIndex);
+        } else {
+          openSkillItem(expandedItem, skills[expandedIndex]);
+        }
       }
     }
   }

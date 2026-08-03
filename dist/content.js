@@ -25906,6 +25906,12 @@ ${block}` : block;
       gap: 12px;
     }
 
+    .claw-skill-list-page {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
     .claw-skill-intro {
       position: relative;
       overflow: hidden;
@@ -26331,6 +26337,58 @@ ${block}` : block;
       border-top: 1px solid var(--skill-outline-soft);
     }
 
+    .claw-skill-detail-page {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      outline: none;
+    }
+
+    .claw-skill-detail-hero,
+    .claw-skill-detail-sheet {
+      border: 1px solid var(--skill-outline-soft);
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: 0 1px 2px rgba(29, 27, 32, 0.035);
+    }
+
+    .claw-skill-detail-hero {
+      padding: 16px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #fef7ff 0%, #f3edff 100%);
+    }
+
+    .claw-skill-detail-title {
+      margin: 0;
+      color: var(--skill-on-primary-container);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    .claw-skill-detail-command {
+      display: inline-flex;
+      margin-top: 7px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: var(--skill-primary-container);
+      color: var(--skill-on-primary-container);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+    }
+
+    .claw-skill-detail-meta {
+      margin: 8px 0 0;
+      color: var(--skill-text-muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .claw-skill-detail-sheet {
+      padding: 14px;
+      border-radius: 16px;
+    }
+
     .claw-skill-detail-description,
     .claw-skill-detail-empty,
     .claw-skill-code-preview {
@@ -26706,35 +26764,40 @@ ${block}` : block;
     return getSkillListContent("\u5B89\u88C5\u7BA1\u7406", { showDelete: true });
   }
   function getSkillListContent(title, options = {}) {
-    const pageNote = options.showDelete ? "\u5C55\u5F00\u6761\u76EE\u67E5\u770B\u5185\u5BB9\uFF0C\u6216\u79FB\u9664\u4E0D\u518D\u9700\u8981\u7684 Skill\u3002" : "\u6309\u540D\u79F0\u6216\u63CF\u8FF0\u641C\u7D22\uFF0C\u5C55\u5F00\u6761\u76EE\u5373\u53EF\u67E5\u770B\u5185\u5BB9\u6458\u8981\u3002";
+    const pageNote = options.showDelete ? "\u5C55\u5F00\u6761\u76EE\u67E5\u770B\u5185\u5BB9\uFF0C\u6216\u79FB\u9664\u4E0D\u518D\u9700\u8981\u7684 Skill\u3002" : "\u70B9\u51FB\u5361\u7247\u76F4\u63A5\u4F7F\u7528\uFF1B\u70B9\u51FB\u300C\u8BE6\u60C5\u300D\u8FDB\u5165\u5B8C\u6574\u4FE1\u606F\u4E0E\u7248\u672C\u5386\u53F2\u3002";
     return `
     ${SKILL_STORE_STYLES}
     <div class="claw-skill-surface claw-skill-list">
-      <p class="claw-skill-page-note">${pageNote}</p>
-      <!-- \u641C\u7D22\u6846 -->
-      <div class="claw-skill-toolbar">
-        <div class="claw-skill-search-shell">
-          ${getSkillIcon("search", 17)}
-          <input class="claw-skill-search-input" type="text" id="claw-skill-search" placeholder="\u641C\u7D22 Skill \u540D\u79F0\u6216\u63CF\u8FF0..." aria-label="\u641C\u7D22 ${title}">
+      <div id="claw-skill-list-page" class="claw-skill-list-page">
+        <p class="claw-skill-page-note">${pageNote}</p>
+        <!-- \u641C\u7D22\u6846 -->
+        <div class="claw-skill-toolbar">
+          <div class="claw-skill-search-shell">
+            ${getSkillIcon("search", 17)}
+            <input class="claw-skill-search-input" type="text" id="claw-skill-search" placeholder="\u641C\u7D22 Skill \u540D\u79F0\u6216\u63CF\u8FF0..." aria-label="\u641C\u7D22 ${title}">
+          </div>
+          <button type="button" id="claw-skill-btn-refresh" class="claw-skill-refresh">
+            ${getSkillIcon("refresh", 15)}
+            \u5237\u65B0
+          </button>
         </div>
-        <button type="button" id="claw-skill-btn-refresh" class="claw-skill-refresh">
-          ${getSkillIcon("refresh", 15)}
-          \u5237\u65B0
-        </button>
+
+        <!-- Toast -->
+        <div id="claw-skill-toast" class="claw-skill-notice claw-skill-toast" role="status" aria-live="polite" style="display: none;"></div>
+
+        <!-- \u52A0\u8F7D\u4E2D -->
+        <div id="claw-skill-list-loading" class="claw-skill-state" role="status" aria-live="polite">
+          <span class="claw-skill-state-icon">${getSkillIcon("spinner", 23, "claw-skill-spinner")}</span>
+          <p class="claw-skill-state-title">\u6B63\u5728\u52A0\u8F7D Skill</p>
+          <p class="claw-skill-state-copy">\u6B63\u5728\u540C\u6B65\u4F60\u7684\u80FD\u529B\u5217\u8868\uFF0C\u8BF7\u7A0D\u5019\u3002</p>
+        </div>
+
+        <!-- \u5217\u8868\u5185\u5BB9 -->
+        <div id="claw-skill-list-content" style="display: none;"></div>
       </div>
 
-      <!-- Toast -->
-      <div id="claw-skill-toast" class="claw-skill-notice claw-skill-toast" role="status" aria-live="polite" style="display: none;"></div>
-
-      <!-- \u52A0\u8F7D\u4E2D -->
-      <div id="claw-skill-list-loading" class="claw-skill-state" role="status" aria-live="polite">
-        <span class="claw-skill-state-icon">${getSkillIcon("spinner", 23, "claw-skill-spinner")}</span>
-        <p class="claw-skill-state-title">\u6B63\u5728\u52A0\u8F7D Skill</p>
-        <p class="claw-skill-state-copy">\u6B63\u5728\u540C\u6B65\u4F60\u7684\u80FD\u529B\u5217\u8868\uFF0C\u8BF7\u7A0D\u5019\u3002</p>
-      </div>
-
-      <!-- \u5217\u8868\u5185\u5BB9 -->
-      <div id="claw-skill-list-content" style="display: none;"></div>
+      <!-- \u72EC\u7ACB\u8BE6\u60C5\u9875 -->
+      <div id="claw-skill-detail-page" class="claw-skill-detail-page" tabindex="-1" style="display: none;"></div>
     </div>
   `;
   }
@@ -26966,7 +27029,13 @@ ${block}` : block;
     const toastEl = bodyElement.querySelector("#claw-skill-toast");
     const loadingEl = bodyElement.querySelector("#claw-skill-list-loading");
     const contentEl = bodyElement.querySelector("#claw-skill-list-content");
-    if (!loadingEl || !contentEl) return;
+    const listPage = bodyElement.querySelector("#claw-skill-list-page");
+    const detailPage = bodyElement.querySelector("#claw-skill-detail-page");
+    const panel = bodyElement.closest(".claw-custom-panel");
+    const panelTitle = panel == null ? void 0 : panel.querySelector(".claw-panel-title");
+    const panelBackButton = panel == null ? void 0 : panel.querySelector(".claw-back-btn");
+    const panelBody = bodyElement.closest(".claw-custom-panel-body");
+    if (!loadingEl || !contentEl || !listPage || !detailPage) return;
     let allSkills = [];
     let filteredSkills = [];
     const skillVersionCache = /* @__PURE__ */ new Map();
@@ -26975,6 +27044,9 @@ ${block}` : block;
     const skillVersionContentRequests = /* @__PURE__ */ new Map();
     const rollbackInFlight = /* @__PURE__ */ new Set();
     let expandedSkillKey = null;
+    let isDetailPageOpen = false;
+    let listScrollTop = 0;
+    const listPageTitle = (panelTitle == null ? void 0 : panelTitle.textContent) || "\u6211\u7684 Skill";
     function showToast(msg, type = "info") {
       if (!toastEl) return;
       const colors = {
@@ -27308,6 +27380,75 @@ ${block}` : block;
       }
       closeOverlayPanel();
     }
+    function openFullSkillContent(skill) {
+      if (!skill) return;
+      const text = skill.fullContent || skill.rawContent || "\u65E0\u5185\u5BB9";
+      const previewHtml = `<div class="claw-skill-preview-overlay">${escapeHtml(text)}</div>`;
+      openCenterOverlay(escapeHtml(skill.name), previewHtml, {
+        showBack: true,
+        onBack: () => closeOverlayPanel()
+      });
+    }
+    function bindFullContentButtons(container, resolveSkill) {
+      container == null ? void 0 : container.querySelectorAll(".claw-skill-btn-view-full").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openFullSkillContent(resolveSkill(button));
+        });
+      });
+    }
+    function closeSkillDetailPage() {
+      var _a;
+      if (!isDetailPageOpen) return;
+      const skillKey = expandedSkillKey;
+      isDetailPageOpen = false;
+      expandedSkillKey = null;
+      detailPage.style.display = "none";
+      listPage.style.display = "flex";
+      if (panelTitle) panelTitle.textContent = listPageTitle;
+      if (panelBody) panelBody.scrollTop = listScrollTop;
+      const returnIndex = filteredSkills.findIndex((skill) => getSkillApiName(skill) === skillKey);
+      (_a = contentEl.querySelector(`.claw-skill-btn-detail[data-index="${returnIndex}"]`)) == null ? void 0 : _a.focus({ preventScroll: true });
+    }
+    function openSkillDetailPage(skill, index) {
+      if (!skill) return;
+      const skillKey = getSkillApiName(skill);
+      if (!isDetailPageOpen) {
+        listScrollTop = (panelBody == null ? void 0 : panelBody.scrollTop) || 0;
+      }
+      const meta = [
+        skill.version ? formatVersionLabel(skill.version) : "",
+        skill.author || "",
+        skill.modifiedAt ? formatDate2(skill.modifiedAt) : ""
+      ].filter(Boolean).join(" \xB7 ");
+      detailPage.innerHTML = `
+      <section class="claw-skill-detail-hero">
+        <p class="claw-skill-detail-title">${escapeHtml(skill.name || skillKey)}</p>
+        <code class="claw-skill-detail-command">/${escapeHtml(skillKey)}</code>
+        <p class="claw-skill-detail-meta">${escapeHtml(meta || "\u6682\u65E0\u7248\u672C\u4FE1\u606F")}</p>
+      </section>
+      <section class="claw-skill-detail-sheet">
+        ${renderDetail(skill, index)}
+      </section>
+    `;
+      listPage.style.display = "none";
+      detailPage.style.display = "flex";
+      isDetailPageOpen = true;
+      expandedSkillKey = skillKey;
+      if (panelTitle) panelTitle.textContent = skill.name || "Skill \u8BE6\u60C5";
+      if (panelBody) panelBody.scrollTop = 0;
+      detailPage.focus({ preventScroll: true });
+      bindFullContentButtons(detailPage, () => skill);
+      if (options.showVersionHistory) {
+        loadSkillVersions(skill, detailPage.querySelector(".claw-skill-version-history"));
+      }
+    }
+    panelBackButton == null ? void 0 : panelBackButton.addEventListener("click", (event) => {
+      if (!isDetailPageOpen) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeSkillDetailPage();
+    }, true);
     function renderSkills(skills) {
       if (skills.length === 0) {
         const hasSearchKeyword = Boolean(searchInput == null ? void 0 : searchInput.value.trim());
@@ -27351,9 +27492,11 @@ ${block}` : block;
               ${detailControlHtml}
             </div>
           </div>
-          <div class="claw-skill-detail" style="display: none;">
-            ${renderDetail(skill, index)}
-          </div>
+          ${options.useOnCardClick ? "" : `
+            <div class="claw-skill-detail" style="display: none;">
+              ${renderDetail(skill, index)}
+            </div>
+          `}
         </div>
       `;
       }).join("");
@@ -27362,21 +27505,14 @@ ${block}` : block;
         ${itemsHtml}
       </div>
     `;
-      function setDetailButtonLabel(button, label) {
-        const labelElement = button == null ? void 0 : button.querySelector("span");
-        if (labelElement) labelElement.textContent = label;
-      }
       function openSkillItem(item, skill) {
         const detail = item.querySelector(".claw-skill-detail");
         const icon = item.querySelector(".claw-skill-toggle-icon");
-        const detailButton = item.querySelector(".claw-skill-btn-detail");
         if (!detail) return;
         contentEl.querySelectorAll(".claw-skill-detail").forEach((element) => element.style.display = "none");
         contentEl.querySelectorAll(".claw-skill-toggle-icon").forEach((element) => element.style.transform = "none");
-        contentEl.querySelectorAll(".claw-skill-btn-detail").forEach((element) => setDetailButtonLabel(element, "\u8BE6\u60C5"));
         detail.style.display = "block";
         if (icon) icon.style.transform = "rotate(180deg)";
-        setDetailButtonLabel(detailButton, "\u6536\u8D77");
         expandedSkillKey = getSkillApiName(skill);
         if (options.showVersionHistory) {
           const versionContainer = detail.querySelector(".claw-skill-version-history");
@@ -27410,17 +27546,8 @@ ${block}` : block;
       contentEl.querySelectorAll(".claw-skill-btn-detail").forEach((btn) => {
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
-          const item = btn.closest(".claw-skill-item");
-          const skill = skills[Number(btn.dataset.index)];
-          const detail = item == null ? void 0 : item.querySelector(".claw-skill-detail");
-          if (!item || !skill || !detail) return;
-          if (detail.style.display === "block") {
-            detail.style.display = "none";
-            setDetailButtonLabel(btn, "\u8BE6\u60C5");
-            expandedSkillKey = null;
-            return;
-          }
-          openSkillItem(item, skill);
+          const index = Number(btn.dataset.index);
+          openSkillDetailPage(skills[index], index);
         });
       });
       if (options.showDelete) {
@@ -27480,24 +27607,16 @@ ${block}` : block;
           });
         });
       }
-      contentEl.querySelectorAll(".claw-skill-btn-view-full").forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const skill = skills[Number(btn.dataset.index)];
-          if (!skill) return;
-          const text = skill.fullContent || skill.rawContent || "\u65E0\u5185\u5BB9";
-          const previewHtml = `<div class="claw-skill-preview-overlay">${escapeHtml(text)}</div>`;
-          openCenterOverlay(escapeHtml(skill.name), previewHtml, {
-            showBack: true,
-            onBack: () => closeOverlayPanel()
-          });
-        });
-      });
+      bindFullContentButtons(contentEl, (button) => skills[Number(button.dataset.index)]);
       if (expandedSkillKey) {
         const expandedIndex = skills.findIndex((skill) => getSkillApiName(skill) === expandedSkillKey);
         const expandedItem = expandedIndex >= 0 ? contentEl.querySelector(`.claw-skill-item[data-index="${expandedIndex}"]`) : null;
         if (expandedItem) {
-          openSkillItem(expandedItem, skills[expandedIndex]);
+          if (options.useOnCardClick) {
+            openSkillDetailPage(skills[expandedIndex], expandedIndex);
+          } else {
+            openSkillItem(expandedItem, skills[expandedIndex]);
+          }
         }
       }
     }
