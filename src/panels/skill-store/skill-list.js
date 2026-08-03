@@ -1,4 +1,5 @@
 import { getEntryName, parseSkillMd } from '../../utils/skill-parser.js';
+import { getSkillApiName } from './version-history.js';
 
 function getEntryUpdatedAt(entry) {
   return entry?.updated_at || entry?.modTime || entry?.mtime || entry?.modifiedAt;
@@ -79,4 +80,10 @@ export async function readSkillEntries(entries, readSkill, options = {}) {
   const workerCount = Math.min(concurrency, sourceEntries.length);
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
   return results;
+}
+
+export function removeSkillByApiName(skills, apiName) {
+  const target = String(apiName || '').trim();
+  if (!Array.isArray(skills) || !target) return Array.isArray(skills) ? [...skills] : [];
+  return skills.filter(skill => getSkillApiName(skill) !== target);
 }

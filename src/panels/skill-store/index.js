@@ -5,9 +5,10 @@ import { getEchoMemConfig } from '../../services/config.js';
 import { createClient } from '../../services/echomem-client.js';
 import { parseSkillMd } from '../../utils/skill-parser.js';
 import { insertPlainText } from '../../core/content-injector.js';
-import { openCenterOverlay, closeOverlayPanel } from '../../core/panel-host.js';
-import { readSkillEntries } from './skill-list.js';
+import { openCenterOverlay, closeOverlayPanel, getPanelContainer } from '../../core/panel-host.js';
+import { readSkillEntries, removeSkillByApiName } from './skill-list.js';
 import {
+  areSkillVersionsEquivalent,
   classifyVersionError,
   escapeHtml,
   formatSkillCommand,
@@ -162,6 +163,7 @@ const SKILL_STORE_STYLES = `
     .claw-skill-btn-detail:focus-visible,
     .claw-skill-btn-delete:focus-visible,
     .claw-skill-btn-view-full:focus-visible,
+    .claw-skill-btn-use:focus-visible,
     .claw-skill-version-view:focus-visible,
     .claw-skill-version-rollback:focus-visible,
     .claw-skill-version-retry:focus-visible {
@@ -494,7 +496,7 @@ const SKILL_STORE_STYLES = `
       background: var(--skill-primary-container);
     }
 
-    .claw-skill-use-hint {
+    .claw-skill-btn-use {
       display: inline-flex;
       align-items: center;
       gap: 3px;
@@ -504,9 +506,17 @@ const SKILL_STORE_STYLES = `
       border-radius: 999px;
       background: var(--skill-success-container);
       color: var(--skill-success);
+      cursor: pointer;
+      font-family: inherit;
       font-size: 10px;
       font-weight: 600;
       white-space: nowrap;
+      transition: background 180ms ease, border-color 180ms ease;
+    }
+
+    .claw-skill-btn-use:hover {
+      border-color: #9fcea2;
+      background: #dff0e0;
     }
 
     .claw-skill-toggle-icon {
@@ -1190,6 +1200,9 @@ function getSkillListContent(title, options = {}) {
   return `
     ${SKILL_STORE_STYLES}
     <div class="claw-skill-surface claw-skill-list">
+      <!-- 列表与详情页共用的状态提示 -->
+      <div id="claw-skill-toast" class="claw-skill-notice claw-skill-toast" role="status" aria-live="polite" style="display: none;"></div>
+
       <div id="claw-skill-list-page" class="claw-skill-list-page">
         <p class="claw-skill-page-note">${pageNote}</p>
         <!-- 搜索框 -->
@@ -1203,9 +1216,6 @@ function getSkillListContent(title, options = {}) {
             刷新
           </button>
         </div>
-
-        <!-- Toast -->
-        <div id="claw-skill-toast" class="claw-skill-notice claw-skill-toast" role="status" aria-live="polite" style="display: none;"></div>
 
         <!-- 加载中 -->
         <div id="claw-skill-list-loading" class="claw-skill-state" role="status" aria-live="polite">
@@ -1731,7 +1741,11 @@ async function initSkillListPanel(bodyElement, options = {}) {
     const cached = getNestedCache(skillVersionContentCache, skillKey, version);
     if (cached !== undefined) return cached;
 
-    if (version === history.currentVersion && skill.fullContent) {
+    if (
+      version === history.currentVersion
+      && areSkillVersionsEquivalent(skill.version, history.currentVersion)
+      && skill.fullContent
+    ) {
       setNestedCache(skillVersionContentCache, skillKey, version, skill.fullContent);
       return skill.fullContent;
     }
@@ -1799,7 +1813,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
     const dialogHtml = `
       <div id="${dialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 12px;">
         <div style="text-align: center;">
-          <p style="font-size: 24px; margin: 0; line-height: 1;">↩️</p>
+          <span class="claw-skill-dialog-icon">${getSkillIcon('history', 23)}</span>
           <p style="font-size: 15px; color: #333; font-weight: 600; margin: 6px 0 4px;">确认恢复 Skill</p>
           <p style="font-size: 12px; color: #666; line-height: 1.5; margin: 0;">将 Skill「<strong style="color: #111;">${escapeHtml(skill.name)}</strong>」从 ${escapeHtml(currentLabel)} 恢复为 ${escapeHtml(targetLabel)}。<br>恢复后，当前 SKILL.md 会切换到该历史内容。</p>
         </div>
@@ -1825,7 +1839,14 @@ async function initSkillListPanel(bodyElement, options = {}) {
       const statusElement = dialog?.querySelector('.claw-skill-rollback-status');
       if (!dialog || !cancelButton || !confirmButton || !statusElement) return;
 
-      cancelButton.addEventListener('click', () => closeOverlayPanel());
+      const closeDialogIfActive = () => {
+        const activeOverlay = getPanelContainer();
+        if (!dialog.isConnected || !activeOverlay?.contains(dialog)) return false;
+        closeOverlayPanel();
+        return true;
+      };
+
+      cancelButton.addEventListener('click', closeDialogIfActive);
       confirmButton.addEventListener('click', async () => {
         if (rollbackInFlight.has(skillKey)) return;
         rollbackInFlight.add(skillKey);
@@ -1845,14 +1866,14 @@ async function initSkillListPanel(bodyElement, options = {}) {
             throw new Error('后端未确认版本恢复成功');
           }
 
-          closeOverlayPanel();
+          closeDialogIfActive();
           invalidateVersionCaches(skillKey);
           skillCache = null;
           expandedSkillKey = skillKey;
           if (searchInput) searchInput.value = '';
           const reloadResult = await loadSkills({ force: true, preserveExisting: true });
           if (reloadResult.ok) {
-            showToast(`✅ Skill「${skill.name}」已恢复为 ${targetLabel}`, 'success');
+            showToast(`Skill「${skill.name}」已恢复为 ${targetLabel}`, 'success');
           }
         } catch (error) {
           if (statusElement.isConnected) {
@@ -2008,8 +2029,11 @@ async function initSkillListPanel(bodyElement, options = {}) {
           </button>`
         : getSkillIcon('chevronDown', 17, 'claw-skill-toggle-icon');
 
-      const useHintHtml = options.useOnCardClick
-        ? `<span class="claw-skill-use-hint">点击使用 ${getSkillIcon('chevronRight', 12)}</span>`
+      const useButtonHtml = options.useOnCardClick
+        ? `<button type="button" class="claw-skill-btn-use" data-index="${index}" aria-label="使用 Skill：${escapeHtml(skill.name)}">
+            使用
+            ${getSkillIcon('chevronRight', 12)}
+          </button>`
         : '';
 
       return `
@@ -2023,7 +2047,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
           <div class="claw-skill-item-footer">
             <p class="claw-skill-item-meta" title="${escapeHtml(meta)}">${escapeHtml(meta)}</p>
             <div class="claw-skill-item-actions">
-              ${useHintHtml}
+              ${useButtonHtml}
               ${deleteBtnHtml}
               ${detailControlHtml}
             </div>
@@ -2091,6 +2115,14 @@ async function initSkillListPanel(bodyElement, options = {}) {
       });
     });
 
+    contentEl.querySelectorAll('.claw-skill-btn-use').forEach(button => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const skill = skills[Number(button.dataset.index)];
+        if (skill) useSkill(skill);
+      });
+    });
+
     contentEl.querySelectorAll('.claw-skill-btn-detail').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -2147,9 +2179,13 @@ async function initSkillListPanel(bodyElement, options = {}) {
                 const config = await getEchoMemConfig();
                 const client = createClient(config);
                 await client.deleteSkill(apiName);
-                showToast(`Skill「${displayName || '未命名'}」已删除`, 'success');
-                skillCache = null;
                 invalidateVersionCaches(apiName);
+                if (expandedSkillKey === apiName) expandedSkillKey = null;
+                allSkills = removeSkillByApiName(allSkills, apiName);
+                skillCache = allSkills;
+                filteredSkills = getFilteredSkills(allSkills, searchInput?.value || '');
+                renderSkills(filteredSkills);
+                showToast(`Skill「${displayName || '未命名'}」已删除`, 'success');
                 await loadSkills({ force: true, preserveExisting: true });
               } catch (err) {
                 showToast(`删除失败：${err.message}`, 'error');

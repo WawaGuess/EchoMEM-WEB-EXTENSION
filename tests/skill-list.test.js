@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { readSkillEntries } from '../src/panels/skill-store/skill-list.js';
+import { readSkillEntries, removeSkillByApiName } from '../src/panels/skill-store/skill-list.js';
 
 test('readSkillEntries keeps directory entries whose content read fails', async () => {
   const errors = [];
@@ -43,4 +43,16 @@ test('readSkillEntries limits concurrent content reads and preserves order', asy
 
   assert.equal(maxActive, 2);
   assert.deepEqual(skills.map(skill => skill.dirName), entries.map(entry => entry.name));
+});
+
+test('removeSkillByApiName removes the canonical directory entry without mutating the input', () => {
+  const skills = [
+    { dirName: 'actual-skill', name: '展示名称' },
+    { dirName: 'keep-skill', name: '保留' },
+  ];
+
+  const remaining = removeSkillByApiName(skills, 'actual-skill');
+
+  assert.deepEqual(remaining, [{ dirName: 'keep-skill', name: '保留' }]);
+  assert.equal(skills.length, 2);
 });

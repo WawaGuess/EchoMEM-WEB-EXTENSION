@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  areSkillVersionsEquivalent,
   classifyVersionError,
   escapeHtml,
   formatSkillCommand,
@@ -63,6 +64,14 @@ test('version labels, source labels, dates, and HTML escaping are stable', () =>
   assert.equal(formatVersionDate('2026-07-28T12:00:00Z'), '2026-07-28');
   assert.equal(formatVersionDate('invalid'), '—');
   assert.equal(escapeHtml(`<tag a="1">Tom & 'Jerry'</tag>`), '&lt;tag a=&quot;1&quot;&gt;Tom &amp; &#39;Jerry&#39;&lt;/tag&gt;');
+});
+
+test('Skill versions are equivalent only when both identify the same positive version', () => {
+  assert.equal(areSkillVersionsEquivalent(2, 'v002'), true);
+  assert.equal(areSkillVersionsEquivalent('1', 1), true);
+  assert.equal(areSkillVersionsEquivalent('v1', 2), false);
+  assert.equal(areSkillVersionsEquivalent('1.0.0', 1), false);
+  assert.equal(areSkillVersionsEquivalent(null, null), false);
 });
 
 test('classifyVersionError distinguishes unsupported, auth, timeout, network, and generic failures', () => {

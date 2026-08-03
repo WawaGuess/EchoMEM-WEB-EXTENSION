@@ -36,6 +36,16 @@ export function formatVersionLabel(value) {
   return version === null ? raw : `v${version}`;
 }
 
+export function areSkillVersionsEquivalent(left, right) {
+  const normalize = (value) => {
+    const raw = toText(value).trim().replace(/^v/i, '');
+    return toPositiveInteger(raw);
+  };
+  const leftVersion = normalize(left);
+  const rightVersion = normalize(right);
+  return leftVersion !== null && leftVersion === rightVersion;
+}
+
 export function formatVersionDate(value) {
   if (!value) return '—';
   const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value);

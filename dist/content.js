@@ -25766,6 +25766,109 @@ ${block}` : block;
     return "\u672A\u547D\u540D";
   }
 
+  // src/panels/skill-store/version-history.js
+  var SOURCE_LABELS = {
+    manual_upload: "\u624B\u52A8\u4E0A\u4F20",
+    generated: "\u81EA\u52A8\u751F\u6210",
+    optimized: "\u81EA\u52A8\u4F18\u5316",
+    rollback: "\u5386\u53F2\u6062\u590D",
+    current: "\u5F53\u524D\u6587\u4EF6"
+  };
+  function toPositiveInteger(value) {
+    if (value === null || value === void 0 || value === "") return null;
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+  function toText(value) {
+    return value === null || value === void 0 ? "" : String(value);
+  }
+  function escapeHtml(value) {
+    return toText(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function formatVersionLabel(value) {
+    const raw = toText(value).trim();
+    if (!raw) return "\u2014";
+    const prefixed = raw.match(/^v(\d+)$/i);
+    if (prefixed) return `v${Number(prefixed[1])}`;
+    const version = toPositiveInteger(raw);
+    return version === null ? raw : `v${version}`;
+  }
+  function areSkillVersionsEquivalent(left, right) {
+    const normalize2 = (value) => {
+      const raw = toText(value).trim().replace(/^v/i, "");
+      return toPositiveInteger(raw);
+    };
+    const leftVersion = normalize2(left);
+    const rightVersion = normalize2(right);
+    return leftVersion !== null && leftVersion === rightVersion;
+  }
+  function formatVersionDate(value) {
+    if (!value) return "\u2014";
+    const date = typeof value === "number" ? new Date(value * 1e3) : new Date(value);
+    if (Number.isNaN(date.getTime())) return "\u2014";
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+  function getVersionSourceLabel(source) {
+    const normalized = toText(source).trim();
+    return SOURCE_LABELS[normalized] || "\u672A\u77E5\u6765\u6E90";
+  }
+  function getSkillApiName(skill) {
+    const dirName = toText(skill == null ? void 0 : skill.dirName).trim();
+    if (dirName) return dirName;
+    return toText(skill == null ? void 0 : skill.name).trim();
+  }
+  function formatSkillCommand(skill) {
+    const apiName = getSkillApiName(skill).replace(/^\/+/, "");
+    return apiName ? `/${apiName}` : "";
+  }
+  function classifyVersionError(error) {
+    const status = Number(error == null ? void 0 : error.status);
+    if (status === 404 || status === 405) return "unsupported";
+    if (status === 401 || status === 403) return "auth";
+    const message = toText(error == null ? void 0 : error.message).toLowerCase();
+    if ((error == null ? void 0 : error.name) === "AbortError" || message.includes("aborted") || message.includes("timeout")) {
+      return "timeout";
+    }
+    if (message.includes("failed to fetch") || message.includes("network")) {
+      return "network";
+    }
+    return "error";
+  }
+  function normalizeSkillVersionHistory(payload) {
+    var _a;
+    const rawPayload = payload && typeof payload === "object" ? payload : {};
+    const rawVersions = Array.isArray(rawPayload.versions) ? rawPayload.versions : [];
+    const versionsByNumber = /* @__PURE__ */ new Map();
+    for (const item of rawVersions) {
+      if (!item || typeof item !== "object") continue;
+      const version = toPositiveInteger(item.version);
+      if (version === null) continue;
+      versionsByNumber.set(version, {
+        version,
+        parentVersion: toPositiveInteger(item.parent_version),
+        source: toText(item.source),
+        runId: toText(item.run_id),
+        createdAt: toText(item.created_at),
+        current: item.current === true,
+        hash: toText(item.hash),
+        exists: item.exists !== false
+      });
+    }
+    let currentVersion = toPositiveInteger(rawPayload.current_version);
+    if (currentVersion === null) {
+      currentVersion = ((_a = [...versionsByNumber.values()].find((item) => item.current)) == null ? void 0 : _a.version) || null;
+    }
+    const versions = [...versionsByNumber.values()].map((item) => ({
+      ...item,
+      current: currentVersion !== null && item.version === currentVersion
+    })).sort((a, b) => b.version - a.version);
+    return {
+      name: toText(rawPayload.name),
+      currentVersion,
+      versions
+    };
+  }
+
   // src/panels/skill-store/skill-list.js
   function getEntryUpdatedAt(entry) {
     return (entry == null ? void 0 : entry.updated_at) || (entry == null ? void 0 : entry.modTime) || (entry == null ? void 0 : entry.mtime) || (entry == null ? void 0 : entry.modifiedAt);
@@ -25835,99 +25938,10 @@ ${block}` : block;
     await Promise.all(Array.from({ length: workerCount }, () => worker()));
     return results;
   }
-
-  // src/panels/skill-store/version-history.js
-  var SOURCE_LABELS = {
-    manual_upload: "\u624B\u52A8\u4E0A\u4F20",
-    generated: "\u81EA\u52A8\u751F\u6210",
-    optimized: "\u81EA\u52A8\u4F18\u5316",
-    rollback: "\u5386\u53F2\u6062\u590D",
-    current: "\u5F53\u524D\u6587\u4EF6"
-  };
-  function toPositiveInteger(value) {
-    if (value === null || value === void 0 || value === "") return null;
-    const parsed = Number(value);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-  }
-  function toText(value) {
-    return value === null || value === void 0 ? "" : String(value);
-  }
-  function escapeHtml(value) {
-    return toText(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  }
-  function formatVersionLabel(value) {
-    const raw = toText(value).trim();
-    if (!raw) return "\u2014";
-    const prefixed = raw.match(/^v(\d+)$/i);
-    if (prefixed) return `v${Number(prefixed[1])}`;
-    const version = toPositiveInteger(raw);
-    return version === null ? raw : `v${version}`;
-  }
-  function formatVersionDate(value) {
-    if (!value) return "\u2014";
-    const date = typeof value === "number" ? new Date(value * 1e3) : new Date(value);
-    if (Number.isNaN(date.getTime())) return "\u2014";
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  }
-  function getVersionSourceLabel(source) {
-    const normalized = toText(source).trim();
-    return SOURCE_LABELS[normalized] || "\u672A\u77E5\u6765\u6E90";
-  }
-  function getSkillApiName(skill) {
-    const dirName = toText(skill == null ? void 0 : skill.dirName).trim();
-    if (dirName) return dirName;
-    return toText(skill == null ? void 0 : skill.name).trim();
-  }
-  function formatSkillCommand(skill) {
-    const apiName = getSkillApiName(skill).replace(/^\/+/, "");
-    return apiName ? `/${apiName}` : "";
-  }
-  function classifyVersionError(error) {
-    const status = Number(error == null ? void 0 : error.status);
-    if (status === 404 || status === 405) return "unsupported";
-    if (status === 401 || status === 403) return "auth";
-    const message = toText(error == null ? void 0 : error.message).toLowerCase();
-    if ((error == null ? void 0 : error.name) === "AbortError" || message.includes("aborted") || message.includes("timeout")) {
-      return "timeout";
-    }
-    if (message.includes("failed to fetch") || message.includes("network")) {
-      return "network";
-    }
-    return "error";
-  }
-  function normalizeSkillVersionHistory(payload) {
-    var _a;
-    const rawPayload = payload && typeof payload === "object" ? payload : {};
-    const rawVersions = Array.isArray(rawPayload.versions) ? rawPayload.versions : [];
-    const versionsByNumber = /* @__PURE__ */ new Map();
-    for (const item of rawVersions) {
-      if (!item || typeof item !== "object") continue;
-      const version = toPositiveInteger(item.version);
-      if (version === null) continue;
-      versionsByNumber.set(version, {
-        version,
-        parentVersion: toPositiveInteger(item.parent_version),
-        source: toText(item.source),
-        runId: toText(item.run_id),
-        createdAt: toText(item.created_at),
-        current: item.current === true,
-        hash: toText(item.hash),
-        exists: item.exists !== false
-      });
-    }
-    let currentVersion = toPositiveInteger(rawPayload.current_version);
-    if (currentVersion === null) {
-      currentVersion = ((_a = [...versionsByNumber.values()].find((item) => item.current)) == null ? void 0 : _a.version) || null;
-    }
-    const versions = [...versionsByNumber.values()].map((item) => ({
-      ...item,
-      current: currentVersion !== null && item.version === currentVersion
-    })).sort((a, b) => b.version - a.version);
-    return {
-      name: toText(rawPayload.name),
-      currentVersion,
-      versions
-    };
+  function removeSkillByApiName(skills, apiName) {
+    const target = String(apiName || "").trim();
+    if (!Array.isArray(skills) || !target) return Array.isArray(skills) ? [...skills] : [];
+    return skills.filter((skill) => getSkillApiName(skill) !== target);
   }
 
   // src/panels/skill-store/index.js
@@ -26074,6 +26088,7 @@ ${block}` : block;
     .claw-skill-btn-detail:focus-visible,
     .claw-skill-btn-delete:focus-visible,
     .claw-skill-btn-view-full:focus-visible,
+    .claw-skill-btn-use:focus-visible,
     .claw-skill-version-view:focus-visible,
     .claw-skill-version-rollback:focus-visible,
     .claw-skill-version-retry:focus-visible {
@@ -26406,7 +26421,7 @@ ${block}` : block;
       background: var(--skill-primary-container);
     }
 
-    .claw-skill-use-hint {
+    .claw-skill-btn-use {
       display: inline-flex;
       align-items: center;
       gap: 3px;
@@ -26416,9 +26431,17 @@ ${block}` : block;
       border-radius: 999px;
       background: var(--skill-success-container);
       color: var(--skill-success);
+      cursor: pointer;
+      font-family: inherit;
       font-size: 10px;
       font-weight: 600;
       white-space: nowrap;
+      transition: background 180ms ease, border-color 180ms ease;
+    }
+
+    .claw-skill-btn-use:hover {
+      border-color: #9fcea2;
+      background: #dff0e0;
     }
 
     .claw-skill-toggle-icon {
@@ -27088,6 +27111,9 @@ ${block}` : block;
     return `
     ${SKILL_STORE_STYLES}
     <div class="claw-skill-surface claw-skill-list">
+      <!-- \u5217\u8868\u4E0E\u8BE6\u60C5\u9875\u5171\u7528\u7684\u72B6\u6001\u63D0\u793A -->
+      <div id="claw-skill-toast" class="claw-skill-notice claw-skill-toast" role="status" aria-live="polite" style="display: none;"></div>
+
       <div id="claw-skill-list-page" class="claw-skill-list-page">
         <p class="claw-skill-page-note">${pageNote}</p>
         <!-- \u641C\u7D22\u6846 -->
@@ -27101,9 +27127,6 @@ ${block}` : block;
             \u5237\u65B0
           </button>
         </div>
-
-        <!-- Toast -->
-        <div id="claw-skill-toast" class="claw-skill-notice claw-skill-toast" role="status" aria-live="polite" style="display: none;"></div>
 
         <!-- \u52A0\u8F7D\u4E2D -->
         <div id="claw-skill-list-loading" class="claw-skill-state" role="status" aria-live="polite">
@@ -27563,7 +27586,7 @@ ${block}` : block;
       const skillKey = getSkillApiName(skill);
       const cached = getNestedCache(skillVersionContentCache, skillKey, version);
       if (cached !== void 0) return cached;
-      if (version === history.currentVersion && skill.fullContent) {
+      if (version === history.currentVersion && areSkillVersionsEquivalent(skill.version, history.currentVersion) && skill.fullContent) {
         setNestedCache(skillVersionContentCache, skillKey, version, skill.fullContent);
         return skill.fullContent;
       }
@@ -27626,7 +27649,7 @@ ${block}` : block;
       const dialogHtml = `
       <div id="${dialogId}" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 12px;">
         <div style="text-align: center;">
-          <p style="font-size: 24px; margin: 0; line-height: 1;">\u21A9\uFE0F</p>
+          <span class="claw-skill-dialog-icon">${getSkillIcon("history", 23)}</span>
           <p style="font-size: 15px; color: #333; font-weight: 600; margin: 6px 0 4px;">\u786E\u8BA4\u6062\u590D Skill</p>
           <p style="font-size: 12px; color: #666; line-height: 1.5; margin: 0;">\u5C06 Skill\u300C<strong style="color: #111;">${escapeHtml(skill.name)}</strong>\u300D\u4ECE ${escapeHtml(currentLabel)} \u6062\u590D\u4E3A ${escapeHtml(targetLabel)}\u3002<br>\u6062\u590D\u540E\uFF0C\u5F53\u524D SKILL.md \u4F1A\u5207\u6362\u5230\u8BE5\u5386\u53F2\u5185\u5BB9\u3002</p>
         </div>
@@ -27649,7 +27672,13 @@ ${block}` : block;
         const confirmButton = dialog == null ? void 0 : dialog.querySelector(".claw-skill-rollback-confirm");
         const statusElement = dialog == null ? void 0 : dialog.querySelector(".claw-skill-rollback-status");
         if (!dialog || !cancelButton || !confirmButton || !statusElement) return;
-        cancelButton.addEventListener("click", () => closeOverlayPanel());
+        const closeDialogIfActive = () => {
+          const activeOverlay = getPanelContainer();
+          if (!dialog.isConnected || !(activeOverlay == null ? void 0 : activeOverlay.contains(dialog))) return false;
+          closeOverlayPanel();
+          return true;
+        };
+        cancelButton.addEventListener("click", closeDialogIfActive);
         confirmButton.addEventListener("click", async () => {
           if (rollbackInFlight.has(skillKey)) return;
           rollbackInFlight.add(skillKey);
@@ -27667,14 +27696,14 @@ ${block}` : block;
             if ((result == null ? void 0 : result.rolled_back) !== true) {
               throw new Error("\u540E\u7AEF\u672A\u786E\u8BA4\u7248\u672C\u6062\u590D\u6210\u529F");
             }
-            closeOverlayPanel();
+            closeDialogIfActive();
             invalidateVersionCaches(skillKey);
             skillCache = null;
             expandedSkillKey = skillKey;
             if (searchInput) searchInput.value = "";
             const reloadResult = await loadSkills({ force: true, preserveExisting: true });
             if (reloadResult.ok) {
-              showToast(`\u2705 Skill\u300C${skill.name}\u300D\u5DF2\u6062\u590D\u4E3A ${targetLabel}`, "success");
+              showToast(`Skill\u300C${skill.name}\u300D\u5DF2\u6062\u590D\u4E3A ${targetLabel}`, "success");
             }
           } catch (error) {
             if (statusElement.isConnected) {
@@ -27808,7 +27837,10 @@ ${block}` : block;
             ${getSkillIcon("info", 13)}
             <span>\u8BE6\u60C5</span>
           </button>` : getSkillIcon("chevronDown", 17, "claw-skill-toggle-icon");
-        const useHintHtml = options.useOnCardClick ? `<span class="claw-skill-use-hint">\u70B9\u51FB\u4F7F\u7528 ${getSkillIcon("chevronRight", 12)}</span>` : "";
+        const useButtonHtml = options.useOnCardClick ? `<button type="button" class="claw-skill-btn-use" data-index="${index}" aria-label="\u4F7F\u7528 Skill\uFF1A${escapeHtml(skill.name)}">
+            \u4F7F\u7528
+            ${getSkillIcon("chevronRight", 12)}
+          </button>` : "";
         return `
         <div class="claw-skill-item" data-index="${index}">
           <div class="claw-skill-item-head">
@@ -27820,7 +27852,7 @@ ${block}` : block;
           <div class="claw-skill-item-footer">
             <p class="claw-skill-item-meta" title="${escapeHtml(meta)}">${escapeHtml(meta)}</p>
             <div class="claw-skill-item-actions">
-              ${useHintHtml}
+              ${useButtonHtml}
               ${deleteBtnHtml}
               ${detailControlHtml}
             </div>
@@ -27876,6 +27908,13 @@ ${block}` : block;
           openSkillItem(item, skill);
         });
       });
+      contentEl.querySelectorAll(".claw-skill-btn-use").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const skill = skills[Number(button.dataset.index)];
+          if (skill) useSkill(skill);
+        });
+      });
       contentEl.querySelectorAll(".claw-skill-btn-detail").forEach((btn) => {
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -27926,9 +27965,13 @@ ${block}` : block;
                   const config = await getEchoMemConfig();
                   const client2 = createClient(config);
                   await client2.deleteSkill(apiName);
-                  showToast(`Skill\u300C${displayName || "\u672A\u547D\u540D"}\u300D\u5DF2\u5220\u9664`, "success");
-                  skillCache = null;
                   invalidateVersionCaches(apiName);
+                  if (expandedSkillKey === apiName) expandedSkillKey = null;
+                  allSkills = removeSkillByApiName(allSkills, apiName);
+                  skillCache = allSkills;
+                  filteredSkills = getFilteredSkills(allSkills, (searchInput == null ? void 0 : searchInput.value) || "");
+                  renderSkills(filteredSkills);
+                  showToast(`Skill\u300C${displayName || "\u672A\u547D\u540D"}\u300D\u5DF2\u5220\u9664`, "success");
                   await loadSkills({ force: true, preserveExisting: true });
                 } catch (err) {
                   showToast(`\u5220\u9664\u5931\u8D25\uFF1A${err.message}`, "error");
