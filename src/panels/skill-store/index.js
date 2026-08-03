@@ -3,9 +3,10 @@
 
 import { getEchoMemConfig } from '../../services/config.js';
 import { createClient } from '../../services/echomem-client.js';
-import { parseSkillMd, getEntryName } from '../../utils/skill-parser.js';
+import { parseSkillMd } from '../../utils/skill-parser.js';
 import { insertPlainText } from '../../core/content-injector.js';
 import { openCenterOverlay, closeOverlayPanel } from '../../core/panel-host.js';
+import { readSkillEntries } from './skill-list.js';
 import {
   classifyVersionError,
   escapeHtml,
@@ -303,6 +304,11 @@ const SKILL_STORE_STYLES = `
     .claw-skill-btn-view-full:hover {
       background: var(--skill-primary-container);
       border-color: #b69df8;
+    }
+
+    .claw-skill-refresh:disabled {
+      cursor: wait;
+      opacity: 0.65;
     }
 
     .claw-skill-notice {
@@ -884,10 +890,6 @@ function isDirectory(entry) {
   return entry.isDir || entry.is_dir || entry.stat?.isDir || entry.stat?.is_dir || false;
 }
 
-function getEntryUpdatedAt(entry) {
-  return entry.updated_at || entry.modTime || entry.mtime || entry.modifiedAt;
-}
-
 // ═══════════════════════════════════════════════════════════
 //  HTML 生成
 // ═══════════════════════════════════════════════════════════
@@ -1261,6 +1263,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
   let expandedSkillKey = null;
   let isDetailPageOpen = false;
   let listScrollTop = 0;
+  let loadGeneration = 0;
   const listPageTitle = panelTitle?.textContent || '我的 Skill';
 
   function showToast(msg, type = 'info') {
@@ -1601,8 +1604,10 @@ async function initSkillListPanel(bodyElement, options = {}) {
           skillCache = null;
           expandedSkillKey = skillKey;
           if (searchInput) searchInput.value = '';
-          await loadSkills();
-          showToast(`✅ Skill「${skill.name}」已恢复为 ${targetLabel}`, 'success');
+          const reloadResult = await loadSkills({ force: true, preserveExisting: true });
+          if (reloadResult.ok) {
+            showToast(`✅ Skill「${skill.name}」已恢复为 ${targetLabel}`, 'success');
+          }
         } catch (error) {
           if (statusElement.isConnected) {
             statusElement.style.background = '#fef2f2';
@@ -1732,7 +1737,12 @@ async function initSkillListPanel(bodyElement, options = {}) {
       const desc = skill.description || '暂无描述';
       const version = skill.version ? formatVersionLabel(skill.version) : '';
       const author = skill.author || '';
-      const metaParts = [version, author, formatDate(skill.modifiedAt)].filter(Boolean);
+      const metaParts = [
+        version,
+        author,
+        formatDate(skill.modifiedAt),
+        skill.contentUnavailable ? '正文待重试' : '',
+      ].filter(Boolean);
       const meta = metaParts.join(' · ') || '-';
 
       const deleteBtnHtml = options.showDelete
@@ -1888,7 +1898,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
                 showToast(`Skill「${displayName || '未命名'}」已删除`, 'success');
                 skillCache = null;
                 invalidateVersionCaches(apiName);
-                await loadSkills();
+                await loadSkills({ force: true, preserveExisting: true });
               } catch (err) {
                 showToast(`删除失败：${err.message}`, 'error');
                 btn.textContent = '删除';
@@ -1953,99 +1963,84 @@ async function initSkillListPanel(bodyElement, options = {}) {
     `;
   }
 
+  function getFilteredSkills(skills, keyword) {
+    if (!keyword.trim()) {
+      return skills;
+    }
+    const normalizedKeyword = keyword.toLowerCase();
+    return skills.filter(skill =>
+      skill.name.toLowerCase().includes(normalizedKeyword) ||
+      (skill.description && skill.description.toLowerCase().includes(normalizedKeyword))
+    );
+  }
+
   function filterSkills(keyword) {
     expandedSkillKey = null;
-    if (!keyword.trim()) {
-      filteredSkills = allSkills;
-    } else {
-      const k = keyword.toLowerCase();
-      filteredSkills = allSkills.filter(s =>
-        s.name.toLowerCase().includes(k) ||
-        (s.description && s.description.toLowerCase().includes(k))
-      );
-    }
+    filteredSkills = getFilteredSkills(allSkills, keyword);
     renderSkills(filteredSkills);
   }
 
-  async function loadSkills() {
-    if (skillCache) {
+  async function listSkillDirectories(client) {
+    const lsResult = await client.fsLs(SKILL_ROOT_URI, {
+      output: 'agent',
+      absLimit: 128,
+      showAllHidden: false,
+    });
+    console.log('[EchoMem:skill] fsLs result:', lsResult);
+    const entries = Array.isArray(lsResult) ? lsResult : (lsResult?.entries || []);
+    return entries.filter(entry => isDirectory(entry));
+  }
+
+  async function loadSkills(loadOptions = {}) {
+    const force = loadOptions.force === true;
+    const preserveExisting = loadOptions.preserveExisting === true;
+    if (!force && skillCache !== null) {
       allSkills = skillCache;
-      filteredSkills = allSkills;
+      filteredSkills = getFilteredSkills(allSkills, searchInput?.value || '');
       loadingEl.style.display = 'none';
       contentEl.style.display = 'block';
       renderSkills(filteredSkills);
-      return;
+      return { ok: true, cached: true, partialCount: 0 };
     }
 
-    loadingEl.style.display = 'flex';
-    contentEl.style.display = 'none';
+    const requestGeneration = ++loadGeneration;
+    const previousSkills = allSkills;
+    if (!preserveExisting || previousSkills.length === 0) {
+      loadingEl.style.display = 'flex';
+      contentEl.style.display = 'none';
+    }
 
     try {
       const config = await getEchoMemConfig();
       const client = createClient(config);
-
-      const lsResult = await client.fsLs(SKILL_ROOT_URI, {
-        output: 'agent',
-        absLimit: 128,
-        showAllHidden: false,
-      });
-      console.log('[EchoMem:skill] fsLs result:', lsResult);
-
-      let entries = Array.isArray(lsResult) ? lsResult : (lsResult?.entries || []);
-      entries = entries.filter(e => isDirectory(e));
+      let entries = await listSkillDirectories(client);
+      if (force && previousSkills.length > 0 && entries.length === 0) {
+        entries = await listSkillDirectories(client);
+      }
+      if (requestGeneration !== loadGeneration) return { ok: false, stale: true };
       console.log('[EchoMem:skill] filtered entries:', entries);
 
       if (entries.length === 0) {
         allSkills = [];
         skillCache = allSkills;
+        filteredSkills = [];
         loadingEl.style.display = 'none';
         contentEl.style.display = 'block';
         renderSkills([]);
-        return;
+        return { ok: true, partialCount: 0 };
       }
 
-      // Parallel read each skill's SKILL.md
-      const skills = await Promise.all(
-        entries.map(async (entry) => {
-          const dirName = getEntryName(entry);
-          try {
-            const baseUri = entry.uri.replace(/\/$/, '');
-            const skillUri = `${baseUri}/SKILL.md`;
-            console.log('[EchoMem:skill] reading:', skillUri, 'dirName:', dirName);
-            const readResult = await client.fsRead(skillUri);
-            console.log('[EchoMem:skill] readResult type:', typeof readResult, 'preview:', String(readResult).slice(0, 60));
-            const content = typeof readResult === 'string'
-              ? readResult
-              : (readResult?.content || '');
-            const { frontmatter, body } = parseSkillMd(content);
-            console.log('[EchoMem:skill] parsed frontmatter:', JSON.stringify(frontmatter));
-
-            return {
-              name: frontmatter.name || dirName,
-              dirName,
-              description: frontmatter.description || entry.abstract || '',
-              uri: baseUri,
-              rawContent: body.slice(0, 1000),
-              fullContent: content,
-              modifiedAt: getEntryUpdatedAt(entry) || entry.mtime || entry.modifiedAt,
-              version: frontmatter.version,
-              author: frontmatter.author,
-            };
-          } catch (err) {
-            console.warn(`Failed to read skill ${dirName}:`, err);
-            return {
-              name: dirName,
-              dirName,
-              description: '读取失败',
-              uri: entry.uri,
-              error: true,
-            };
-          }
-        })
-      );
+      const skills = await readSkillEntries(entries, uri => client.fsRead(uri), {
+        skillRootUri: SKILL_ROOT_URI,
+        concurrency: 6,
+        onReadError: (error, dirName) => {
+          console.warn(`Failed to read skill ${dirName}:`, error);
+        },
+      });
+      if (requestGeneration !== loadGeneration) return { ok: false, stale: true };
       console.log('[EchoMem:skill] final skills:', skills.map(s => ({ name: s.name, dirName: s.dirName })));
 
-      allSkills = skills.filter(s => !s.error);
+      allSkills = skills;
       // Sort by modified time descending
       allSkills.sort((a, b) => {
         const ta = a.modifiedAt ? new Date(a.modifiedAt).getTime() : 0;
@@ -2054,12 +2049,22 @@ async function initSkillListPanel(bodyElement, options = {}) {
       });
 
       skillCache = allSkills;
-      filteredSkills = allSkills;
+      filteredSkills = getFilteredSkills(allSkills, searchInput?.value || '');
 
       loadingEl.style.display = 'none';
       contentEl.style.display = 'block';
       renderSkills(filteredSkills);
+      const partialCount = allSkills.filter(skill => skill.contentUnavailable).length;
+      if (partialCount > 0) {
+        showToast(`${partialCount} 个 Skill 的正文暂时无法读取，已保留目录条目`, 'info');
+      }
+      return { ok: true, partialCount };
     } catch (err) {
+      if (requestGeneration !== loadGeneration) return { ok: false, stale: true };
+      if (preserveExisting && previousSkills.length > 0) {
+        showToast(`刷新失败，已保留上次列表：${err.message}`, 'error');
+        return { ok: false, preserved: true, error: err };
+      }
       loadingEl.style.display = 'none';
       contentEl.style.display = 'block';
       contentEl.innerHTML = `
@@ -2069,6 +2074,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
           <p class="claw-skill-state-copy">${escapeHtml(err.message)}</p>
         </div>
       `;
+      return { ok: false, error: err };
     }
   }
 
@@ -2086,13 +2092,38 @@ async function initSkillListPanel(bodyElement, options = {}) {
   // Refresh button
   if (refreshBtn) {
     refreshBtn.addEventListener('click', async () => {
-      skillCache = null;
+      if (refreshBtn.disabled) return;
+      refreshBtn.disabled = true;
+      refreshBtn.setAttribute('aria-busy', 'true');
       expandedSkillKey = null;
       invalidateVersionCaches();
-      if (searchInput) searchInput.value = '';
-      await loadSkills();
+      if (searchInput?.value) {
+        searchInput.value = '';
+        filteredSkills = allSkills;
+        renderSkills(filteredSkills);
+      }
+      try {
+        const result = await loadSkills({ force: true, preserveExisting: true });
+        if (result.ok && result.partialCount === 0) {
+          showToast('Skill 列表已刷新', 'success');
+        }
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.removeAttribute('aria-busy');
+      }
     });
   }
 
-  await loadSkills();
+  if (refreshBtn) {
+    refreshBtn.disabled = true;
+    refreshBtn.setAttribute('aria-busy', 'true');
+  }
+  try {
+    await loadSkills();
+  } finally {
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.removeAttribute('aria-busy');
+    }
+  }
 }
