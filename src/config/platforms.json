@@ -7,7 +7,8 @@
       "enabled": true,
       "record": false,
       "detection": {
-        "urlPatterns": ["/home"],
+        "hostnames": ["localhost", "127.0.0.1", "echo-agent.online", "higo.world"],
+        "pathnamePrefixes": ["/home"],
         "titleKeywords": ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
         "domFeatures": {
           "required": [".MuiDrawer-root", ".MuiPaper-root"],

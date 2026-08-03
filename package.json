@@ -8,7 +8,8 @@
     "build:feedback-episode": "esbuild src/entry/feedback-episode.js --bundle --format=iife --target=chrome88 --outfile=dist/feedback-episode.js",
     "build:feedback-summary": "esbuild src/entry/feedback-summary.js --bundle --format=iife --target=chrome88 --outfile=dist/feedback-summary.js",
     "build": "npm run build:content && npm run build:feedback-episode && npm run build:feedback-summary",
-    "check": "npm run build && node --check dist/content.js && node --check dist/feedback-episode.js && node --check dist/feedback-summary.js && node --check background.js && node scripts/validate-extension.js",
+    "test:platform-detection": "node scripts/test-platform-location.mjs",
+    "check": "npm run test:platform-detection && npm run build && node --check dist/content.js && node --check dist/feedback-episode.js && node --check dist/feedback-summary.js && node --check background.js && node scripts/validate-extension.js",
     "package": "npm run build && ./scripts/package-release.sh && node scripts/validate-extension.js release/EchoMem-Extension"
   },
   "devDependencies": {
