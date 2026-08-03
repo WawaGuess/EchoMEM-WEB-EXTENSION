@@ -161,7 +161,10 @@ const SKILL_STORE_STYLES = `
     .claw-skill-dialog-button:focus-visible,
     .claw-skill-btn-detail:focus-visible,
     .claw-skill-btn-delete:focus-visible,
-    .claw-skill-btn-view-full:focus-visible {
+    .claw-skill-btn-view-full:focus-visible,
+    .claw-skill-version-view:focus-visible,
+    .claw-skill-version-rollback:focus-visible,
+    .claw-skill-version-retry:focus-visible {
       outline: 3px solid rgba(103, 80, 164, 0.22);
       outline-offset: 2px;
     }
@@ -525,95 +528,162 @@ const SKILL_STORE_STYLES = `
     .claw-skill-detail-page {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 14px;
       outline: none;
     }
 
-    .claw-skill-detail-hero,
-    .claw-skill-detail-sheet {
+    .claw-skill-detail-hero {
+      position: relative;
+      overflow: hidden;
+      padding: 15px 16px 15px 18px;
       border: 1px solid var(--skill-outline-soft);
-      background: rgba(255, 255, 255, 0.86);
-      box-shadow: 0 1px 2px rgba(29, 27, 32, 0.035);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 4px 14px rgba(29, 27, 32, 0.045);
     }
 
-    .claw-skill-detail-hero {
-      padding: 16px;
-      border-radius: 18px;
-      background: linear-gradient(135deg, #fef7ff 0%, #f3edff 100%);
+    .claw-skill-detail-hero::before {
+      content: "";
+      position: absolute;
+      inset: 12px auto 12px 0;
+      width: 4px;
+      border-radius: 0 4px 4px 0;
+      background: var(--skill-primary);
+    }
+
+    .claw-skill-detail-eyebrow {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--skill-primary);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
     }
 
     .claw-skill-detail-title {
       margin: 0;
-      color: var(--skill-on-primary-container);
-      font-size: 16px;
+      color: var(--skill-text);
+      font-size: 15px;
       font-weight: 600;
-      line-height: 1.45;
+      line-height: 1.4;
       word-break: break-word;
+    }
+
+    .claw-skill-detail-summary {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 7px 9px;
+      margin-top: 8px;
     }
 
     .claw-skill-detail-command {
       display: inline-flex;
-      margin-top: 7px;
-      padding: 4px 9px;
-      border-radius: 999px;
-      background: var(--skill-primary-container);
+      min-width: 0;
+      padding: 3px 8px;
+      overflow: hidden;
+      border-radius: 7px;
+      background: #f1e9ff;
       color: var(--skill-on-primary-container);
       font-family: "SFMono-Regular", Consolas, monospace;
-      font-size: 11px;
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .claw-skill-detail-meta {
-      margin: 8px 0 0;
-      color: var(--skill-text-muted);
-      font-size: 11px;
-      line-height: 1.5;
+      margin: 0;
+      color: var(--skill-outline);
+      font-size: 10px;
+      line-height: 1.4;
     }
 
     .claw-skill-detail-sheet {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .claw-skill-detail-section {
       padding: 14px;
+      border: 1px solid var(--skill-outline-soft);
       border-radius: 16px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 1px 2px rgba(29, 27, 32, 0.03);
+    }
+
+    .claw-skill-detail > .claw-skill-detail-section {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .claw-skill-detail > .claw-skill-detail-section + .claw-skill-detail-section {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--skill-outline-soft);
+    }
+
+    .claw-skill-detail > .claw-skill-detail-resource {
+      margin-top: 12px;
+    }
+
+    .claw-skill-detail-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .claw-skill-detail-section-title {
+      margin: 0;
+      color: var(--skill-text);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.4;
     }
 
     .claw-skill-detail-description,
     .claw-skill-detail-empty,
     .claw-skill-code-preview {
-      padding: 10px 11px;
-      border-radius: 12px;
       font-size: 12px;
       line-height: 1.6;
     }
 
     .claw-skill-detail-description {
-      margin-bottom: 9px;
-      border: 1px solid #d0bcff;
-      background: var(--skill-surface-soft);
+      margin: 0;
       color: var(--skill-text-muted);
     }
 
     .claw-skill-detail-empty {
-      margin-bottom: 9px;
-      border: 1px solid var(--skill-outline-soft);
-      background: var(--skill-surface-strong);
+      padding: 12px;
+      border-radius: 10px;
+      background: #f7f5f8;
       color: var(--skill-outline);
     }
 
     .claw-skill-code-preview {
-      max-height: 200px;
+      max-height: 260px;
+      padding: 12px;
       overflow-y: auto;
       border: 1px solid var(--skill-outline-soft);
-      background: #f7f2fa;
+      border-radius: 12px;
+      background: #f8f7f9;
       color: #363139;
       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
       white-space: pre-wrap;
       word-break: break-word;
     }
 
-    .claw-skill-detail-footer {
+    .claw-skill-detail-resource {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
-      margin-top: 9px;
+      gap: 10px;
+      padding: 3px 2px;
     }
 
     .claw-skill-uri {
@@ -627,13 +697,169 @@ const SKILL_STORE_STYLES = `
     }
 
     .claw-skill-btn-view-full {
-      min-height: 32px;
+      min-height: 28px;
       flex: 0 0 auto;
-      padding: 0 11px;
-      border: 1px solid #d0bcff;
-      background: var(--skill-surface);
+      padding: 0 9px;
+      border: 1px solid var(--skill-outline-soft);
+      background: #ffffff;
       color: var(--skill-primary);
+      font-size: 10px;
+    }
+
+    .claw-skill-version-history {
+      min-height: 42px;
+    }
+
+    .claw-skill-version-state {
+      padding: 12px;
+      border-radius: 10px;
+      background: #f7f5f8;
+      color: var(--skill-outline);
       font-size: 11px;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .claw-skill-version-state-error {
+      border: 1px solid #f1c7c3;
+      background: #fff5f4;
+      color: var(--skill-error);
+      text-align: left;
+    }
+
+    .claw-skill-version-state-error p {
+      margin: 0;
+    }
+
+    .claw-skill-version-retry {
+      margin-top: 8px;
+      padding: 5px 10px;
+      border: 1px solid #e8aaa5;
+      border-radius: 999px;
+      background: #ffffff;
+      color: var(--skill-error);
+      font: inherit;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .claw-skill-version-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .claw-skill-version-item {
+      padding: 10px 11px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 12px;
+      background: #ffffff;
+    }
+
+    .claw-skill-version-item-current {
+      border-color: #d0bcff;
+      background: #fbf8ff;
+      box-shadow: inset 3px 0 0 var(--skill-primary);
+    }
+
+    .claw-skill-version-row,
+    .claw-skill-version-labels,
+    .claw-skill-version-actions {
+      display: flex;
+      align-items: center;
+    }
+
+    .claw-skill-version-row {
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 9px;
+    }
+
+    .claw-skill-version-main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .claw-skill-version-labels {
+      flex-wrap: wrap;
+      gap: 5px 7px;
+    }
+
+    .claw-skill-version-current-badge {
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--skill-primary);
+      color: var(--skill-on-primary);
+      font-size: 9px;
+      font-weight: 600;
+    }
+
+    .claw-skill-version-number {
+      color: var(--skill-text);
+      font-size: 12px;
+    }
+
+    .claw-skill-version-source,
+    .claw-skill-version-date {
+      color: var(--skill-text-muted);
+      font-size: 10px;
+    }
+
+    .claw-skill-version-date {
+      color: var(--skill-outline);
+    }
+
+    .claw-skill-version-details {
+      margin: 5px 0 0;
+      color: var(--skill-outline);
+      font-size: 9px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .claw-skill-version-actions {
+      flex: 0 0 auto;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 5px;
+    }
+
+    .claw-skill-version-view,
+    .claw-skill-version-rollback {
+      min-height: 27px;
+      padding: 0 9px;
+      border: 1px solid var(--skill-outline-soft);
+      border-radius: 999px;
+      background: #ffffff;
+      font: inherit;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .claw-skill-version-view {
+      color: var(--skill-primary);
+    }
+
+    .claw-skill-version-rollback {
+      border-color: #f0c99a;
+      background: #fffaf3;
+      color: #8a4c12;
+    }
+
+    .claw-skill-version-view:hover,
+    .claw-skill-version-rollback:hover {
+      background: var(--skill-primary-container);
+      border-color: #d0bcff;
+    }
+
+    .claw-skill-version-view:disabled,
+    .claw-skill-version-rollback:disabled {
+      border-color: var(--skill-outline-soft);
+      background: #f3f1f4;
+      color: #aaa4ad;
+      cursor: not-allowed;
     }
 
     .claw-skill-dropzone {
@@ -1358,7 +1584,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
   function renderVersionLoading(container) {
     if (!container) return;
     container.innerHTML = `
-      <div style="padding: 12px; text-align: center; color: #6b7280; font-size: 12px; background: #f9fafb; border-radius: 6px;">
+      <div class="claw-skill-version-state">
         正在加载版本历史...
       </div>
     `;
@@ -1369,10 +1595,10 @@ async function initSkillListPanel(bodyElement, options = {}) {
     const kind = classifyVersionError(error);
     const retryable = !['unsupported', 'auth'].includes(kind);
     container.innerHTML = `
-      <div style="padding: 12px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; font-size: 12px; line-height: 1.5;">
-        <p style="margin: 0;">${escapeHtml(getVersionErrorMessage(error))}</p>
+      <div class="claw-skill-version-state claw-skill-version-state-error">
+        <p>${escapeHtml(getVersionErrorMessage(error))}</p>
         ${retryable ? `
-          <button class="claw-skill-version-retry" style="margin-top: 8px; padding: 4px 10px; background: white; color: #b91c1c; border: 1px solid #fecaca; border-radius: 5px; font-size: 11px; cursor: pointer;">重试</button>
+          <button type="button" class="claw-skill-version-retry">重试</button>
         ` : ''}
       </div>
     `;
@@ -1388,7 +1614,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
     if (!container) return;
     if (history.versions.length === 0) {
       container.innerHTML = `
-        <div style="padding: 12px; text-align: center; color: #9ca3af; font-size: 12px; background: #f9fafb; border-radius: 6px;">
+        <div class="claw-skill-version-state">
           暂无版本历史
         </div>
       `;
@@ -1402,27 +1628,24 @@ async function initSkillListPanel(bodyElement, options = {}) {
       if (!item.exists) details.push('内容缺失');
 
       const viewDisabled = item.exists ? '' : 'disabled';
-      const viewStyle = item.exists
-        ? 'background: #eff6ff; color: #2563eb; border-color: #bfdbfe; cursor: pointer;'
-        : 'background: #f3f4f6; color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed;';
       const rollbackButton = !item.current
-        ? `<button class="claw-skill-version-rollback" data-version="${item.version}" ${viewDisabled} style="padding: 4px 9px; border: 1px solid ${item.exists ? '#fed7aa' : '#e5e7eb'}; border-radius: 5px; font-size: 11px; ${item.exists ? 'background: #fff7ed; color: #c2410c; cursor: pointer;' : 'background: #f3f4f6; color: #9ca3af; cursor: not-allowed;'}">恢复为此版本</button>`
+        ? `<button type="button" class="claw-skill-version-rollback" data-version="${item.version}" ${viewDisabled}>恢复</button>`
         : '';
 
       return `
-        <div style="padding: 10px; border: 1px solid ${item.current ? '#a5b4fc' : '#e5e7eb'}; background: ${item.current ? '#f5f3ff' : '#fff'}; border-radius: 7px;">
-          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
-            <div style="min-width: 0; flex: 1;">
-              <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px;">
-                ${item.current ? '<span style="padding: 2px 6px; border-radius: 999px; background: #667eea; color: white; font-size: 10px;">当前</span>' : ''}
-                <strong style="font-size: 12px; color: #111827;">${escapeHtml(formatVersionLabel(item.version))}</strong>
-                <span style="font-size: 11px; color: #6b7280;">${escapeHtml(getVersionSourceLabel(item.source))}</span>
-                <span style="font-size: 11px; color: #9ca3af;">${escapeHtml(formatVersionDate(item.createdAt))}</span>
+        <div class="claw-skill-version-item${item.current ? ' claw-skill-version-item-current' : ''}">
+          <div class="claw-skill-version-row">
+            <div class="claw-skill-version-main">
+              <div class="claw-skill-version-labels">
+                ${item.current ? '<span class="claw-skill-version-current-badge">当前</span>' : ''}
+                <strong class="claw-skill-version-number">${escapeHtml(formatVersionLabel(item.version))}</strong>
+                <span class="claw-skill-version-source">${escapeHtml(getVersionSourceLabel(item.source))}</span>
+                <span class="claw-skill-version-date">${escapeHtml(formatVersionDate(item.createdAt))}</span>
               </div>
-              ${details.length ? `<p style="margin: 5px 0 0; color: #9ca3af; font-size: 10px; line-height: 1.4; word-break: break-all;">${details.map(escapeHtml).join(' · ')}</p>` : ''}
+              ${details.length ? `<p class="claw-skill-version-details">${details.map(escapeHtml).join(' · ')}</p>` : ''}
             </div>
-            <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px;">
-              <button class="claw-skill-version-view" data-version="${item.version}" ${viewDisabled} style="padding: 4px 9px; border: 1px solid; border-radius: 5px; font-size: 11px; ${viewStyle}">查看内容</button>
+            <div class="claw-skill-version-actions">
+              <button type="button" class="claw-skill-version-view" data-version="${item.version}" ${viewDisabled}>查看</button>
               ${rollbackButton}
             </div>
           </div>
@@ -1430,7 +1653,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
       `;
     }).join('');
 
-    container.innerHTML = `<div style="display: flex; flex-direction: column; gap: 7px;">${rows}</div>`;
+    container.innerHTML = `<div class="claw-skill-version-list">${rows}</div>`;
 
     container.querySelectorAll('.claw-skill-version-view').forEach(button => {
       button.addEventListener('click', (event) => {
@@ -1708,9 +1931,12 @@ async function initSkillListPanel(bodyElement, options = {}) {
 
     detailPage.innerHTML = `
       <section class="claw-skill-detail-hero">
+        <span class="claw-skill-detail-eyebrow">SKILL</span>
         <p class="claw-skill-detail-title">${escapeHtml(skill.name || skillKey)}</p>
-        <code class="claw-skill-detail-command">/${escapeHtml(skillKey)}</code>
-        <p class="claw-skill-detail-meta">${escapeHtml(meta || '暂无版本信息')}</p>
+        <div class="claw-skill-detail-summary">
+          <code class="claw-skill-detail-command">/${escapeHtml(skillKey)}</code>
+          <p class="claw-skill-detail-meta">${escapeHtml(meta || '暂无版本信息')}</p>
+        </div>
       </section>
       <section class="claw-skill-detail-sheet">
         ${renderDetail(skill, index)}
@@ -1721,7 +1947,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
     detailPage.style.display = 'flex';
     isDetailPageOpen = true;
     expandedSkillKey = skillKey;
-    if (panelTitle) panelTitle.textContent = skill.name || 'Skill 详情';
+    if (panelTitle) panelTitle.textContent = 'Skill 详情';
     if (panelBody) panelBody.scrollTop = 0;
     detailPage.focus({ preventScroll: true });
 
@@ -1954,7 +2180,7 @@ async function initSkillListPanel(bodyElement, options = {}) {
 
   function renderDetail(skill, index) {
     const descHtml = skill.description
-      ? `<div class="claw-skill-detail-description">${escapeHtml(skill.description)}</div>`
+      ? `<p class="claw-skill-detail-description">${escapeHtml(skill.description)}</p>`
       : `<div class="claw-skill-detail-empty">暂无描述</div>`;
 
     const previewText = skill.rawContent || skill.fullContent || '';
@@ -1964,25 +2190,38 @@ async function initSkillListPanel(bodyElement, options = {}) {
 
     const versionHistoryHtml = options.showVersionHistory
       ? `
-        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
-          <p style="font-size: 12px; color: #374151; font-weight: 600; margin: 0 0 8px;">版本历史</p>
-          <div class="claw-skill-version-history" data-index="${index}">
-            <div style="padding: 10px; color: #9ca3af; font-size: 12px; background: #f9fafb; border-radius: 6px;">打开详情后加载版本历史</div>
+        <section class="claw-skill-detail-section">
+          <div class="claw-skill-detail-section-head">
+            <p class="claw-skill-detail-section-title">版本历史</p>
           </div>
-        </div>
+          <div class="claw-skill-version-history" data-index="${index}">
+            <div class="claw-skill-version-state">打开详情后加载版本历史</div>
+          </div>
+        </section>
       `
       : '';
 
     return `
-      ${descHtml}
-      ${bodyPreview}
+      <section class="claw-skill-detail-section">
+        <div class="claw-skill-detail-section-head">
+          <p class="claw-skill-detail-section-title">简介</p>
+        </div>
+        ${descHtml}
+      </section>
+      <section class="claw-skill-detail-section">
+        <div class="claw-skill-detail-section-head">
+          <p class="claw-skill-detail-section-title">当前内容</p>
+          <button type="button" class="claw-skill-btn-view-full" data-index="${index}">
+            ${getSkillIcon('file', 12)}
+            完整内容
+          </button>
+        </div>
+        ${bodyPreview}
+      </section>
       ${versionHistoryHtml}
-      <div class="claw-skill-detail-footer">
-        <span class="claw-skill-uri">${escapeHtml(skill.uri)}</span>
-        <button type="button" class="claw-skill-btn-view-full" data-index="${index}">
-          ${getSkillIcon('file', 13)}
-          查看完整内容
-        </button>
+      <div class="claw-skill-detail-resource">
+        <span class="claw-skill-detail-section-title">资源路径</span>
+        <code class="claw-skill-uri" title="${escapeHtml(skill.uri)}">${escapeHtml(skill.uri)}</code>
       </div>
     `;
   }
