@@ -29,7 +29,7 @@ export function createDetailPanel(container) {
     padding:18px 22px; overflow-y:auto;
     background:rgba(2,8,20,0.9); backdrop-filter:blur(20px);
     border:1px solid rgba(0,230,255,0.18); border-radius:8px;
-    color:#cceeff; font-family:"JetBrains Mono","PingFang SC","Microsoft YaHei",monospace;
+    color:#cceeff; font-family:Roboto,"Noto Sans SC",sans-serif;
     z-index:12; transform:translateX(calc(100% + 32px));
     transition:transform 0.4s cubic-bezier(0.16,1,0.3,1);
   `;

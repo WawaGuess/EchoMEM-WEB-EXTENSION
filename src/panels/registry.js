@@ -20,8 +20,8 @@ export const panelRegistry = {
   },
   feedback: {
     id: 'feedback',
-    title: '认知图谱',
-    description: '查看记忆实体与关系图谱',
+    title: '认知反馈',
+    description: '查看记忆关系、情节脉络与周期总结',
     render: getFeedbackContent
   },
   skillStore: {

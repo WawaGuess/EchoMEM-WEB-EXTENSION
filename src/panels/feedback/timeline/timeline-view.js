@@ -41,12 +41,16 @@ export function renderTimeline(container, model) {
   }
 
   const root = node('div', 'em-episode-view');
-  const compact = window.matchMedia?.('(max-width: 820px)').matches;
   const state = {
     episodes,
-    activeId: episodes[0].id,
-    detailOpen: !compact,
+    activeId: '',
+    detailOpen: false,
+    detailPage: 'overview',
+    detailDirection: 'forward',
+    detailScroll: { overview: 0, story: 0, evidence: 0 },
     selectedEventDate: '',
+    selectedEventId: '',
+    expandedEventDates: new Set(),
     handlers: {},
   };
 
@@ -54,7 +58,7 @@ export function renderTimeline(container, model) {
   const main = node('section', 'em-timeline-main');
   const detail = node('aside', 'em-episode-detail-panel');
   detail.setAttribute('aria-live', 'polite');
-  detail.setAttribute('aria-label', 'Episode 详情');
+  detail.setAttribute('aria-label', '情节详情');
   shell.append(main, detail);
   root.appendChild(shell);
   container.appendChild(root);
@@ -70,6 +74,11 @@ export function renderTimeline(container, model) {
     if (action === 'select-episode' && episode) {
       state.activeId = episode.id;
       state.selectedEventDate = '';
+      state.selectedEventId = '';
+      state.expandedEventDates = new Set();
+      state.detailPage = 'overview';
+      state.detailDirection = 'forward';
+      state.detailScroll = { overview: 0, story: 0, evidence: 0 };
       state.detailOpen = true;
       syncSelection();
       renderDetail(detail, episode, state);
@@ -77,13 +86,22 @@ export function renderTimeline(container, model) {
     }
 
     if (action === 'select-event' && episode) {
+      const expandedDates = state.activeId === episode.id
+        ? new Set(state.expandedEventDates)
+        : new Set();
       state.activeId = episode.id;
       state.selectedEventDate = trigger.dataset.eventDate || '';
+      state.selectedEventId = '';
+      if (state.selectedEventDate) expandedDates.add(state.selectedEventDate);
+      state.expandedEventDates = expandedDates;
+      state.detailPage = 'story';
+      state.detailDirection = 'forward';
+      state.detailScroll = { overview: 0, story: 0, evidence: 0 };
       state.detailOpen = true;
       syncSelection();
       renderDetail(detail, episode, state);
       requestAnimationFrame(() => {
-        detail.querySelector('.em-detail-event.is-selected')?.scrollIntoView({
+        detail.querySelector('.em-detail-date-group.is-selected')?.scrollIntoView({
           block: 'nearest',
           behavior: 'smooth',
         });
@@ -91,9 +109,75 @@ export function renderTimeline(container, model) {
       return;
     }
 
+    if (action === 'open-story' && episode) {
+      rememberDetailScroll(detail, state);
+      state.detailPage = 'story';
+      state.detailDirection = 'forward';
+      state.selectedEventId = '';
+      if (!state.expandedEventDates.size) {
+        groupEventsByDate(episode.events).forEach((group) => {
+          state.expandedEventDates.add(group.dateKey);
+        });
+      }
+      renderDetail(detail, episode, state);
+      focusDetailPage(detail);
+      return;
+    }
+
+    if (action === 'open-evidence' && episode) {
+      rememberDetailScroll(detail, state);
+      state.detailPage = 'evidence';
+      state.detailDirection = 'forward';
+      state.selectedEventId = '';
+      renderDetail(detail, episode, state);
+      focusDetailPage(detail);
+      return;
+    }
+
+    if (action === 'toggle-event-date' && episode) {
+      const dateKey = trigger.dataset.eventDate || '';
+      const expandedDates = new Set(state.expandedEventDates);
+      if (expandedDates.has(dateKey)) expandedDates.delete(dateKey);
+      else if (dateKey) expandedDates.add(dateKey);
+      state.expandedEventDates = expandedDates;
+      state.detailDirection = 'stay';
+      renderDetail(detail, episode, state);
+      requestAnimationFrame(() => {
+        [...detail.querySelectorAll('[data-event-group]')]
+          .find((item) => item.dataset.eventGroup === dateKey)
+          ?.focus();
+      });
+      return;
+    }
+
+    if (action === 'open-event' && episode) {
+      rememberDetailScroll(detail, state);
+      state.selectedEventId = trigger.dataset.eventId || '';
+      state.selectedEventDate = trigger.dataset.eventDate || '';
+      state.detailPage = 'event';
+      state.detailDirection = 'forward';
+      renderDetail(detail, episode, state);
+      focusDetailPage(detail);
+      return;
+    }
+
+    if (action === 'back-detail' && episode) {
+      const previousPage = state.detailPage === 'event' ? 'story' : 'overview';
+      state.detailPage = previousPage;
+      state.detailDirection = 'back';
+      state.selectedEventId = '';
+      renderDetail(detail, episode, state);
+      restoreDetailScroll(detail, state, previousPage);
+      focusDetailPage(detail);
+      return;
+    }
+
     if (action === 'close-detail') {
       state.detailOpen = false;
+      state.activeId = '';
       state.selectedEventDate = '';
+      state.selectedEventId = '';
+      state.expandedEventDates = new Set();
       syncSelection();
       return;
     }
@@ -105,7 +189,6 @@ export function renderTimeline(container, model) {
   container._timelineState = state;
 
   renderTimelineMain(main, episodes, state);
-  renderDetail(detail, episodes[0], state);
   syncSelection();
 
   function syncSelection() {
@@ -125,24 +208,26 @@ export function renderTimeline(container, model) {
 
 function renderTimelineMain(container, episodes, state) {
   const range = collectionRange(episodes);
-  const ticks = buildTicks(range.min, range.max, 6);
+  const boundaryDates = episodes.flatMap((episode) => [episode.startTime, episode.endTime]);
+  const ticks = buildTicks(range.min, range.max, 8, boundaryDates);
 
   const toolbar = node('header', 'em-timeline-toolbar');
   const heading = document.createElement('div');
   const eyebrow = node('div', 'em-kicker');
-  eyebrow.textContent = 'Episode timeline';
+  eyebrow.textContent = '情节时间线';
   const titleLine = node('div', 'em-timeline-title-line');
   const title = document.createElement('h1');
-  title.textContent = '按 Episode 查看记忆';
+  title.textContent = '按情节查看记忆';
   titleLine.append(title, pill(`${episodes.length} 段故事`));
   const subtitle = document.createElement('p');
-  subtitle.textContent = `${formatRangeFromEpisodes(episodes)} · 横条表示故事跨度，节点表示关键事件`;
+  subtitle.textContent = `${formatRangeFromEpisodes(episodes)} · 横条表示故事跨度，短胶囊表示单日情节，节点表示关键事件`;
   heading.append(eyebrow, titleLine, subtitle);
 
   const legend = node('div', 'em-timeline-legend');
   legend.append(
+    legendItem('em-legend-single-day', '单日情节'),
     legendItem('em-legend-node', '单个事件'),
-    legendItem('em-legend-cluster', '同日事件簇'),
+    legendItem('em-legend-cluster', '同日事件簇', '2'),
     legendItem('em-legend-decision', '决策')
   );
   toolbar.append(heading, legend);
@@ -166,7 +251,7 @@ function renderTimelineMain(container, episodes, state) {
 
   const footnote = node('footer', 'em-timeline-footnote');
   footnote.append(
-    textNode('span', '时间仅来自事件发生时间；日期型数据不补造具体时刻。'),
+    textNode('span', '时间轴按自然日对齐；同日多个事件显示为紫色数字节点，含决策时外圈变黄。'),
     textNode('span', '点击故事或节点查看右侧详情。')
   );
 
@@ -197,34 +282,48 @@ function buildEpisodeRow(episode, range, ticks) {
     track.appendChild(line);
   });
 
-  const start = episode.startTime ?? episode.endTime ?? range.min;
-  const end = episode.endTime ?? episode.startTime ?? start;
-  const left = toPercent(start, range.min, range.max);
-  const right = toPercent(end, range.min, range.max);
-  const width = Math.max(2.2, right - left);
+  const rawStart = episode.startTime ?? episode.lastActiveAt ?? episode.endTime ?? range.min;
+  const rawEnd = episode.endTime ?? episode.lastActiveAt ?? episode.startTime ?? rawStart;
+  const start = toTimelineDay(rawStart) ?? range.min;
+  const end = toTimelineDay(rawEnd) ?? start;
+  const spanStart = Math.min(start, end);
+  const spanEnd = Math.max(start, end);
+  const left = toPercent(spanStart, range.min, range.max);
+  const right = toPercent(spanEnd, range.min, range.max);
+  const isPoint = spanStart === spanEnd;
 
   const span = document.createElement('button');
   span.type = 'button';
   span.className = `em-episode-span is-${episode.arcStage || 'ongoing'}`;
+  span.classList.toggle('is-point', isPoint);
   span.dataset.emAction = 'select-episode';
   span.dataset.episodeId = episode.id;
-  span.setAttribute('aria-label', `查看 Episode：${episode.title}`);
-  span.style.left = `${Math.min(left, 100 - width)}%`;
-  span.style.width = `${Math.min(width, 100)}%`;
+  span.setAttribute('aria-label', `查看情节：${episode.title}`);
+  span.style.left = `${left}%`;
+  if (isPoint) {
+    span.style.setProperty('--em-span-shift', '-50%');
+  } else {
+    span.style.width = `${Math.max(0, right - left)}%`;
+  }
   track.appendChild(span);
 
   const clusters = groupEventsByDate(episode.events);
   clusters.forEach((cluster) => {
     const eventTime = cluster.time ?? start;
+    const isCluster = cluster.events.length > 1;
+    const hasDecision = cluster.events.some((item) => item.type === 'decision');
     const mark = document.createElement('button');
     mark.type = 'button';
-    mark.className = `em-timeline-event-mark ${cluster.events.length > 1 ? 'is-cluster' : ''}`;
-    if (cluster.events.some((item) => item.type === 'decision')) mark.classList.add('has-decision');
+    mark.className = `em-timeline-event-mark ${isCluster ? 'is-cluster' : ''}`;
+    if (!isCluster && hasDecision) mark.classList.add('is-decision');
+    if (isCluster && hasDecision) mark.classList.add('contains-decision');
     mark.dataset.emAction = 'select-event';
     mark.dataset.episodeId = episode.id;
-    mark.dataset.eventDate = cluster.rawTime;
+    mark.dataset.eventDate = cluster.dateKey;
     mark.style.left = `${toPercent(eventTime, range.min, range.max)}%`;
-    mark.textContent = cluster.events.length > 1 ? String(cluster.events.length) : '';
+    if (isCluster) {
+      mark.appendChild(textNode('span', String(cluster.events.length), 'em-timeline-event-count'));
+    }
     mark.setAttribute(
       'aria-label',
       `${formatEventDate(cluster)}，${cluster.events.length} 个关键事件：${cluster.events.map((item) => item.description).join('；')}`
@@ -243,72 +342,122 @@ function buildEpisodeRow(episode, range, ticks) {
 }
 
 function renderDetail(container, episode, state) {
-  container.innerHTML = '';
+  const page = node('div', `em-detail-page is-${state.detailDirection || 'forward'}`);
+  page.dataset.detailPage = state.detailPage;
 
-  const top = node('div', 'em-detail-panel-top');
-  const overline = node('div', 'em-detail-overline');
-  overline.append(
-    pill(STATUS_LABEL[episode.status] || episode.status, 'em-status-pill'),
-    textNode('span', formatEpisodeDateRange(episode))
-  );
-  const close = iconButton('×', 'close-detail', '收起详情');
-  top.append(overline, close);
+  if (state.detailPage === 'story') renderStoryPage(page, episode, state);
+  else if (state.detailPage === 'evidence') renderEvidencePage(page, episode);
+  else if (state.detailPage === 'event') renderEventPage(page, episode, state);
+  else renderOverviewPage(page, episode);
 
-  const title = document.createElement('h2');
-  title.textContent = episode.title;
-  const stage = node('div', 'em-detail-stage-line');
-  stage.append(
-    detailDatum('生命周期', STATUS_LABEL[episode.status] || episode.status),
-    detailDatum('叙事阶段', ARC_LABEL[episode.arcStage] || episode.arcStage || '未记录')
-  );
-
-  const summarySection = node('section', 'em-detail-section');
-  summarySection.append(
-    sectionTitle('故事摘要'),
-    textNode('p', episode.summary || '这段记忆尚未生成摘要。', 'em-detail-summary')
-  );
-
-  const stats = node('dl', 'em-detail-stats');
-  stats.append(
-    stat('原子证据', `${(episode.atomRefs || []).length} 条`),
-    stat('关键事件', `${episode.events.length} 个`),
-    stat('显著度', formatScore(episode.salience)),
-    stat('生成置信', formatOptionalScore(episode.confidence))
-  );
-
-  const tags = visibleTags(episode);
-  const tagSection = node('section', 'em-detail-section');
-  tagSection.appendChild(sectionTitle('关联对象与主题'));
-  const tagList = node('div', 'em-card-tags');
-  if (tags.length) tags.forEach((item) => tagList.appendChild(pill(item)));
-  else tagList.appendChild(textNode('span', '暂无有效标签', 'em-source-note'));
-  tagSection.appendChild(tagList);
-
-  const eventSection = node('section', 'em-detail-section em-detail-events-section');
-  eventSection.appendChild(sectionTitle('关键事件链'));
-  const chain = node('ol', 'em-detail-event-chain');
-  if (episode.events.length) {
-    episode.events.forEach((event) => chain.appendChild(buildDetailEvent(event, state.selectedEventDate)));
-  } else {
-    chain.appendChild(textNode('li', '该情节暂未提取出关键事件。', 'em-source-note'));
-  }
-  eventSection.appendChild(chain);
-
-  const memoryMeta = node('div', 'em-detail-memory-meta');
-  memoryMeta.append(
-    textNode('span', RETENTION_LABEL[episode.retentionTier] || '长期记忆'),
-    textNode('span', `${episode.turnCount} 轮相关对话`)
-  );
-
-  container.append(top, title, stage, summarySection, stats, tagSection, eventSection, memoryMeta);
+  container.dataset.detailPage = state.detailPage;
+  container.replaceChildren(page);
 }
 
-function buildDetailEvent(event, selectedDate) {
+function renderOverviewPage(page, episode) {
+  page.appendChild(buildDetailHeader(episode));
+  page.appendChild(detailHeading(episode.title));
+
+  const summarySection = node('section', 'em-detail-section em-detail-summary-card');
+  summarySection.append(
+    sectionTitle('这段经历'),
+    textNode('p', episode.summary || '这段记忆尚未生成摘要。', 'em-detail-summary')
+  );
+  page.appendChild(summarySection);
+
+  const tags = visibleTags(episode);
+  if (tags.length) {
+    const tagSection = node('section', 'em-detail-section em-detail-tags-section');
+    tagSection.appendChild(sectionTitle('相关人物与主题'));
+    const tagList = node('div', 'em-card-tags');
+    tags.forEach((item) => tagList.appendChild(pill(item)));
+    tagSection.appendChild(tagList);
+    page.appendChild(tagSection);
+  }
+
+  const routes = node('div', 'em-detail-routes');
+  routes.append(
+    detailRouteButton(
+      'open-story',
+      '事情如何发展',
+      `${episode.events.length} 个关键事件`,
+      '按日期查看这段经历的推进过程'
+    ),
+    detailRouteButton(
+      'open-evidence',
+      '记忆依据与系统判断',
+      `${(episode.atomRefs || []).length} 条原子证据`,
+      '了解这段情节由哪些记忆信息支撑'
+    )
+  );
+  page.appendChild(routes);
+}
+
+function renderStoryPage(page, episode, state) {
+  page.appendChild(buildDetailHeader(episode, '返回概览'));
+  page.append(
+    textNode('div', formatEpisodeDateRange(episode), 'em-detail-page-kicker'),
+    detailHeading('事情如何发展'),
+    textNode('p', episode.title, 'em-detail-context-title')
+  );
+
+  const groups = groupEventsByDate(episode.events);
+  const groupList = node('div', 'em-detail-date-groups');
+  if (!groups.length) {
+    groupList.appendChild(textNode('p', '该情节暂未提取出关键事件。', 'em-source-note'));
+  } else {
+    groups.forEach((group) => {
+      groupList.appendChild(buildEventDateGroup(group, episode, state));
+    });
+  }
+  page.appendChild(groupList);
+}
+
+function buildEventDateGroup(group, episode, state) {
+  const expanded = state.expandedEventDates.has(group.dateKey);
+  const selected = Boolean(state.selectedEventDate && state.selectedEventDate === group.dateKey);
+  const section = node('section', 'em-detail-date-group');
+  section.classList.toggle('is-expanded', expanded);
+  section.classList.toggle('is-selected', selected);
+  section.dataset.eventDate = group.dateKey;
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'em-detail-date-toggle';
+  toggle.dataset.emAction = 'toggle-event-date';
+  toggle.dataset.episodeId = episode.id;
+  toggle.dataset.eventDate = group.dateKey;
+  toggle.dataset.eventGroup = group.dateKey;
+  toggle.setAttribute('aria-expanded', String(expanded));
+  toggle.append(
+    textNode('span', formatEventDate(group), 'em-detail-date-label'),
+    textNode('span', `${group.events.length} 个事件`, 'em-detail-date-count'),
+    textNode('span', '›', 'em-detail-route-arrow')
+  );
+  section.appendChild(toggle);
+
+  if (expanded) {
+    const list = node('ol', 'em-detail-event-chain');
+    group.events.forEach((event) => list.appendChild(buildStoryEvent(event, episode)));
+    section.appendChild(list);
+  }
+  return section;
+}
+
+function buildStoryEvent(event, episode) {
   const meta = EVENT_TYPE_META[event.type] || EVENT_TYPE_META.observation;
   const item = node('li', 'em-detail-event');
-  item.dataset.eventDate = event.rawTime || '';
-  item.classList.toggle('is-selected', Boolean(selectedDate && event.rawTime === selectedDate));
-  item.style.setProperty('--event-color', meta.color);
+  const dateKey = eventDateKey(event);
+  item.dataset.eventDate = dateKey;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'em-detail-event-button';
+  button.dataset.emAction = 'open-event';
+  button.dataset.episodeId = episode.id;
+  button.dataset.eventId = event.id;
+  button.dataset.eventDate = dateKey;
+  button.style.setProperty('--event-color', meta.color);
 
   const marker = node('span', `em-detail-event-node is-${event.type}`);
   const body = document.createElement('div');
@@ -319,18 +468,198 @@ function buildDetailEvent(event, selectedDate) {
   );
   const copy = textNode('p', event.description, 'em-detail-event-copy');
   body.append(eventMeta, copy);
-  item.append(marker, body);
+  button.append(marker, body, textNode('span', '›', 'em-detail-event-arrow'));
+  item.appendChild(button);
   return item;
+}
+
+function renderEventPage(page, episode, state) {
+  const event = episode.events.find((item) => item.id === state.selectedEventId);
+  if (!event) {
+    state.detailPage = 'story';
+    state.detailDirection = 'back';
+    page.dataset.detailPage = 'story';
+    renderStoryPage(page, episode, state);
+    return;
+  }
+  const meta = EVENT_TYPE_META[event.type] || EVENT_TYPE_META.observation;
+  page.appendChild(buildDetailHeader(episode, '返回事情经过'));
+
+  const context = node('div', 'em-detail-event-context');
+  context.style.setProperty('--event-color', meta.color);
+  context.append(
+    textNode('span', meta.label, 'em-detail-event-type'),
+    textNode('time', formatEventDate(event))
+  );
+  page.append(
+    context,
+    detailHeading(event.description),
+    detailInfoCard('所属情节', episode.title)
+  );
+
+  const facts = node('dl', 'em-detail-fact-list');
+  facts.append(
+    detailFact('事件类型', meta.label),
+    detailFact('发生时间', formatEventDate(event)),
+    detailFact('生成置信', formatOptionalScore(event.confidence))
+  );
+  if (event.sourceTurnId) facts.appendChild(detailFact('来源轮次', event.sourceTurnId));
+  page.appendChild(facts);
+}
+
+function renderEvidencePage(page, episode) {
+  page.appendChild(buildDetailHeader(episode, '返回概览'));
+  page.append(
+    textNode('div', '记忆解释', 'em-detail-page-kicker'),
+    detailHeading('记忆依据与系统判断'),
+    textNode('p', '这些信息说明 EchoMem 为什么把相关记忆组织成这一段情节。', 'em-detail-page-intro')
+  );
+
+  const measures = node('dl', 'em-detail-evidence-summary');
+  measures.append(
+    detailMeasure('原子证据', `${(episode.atomRefs || []).length} 条`),
+    detailMeasure('关键事件', `${episode.events.length} 个`)
+  );
+  page.appendChild(measures);
+
+  const factsSection = node('section', 'em-detail-section');
+  factsSection.appendChild(sectionTitle('系统判断'));
+  const facts = node('dl', 'em-detail-fact-list');
+  facts.append(
+    detailFact('生命周期', STATUS_LABEL[episode.status] || episode.status || '未记录'),
+    detailFact('叙事阶段', ARC_LABEL[episode.arcStage] || episode.arcStage || '未记录'),
+    detailFact('记忆状态', RETENTION_LABEL[episode.retentionTier] || '长期记忆'),
+    detailFact('相关对话', `${episode.turnCount} 轮`),
+    detailFact('显著度', formatScore(episode.salience)),
+    detailFact('生成置信', formatOptionalScore(episode.confidence))
+  );
+  factsSection.appendChild(facts);
+  page.appendChild(factsSection);
+
+  const tags = visibleTags(episode);
+  if (tags.length) {
+    const tagSection = node('section', 'em-detail-section');
+    tagSection.appendChild(sectionTitle('关联对象与主题'));
+    const tagList = node('div', 'em-card-tags');
+    tags.forEach((item) => tagList.appendChild(pill(item)));
+    tagSection.appendChild(tagList);
+    page.appendChild(tagSection);
+  }
+
+  if (episode.segments?.length) {
+    const segmentSection = node('section', 'em-detail-section');
+    segmentSection.appendChild(sectionTitle('覆盖的会话片段'));
+    const segments = node('div', 'em-detail-source-list');
+    episode.segments.forEach((segment) => {
+      segments.appendChild(detailInfoCard(
+        segment.sessionId || '未记录会话',
+        `消息 ${segment.startMsgIdx}—${segment.endMsgIdx}`
+      ));
+    });
+    segmentSection.appendChild(segments);
+    page.appendChild(segmentSection);
+  }
+
+  const sourcedEvents = episode.events.filter((event) => event.sourceTurnId);
+  if (sourcedEvents.length) {
+    const sourceSection = node('section', 'em-detail-section');
+    sourceSection.appendChild(sectionTitle('可追溯事件来源'));
+    const sources = node('div', 'em-detail-source-list');
+    sourcedEvents.forEach((event) => {
+      sources.appendChild(detailInfoCard(event.description, event.sourceTurnId));
+    });
+    sourceSection.appendChild(sources);
+    page.appendChild(sourceSection);
+  }
+}
+
+function buildDetailHeader(episode, backLabel = '') {
+  const top = node('div', 'em-detail-panel-top');
+  if (backLabel) {
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'em-detail-back';
+    back.dataset.emAction = 'back-detail';
+    back.dataset.episodeId = episode.id;
+    back.append(
+      textNode('span', '‹', 'em-detail-back-arrow'),
+      textNode('span', backLabel)
+    );
+    top.appendChild(back);
+  } else {
+    const overline = node('div', 'em-detail-overline');
+    overline.append(
+      pill(STATUS_LABEL[episode.status] || episode.status, 'em-status-pill'),
+      textNode('span', formatEpisodeDateRange(episode))
+    );
+    top.appendChild(overline);
+  }
+  top.appendChild(iconButton('×', 'close-detail', '收起详情'));
+  return top;
+}
+
+function detailHeading(text) {
+  const heading = textNode('h2', text, 'em-detail-page-title');
+  heading.tabIndex = -1;
+  return heading;
+}
+
+function detailRouteButton(action, title, meta, copy) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'em-detail-route';
+  button.dataset.emAction = action;
+  const body = node('span', 'em-detail-route-body');
+  body.append(
+    textNode('strong', title),
+    textNode('span', copy, 'em-detail-route-copy')
+  );
+  button.append(
+    body,
+    textNode('span', meta, 'em-detail-route-meta'),
+    textNode('span', '›', 'em-detail-route-arrow')
+  );
+  return button;
+}
+
+function detailMeasure(label, value) {
+  const item = node('div', 'em-detail-measure');
+  item.append(
+    textNode('dt', label),
+    textNode('dd', value)
+  );
+  return item;
+}
+
+function detailFact(label, value) {
+  const item = node('div', 'em-detail-fact');
+  item.append(
+    textNode('dt', label),
+    textNode('dd', value)
+  );
+  return item;
+}
+
+function detailInfoCard(title, copy) {
+  const card = node('div', 'em-detail-info-card');
+  card.append(
+    textNode('strong', title),
+    textNode('span', copy)
+  );
+  return card;
 }
 
 function groupEventsByDate(events) {
   const groups = new Map();
   events.forEach((event, index) => {
-    const key = event.rawTime || (event.time != null ? String(event.time) : `unknown-${index}`);
+    const day = toTimelineDay(event.time);
+    const dateKey = day != null ? String(day) : (event.rawTime || `unknown-${index}`);
+    const key = dateKey;
     if (!groups.has(key)) {
       groups.set(key, {
+        dateKey,
         rawTime: event.rawTime || '',
-        time: event.time,
+        time: day,
         events: [],
       });
     }
@@ -339,13 +668,35 @@ function groupEventsByDate(events) {
   return [...groups.values()];
 }
 
+function rememberDetailScroll(detail, state) {
+  const page = detail.querySelector('.em-detail-page');
+  if (page && state.detailPage in state.detailScroll) {
+    state.detailScroll[state.detailPage] = page.scrollTop;
+  }
+}
+
+function restoreDetailScroll(detail, state, pageName) {
+  requestAnimationFrame(() => {
+    const page = detail.querySelector('.em-detail-page');
+    if (page) page.scrollTop = state.detailScroll[pageName] || 0;
+  });
+}
+
+function focusDetailPage(detail) {
+  requestAnimationFrame(() => {
+    detail.querySelector('.em-detail-page-title')?.focus({ preventScroll: true });
+  });
+}
+
 function collectionRange(episodes) {
   const values = episodes
     .flatMap((episode) => [
       episode.startTime,
       episode.endTime,
+      episode.lastActiveAt,
       ...episode.events.map((event) => event.time),
     ])
+    .map(toTimelineDay)
     .filter((value) => value != null);
 
   if (!values.length) {
@@ -358,10 +709,33 @@ function collectionRange(episodes) {
   return { min, max: rawMax === min ? min + DAY_MS : rawMax };
 }
 
-function buildTicks(min, max, count) {
+function buildTicks(min, max, count, boundaryDates = []) {
+  const meaningfulDays = [...new Set([
+    min,
+    ...boundaryDates.map(toTimelineDay).filter((value) => value != null),
+    max,
+  ])].sort((a, b) => a - b);
   const safeCount = Math.max(2, count);
-  const step = (max - min) / (safeCount - 1);
-  return Array.from({ length: safeCount }, (_, index) => min + step * index);
+  if (meaningfulDays.length <= safeCount) return meaningfulDays;
+
+  const lastIndex = meaningfulDays.length - 1;
+  const indexes = Array.from(
+    { length: safeCount },
+    (_, index) => Math.round((index * lastIndex) / (safeCount - 1))
+  );
+  return [...new Set(indexes)].map((index) => meaningfulDays[index]);
+}
+
+function toTimelineDay(value) {
+  if (value == null) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function eventDateKey(event) {
+  const day = toTimelineDay(event?.time);
+  return day != null ? String(day) : String(event?.rawTime || '');
 }
 
 function toPercent(value, min, max) {
@@ -370,7 +744,11 @@ function toPercent(value, min, max) {
 }
 
 function formatAxisDate(value) {
-  return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' })
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'UTC',
+  })
     .format(new Date(value))
     .replace('/', '.');
 }
@@ -443,38 +821,23 @@ function sectionTitle(text) {
   return textNode('h3', text, 'em-detail-section-title');
 }
 
-function detailDatum(label, value) {
-  const item = node('span', 'em-detail-datum');
-  item.append(
-    textNode('span', label),
-    textNode('strong', value)
-  );
-  return item;
-}
-
-function stat(label, value) {
-  const item = node('div', 'em-detail-stat');
-  item.append(
-    textNode('dt', label),
-    textNode('dd', value, 'em-detail-stat-value')
-  );
-  return item;
-}
-
 function formatScore(value) {
   const score = Number(value);
   return Number.isFinite(score) ? score.toFixed(2) : '未记录';
 }
 
 function formatOptionalScore(value) {
+  if (value == null || value === '') return '未记录';
   const score = Number(value);
   if (!Number.isFinite(score)) return '未记录';
   return `${Math.round(Math.max(0, Math.min(1, score)) * 100)}%`;
 }
 
-function legendItem(className, label) {
+function legendItem(className, label, markerText = '') {
   const item = node('span', 'em-legend-item');
-  item.append(node('i', className), textNode('span', label));
+  const marker = node('i', className);
+  if (markerText) marker.textContent = markerText;
+  item.append(marker, textNode('span', label));
   return item;
 }
 
@@ -505,7 +868,7 @@ function renderEmpty(container) {
   empty.innerHTML = `
     <div class="em-state-orb"></div>
     <p class="em-state-title">长期记忆还没有形成情节</p>
-    <p class="em-state-copy">相关事件积累后，EchoMem 会把它们组织为可阅读的 Episode 故事线。</p>
+    <p class="em-state-copy">相关事件积累后，EchoMem 会把它们组织为可阅读的情节故事线。</p>
   `;
   container.appendChild(empty);
 }

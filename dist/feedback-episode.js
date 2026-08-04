@@ -26,7 +26,10 @@
             return;
           }
           if (!response || !response.success) {
-            reject(new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error")));
+            const error = new Error((response == null ? void 0 : response.error) || ((response == null ? void 0 : response.status) ? `HTTP ${response.status}` : "Unknown background error"));
+            error.status = response == null ? void 0 : response.status;
+            error.payload = response == null ? void 0 : response.data;
+            reject(error);
             return;
           }
           resolve(response);
@@ -56,7 +59,10 @@
       });
       const data = response.data ?? response.text;
       if (data && data.status === "error") {
-        throw new Error(data.message || ((_a = data.error) == null ? void 0 : _a.message) || "EchoMem error");
+        const error = new Error(data.message || ((_a = data.error) == null ? void 0 : _a.message) || "EchoMem error");
+        error.status = response.status;
+        error.payload = data;
+        throw error;
       }
       return data.result !== void 0 ? data.result : data;
     }
@@ -258,6 +264,59 @@
       });
       if (this.cfg.debug) {
         log("deleteSkill response", result);
+      }
+      return result;
+    }
+    async listSkillVersions(name) {
+      var _a;
+      if (!name) throw new Error("name is required");
+      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/versions`;
+      if (this.cfg.debug) {
+        log("listSkillVersions request", name);
+      }
+      const result = await this._fetchJson(url, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        log("listSkillVersions response", `name=${name}`, `versions=${((_a = result == null ? void 0 : result.versions) == null ? void 0 : _a.length) || 0}`);
+      }
+      return result;
+    }
+    async readSkillVersion(name, version) {
+      if (!name) throw new Error("name is required");
+      if (!Number.isInteger(version) || version <= 0) {
+        throw new Error("version must be a positive integer");
+      }
+      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/versions/${version}`;
+      if (this.cfg.debug) {
+        log("readSkillVersion request", name, `version=${version}`);
+      }
+      const result = await this._fetchJson(url, {
+        method: "GET",
+        headers: this._buildHeaders(false)
+      });
+      if (this.cfg.debug) {
+        log("readSkillVersion response", `name=${name}`, `version=${version}`);
+      }
+      return result;
+    }
+    async rollbackSkillVersion(name, version) {
+      if (!name) throw new Error("name is required");
+      if (!Number.isInteger(version) || version <= 0) {
+        throw new Error("version must be a positive integer");
+      }
+      const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}/rollback`;
+      if (this.cfg.debug) {
+        log("rollbackSkillVersion request", name, `version=${version}`);
+      }
+      const result = await this._fetchJson(url, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify({ version })
+      });
+      if (this.cfg.debug) {
+        log("rollbackSkillVersion response", `name=${name}`, `version=${version}`, `rolled_back=${result == null ? void 0 : result.rolled_back}`);
       }
       return result;
     }
@@ -515,7 +574,6 @@
   var GENERIC_TAGS = /* @__PURE__ */ new Set(["\u7528\u6237", "user", "agent", "assistant"]);
   var DAY_MS = 24 * 60 * 60 * 1e3;
   function renderTimeline(container, model) {
-    var _a;
     cleanupTimeline(container);
     container.innerHTML = "";
     container.style.position = "relative";
@@ -529,19 +587,23 @@
       return;
     }
     const root = node("div", "em-episode-view");
-    const compact = (_a = window.matchMedia) == null ? void 0 : _a.call(window, "(max-width: 820px)").matches;
     const state = {
       episodes,
-      activeId: episodes[0].id,
-      detailOpen: !compact,
+      activeId: "",
+      detailOpen: false,
+      detailPage: "overview",
+      detailDirection: "forward",
+      detailScroll: { overview: 0, story: 0, evidence: 0 },
       selectedEventDate: "",
+      selectedEventId: "",
+      expandedEventDates: /* @__PURE__ */ new Set(),
       handlers: {}
     };
     const shell = node("div", "em-episode-timeline-shell");
     const main = node("section", "em-timeline-main");
     const detail = node("aside", "em-episode-detail-panel");
     detail.setAttribute("aria-live", "polite");
-    detail.setAttribute("aria-label", "Episode \u8BE6\u60C5");
+    detail.setAttribute("aria-label", "\u60C5\u8282\u8BE6\u60C5");
     shell.append(main, detail);
     root.appendChild(shell);
     container.appendChild(root);
@@ -554,29 +616,101 @@
       if (action === "select-episode" && episode) {
         state.activeId = episode.id;
         state.selectedEventDate = "";
+        state.selectedEventId = "";
+        state.expandedEventDates = /* @__PURE__ */ new Set();
+        state.detailPage = "overview";
+        state.detailDirection = "forward";
+        state.detailScroll = { overview: 0, story: 0, evidence: 0 };
         state.detailOpen = true;
         syncSelection();
         renderDetail(detail, episode, state);
         return;
       }
       if (action === "select-event" && episode) {
+        const expandedDates = state.activeId === episode.id ? new Set(state.expandedEventDates) : /* @__PURE__ */ new Set();
         state.activeId = episode.id;
         state.selectedEventDate = trigger.dataset.eventDate || "";
+        state.selectedEventId = "";
+        if (state.selectedEventDate) expandedDates.add(state.selectedEventDate);
+        state.expandedEventDates = expandedDates;
+        state.detailPage = "story";
+        state.detailDirection = "forward";
+        state.detailScroll = { overview: 0, story: 0, evidence: 0 };
         state.detailOpen = true;
         syncSelection();
         renderDetail(detail, episode, state);
         requestAnimationFrame(() => {
-          var _a2;
-          (_a2 = detail.querySelector(".em-detail-event.is-selected")) == null ? void 0 : _a2.scrollIntoView({
+          var _a;
+          (_a = detail.querySelector(".em-detail-date-group.is-selected")) == null ? void 0 : _a.scrollIntoView({
             block: "nearest",
             behavior: "smooth"
           });
         });
         return;
       }
+      if (action === "open-story" && episode) {
+        rememberDetailScroll(detail, state);
+        state.detailPage = "story";
+        state.detailDirection = "forward";
+        state.selectedEventId = "";
+        if (!state.expandedEventDates.size) {
+          groupEventsByDate(episode.events).forEach((group) => {
+            state.expandedEventDates.add(group.dateKey);
+          });
+        }
+        renderDetail(detail, episode, state);
+        focusDetailPage(detail);
+        return;
+      }
+      if (action === "open-evidence" && episode) {
+        rememberDetailScroll(detail, state);
+        state.detailPage = "evidence";
+        state.detailDirection = "forward";
+        state.selectedEventId = "";
+        renderDetail(detail, episode, state);
+        focusDetailPage(detail);
+        return;
+      }
+      if (action === "toggle-event-date" && episode) {
+        const dateKey = trigger.dataset.eventDate || "";
+        const expandedDates = new Set(state.expandedEventDates);
+        if (expandedDates.has(dateKey)) expandedDates.delete(dateKey);
+        else if (dateKey) expandedDates.add(dateKey);
+        state.expandedEventDates = expandedDates;
+        state.detailDirection = "stay";
+        renderDetail(detail, episode, state);
+        requestAnimationFrame(() => {
+          var _a;
+          (_a = [...detail.querySelectorAll("[data-event-group]")].find((item) => item.dataset.eventGroup === dateKey)) == null ? void 0 : _a.focus();
+        });
+        return;
+      }
+      if (action === "open-event" && episode) {
+        rememberDetailScroll(detail, state);
+        state.selectedEventId = trigger.dataset.eventId || "";
+        state.selectedEventDate = trigger.dataset.eventDate || "";
+        state.detailPage = "event";
+        state.detailDirection = "forward";
+        renderDetail(detail, episode, state);
+        focusDetailPage(detail);
+        return;
+      }
+      if (action === "back-detail" && episode) {
+        const previousPage = state.detailPage === "event" ? "story" : "overview";
+        state.detailPage = previousPage;
+        state.detailDirection = "back";
+        state.selectedEventId = "";
+        renderDetail(detail, episode, state);
+        restoreDetailScroll(detail, state, previousPage);
+        focusDetailPage(detail);
+        return;
+      }
       if (action === "close-detail") {
         state.detailOpen = false;
+        state.activeId = "";
         state.selectedEventDate = "";
+        state.selectedEventId = "";
+        state.expandedEventDates = /* @__PURE__ */ new Set();
         syncSelection();
         return;
       }
@@ -585,7 +719,6 @@
     state.handlers = { root, onClick };
     container._timelineState = state;
     renderTimelineMain(main, episodes, state);
-    renderDetail(detail, episodes[0], state);
     syncSelection();
     function syncSelection() {
       shell.classList.toggle("is-detail-closed", !state.detailOpen);
@@ -602,22 +735,24 @@
   }
   function renderTimelineMain(container, episodes, state) {
     const range = collectionRange(episodes);
-    const ticks = buildTicks(range.min, range.max, 6);
+    const boundaryDates = episodes.flatMap((episode) => [episode.startTime, episode.endTime]);
+    const ticks = buildTicks(range.min, range.max, 8, boundaryDates);
     const toolbar = node("header", "em-timeline-toolbar");
     const heading = document.createElement("div");
     const eyebrow = node("div", "em-kicker");
-    eyebrow.textContent = "Episode timeline";
+    eyebrow.textContent = "\u60C5\u8282\u65F6\u95F4\u7EBF";
     const titleLine = node("div", "em-timeline-title-line");
     const title = document.createElement("h1");
-    title.textContent = "\u6309 Episode \u67E5\u770B\u8BB0\u5FC6";
+    title.textContent = "\u6309\u60C5\u8282\u67E5\u770B\u8BB0\u5FC6";
     titleLine.append(title, pill(`${episodes.length} \u6BB5\u6545\u4E8B`));
     const subtitle = document.createElement("p");
-    subtitle.textContent = `${formatRangeFromEpisodes(episodes)} \xB7 \u6A2A\u6761\u8868\u793A\u6545\u4E8B\u8DE8\u5EA6\uFF0C\u8282\u70B9\u8868\u793A\u5173\u952E\u4E8B\u4EF6`;
+    subtitle.textContent = `${formatRangeFromEpisodes(episodes)} \xB7 \u6A2A\u6761\u8868\u793A\u6545\u4E8B\u8DE8\u5EA6\uFF0C\u77ED\u80F6\u56CA\u8868\u793A\u5355\u65E5\u60C5\u8282\uFF0C\u8282\u70B9\u8868\u793A\u5173\u952E\u4E8B\u4EF6`;
     heading.append(eyebrow, titleLine, subtitle);
     const legend = node("div", "em-timeline-legend");
     legend.append(
+      legendItem("em-legend-single-day", "\u5355\u65E5\u60C5\u8282"),
       legendItem("em-legend-node", "\u5355\u4E2A\u4E8B\u4EF6"),
-      legendItem("em-legend-cluster", "\u540C\u65E5\u4E8B\u4EF6\u7C07"),
+      legendItem("em-legend-cluster", "\u540C\u65E5\u4E8B\u4EF6\u7C07", "2"),
       legendItem("em-legend-decision", "\u51B3\u7B56")
     );
     toolbar.append(heading, legend);
@@ -638,7 +773,7 @@
     });
     const footnote = node("footer", "em-timeline-footnote");
     footnote.append(
-      textNode("span", "\u65F6\u95F4\u4EC5\u6765\u81EA\u4E8B\u4EF6\u53D1\u751F\u65F6\u95F4\uFF1B\u65E5\u671F\u578B\u6570\u636E\u4E0D\u8865\u9020\u5177\u4F53\u65F6\u523B\u3002"),
+      textNode("span", "\u65F6\u95F4\u8F74\u6309\u81EA\u7136\u65E5\u5BF9\u9F50\uFF1B\u540C\u65E5\u591A\u4E2A\u4E8B\u4EF6\u663E\u793A\u4E3A\u7D2B\u8272\u6570\u5B57\u8282\u70B9\uFF0C\u542B\u51B3\u7B56\u65F6\u5916\u5708\u53D8\u9EC4\u3002"),
       textNode("span", "\u70B9\u51FB\u6545\u4E8B\u6216\u8282\u70B9\u67E5\u770B\u53F3\u4FA7\u8BE6\u60C5\u3002")
     );
     container.append(toolbar, chart, footnote);
@@ -663,32 +798,46 @@
       line.style.left = `${toPercent(tick, range.min, range.max)}%`;
       track.appendChild(line);
     });
-    const start = episode.startTime ?? episode.endTime ?? range.min;
-    const end = episode.endTime ?? episode.startTime ?? start;
-    const left = toPercent(start, range.min, range.max);
-    const right = toPercent(end, range.min, range.max);
-    const width = Math.max(2.2, right - left);
+    const rawStart = episode.startTime ?? episode.lastActiveAt ?? episode.endTime ?? range.min;
+    const rawEnd = episode.endTime ?? episode.lastActiveAt ?? episode.startTime ?? rawStart;
+    const start = toTimelineDay(rawStart) ?? range.min;
+    const end = toTimelineDay(rawEnd) ?? start;
+    const spanStart = Math.min(start, end);
+    const spanEnd = Math.max(start, end);
+    const left = toPercent(spanStart, range.min, range.max);
+    const right = toPercent(spanEnd, range.min, range.max);
+    const isPoint = spanStart === spanEnd;
     const span = document.createElement("button");
     span.type = "button";
     span.className = `em-episode-span is-${episode.arcStage || "ongoing"}`;
+    span.classList.toggle("is-point", isPoint);
     span.dataset.emAction = "select-episode";
     span.dataset.episodeId = episode.id;
-    span.setAttribute("aria-label", `\u67E5\u770B Episode\uFF1A${episode.title}`);
-    span.style.left = `${Math.min(left, 100 - width)}%`;
-    span.style.width = `${Math.min(width, 100)}%`;
+    span.setAttribute("aria-label", `\u67E5\u770B\u60C5\u8282\uFF1A${episode.title}`);
+    span.style.left = `${left}%`;
+    if (isPoint) {
+      span.style.setProperty("--em-span-shift", "-50%");
+    } else {
+      span.style.width = `${Math.max(0, right - left)}%`;
+    }
     track.appendChild(span);
     const clusters = groupEventsByDate(episode.events);
     clusters.forEach((cluster) => {
       const eventTime = cluster.time ?? start;
+      const isCluster = cluster.events.length > 1;
+      const hasDecision = cluster.events.some((item) => item.type === "decision");
       const mark = document.createElement("button");
       mark.type = "button";
-      mark.className = `em-timeline-event-mark ${cluster.events.length > 1 ? "is-cluster" : ""}`;
-      if (cluster.events.some((item) => item.type === "decision")) mark.classList.add("has-decision");
+      mark.className = `em-timeline-event-mark ${isCluster ? "is-cluster" : ""}`;
+      if (!isCluster && hasDecision) mark.classList.add("is-decision");
+      if (isCluster && hasDecision) mark.classList.add("contains-decision");
       mark.dataset.emAction = "select-event";
       mark.dataset.episodeId = episode.id;
-      mark.dataset.eventDate = cluster.rawTime;
+      mark.dataset.eventDate = cluster.dateKey;
       mark.style.left = `${toPercent(eventTime, range.min, range.max)}%`;
-      mark.textContent = cluster.events.length > 1 ? String(cluster.events.length) : "";
+      if (isCluster) {
+        mark.appendChild(textNode("span", String(cluster.events.length), "em-timeline-event-count"));
+      }
       mark.setAttribute(
         "aria-label",
         `${formatEventDate(cluster)}\uFF0C${cluster.events.length} \u4E2A\u5173\u952E\u4E8B\u4EF6\uFF1A${cluster.events.map((item) => item.description).join("\uFF1B")}`
@@ -704,63 +853,109 @@
     return row;
   }
   function renderDetail(container, episode, state) {
-    container.innerHTML = "";
-    const top = node("div", "em-detail-panel-top");
-    const overline = node("div", "em-detail-overline");
-    overline.append(
-      pill(STATUS_LABEL[episode.status] || episode.status, "em-status-pill"),
-      textNode("span", formatEpisodeDateRange(episode))
-    );
-    const close = iconButton("\xD7", "close-detail", "\u6536\u8D77\u8BE6\u60C5");
-    top.append(overline, close);
-    const title = document.createElement("h2");
-    title.textContent = episode.title;
-    const stage = node("div", "em-detail-stage-line");
-    stage.append(
-      detailDatum("\u751F\u547D\u5468\u671F", STATUS_LABEL[episode.status] || episode.status),
-      detailDatum("\u53D9\u4E8B\u9636\u6BB5", ARC_LABEL[episode.arcStage] || episode.arcStage || "\u672A\u8BB0\u5F55")
-    );
-    const summarySection = node("section", "em-detail-section");
+    const page = node("div", `em-detail-page is-${state.detailDirection || "forward"}`);
+    page.dataset.detailPage = state.detailPage;
+    if (state.detailPage === "story") renderStoryPage(page, episode, state);
+    else if (state.detailPage === "evidence") renderEvidencePage(page, episode);
+    else if (state.detailPage === "event") renderEventPage(page, episode, state);
+    else renderOverviewPage(page, episode);
+    container.dataset.detailPage = state.detailPage;
+    container.replaceChildren(page);
+  }
+  function renderOverviewPage(page, episode) {
+    page.appendChild(buildDetailHeader(episode));
+    page.appendChild(detailHeading(episode.title));
+    const summarySection = node("section", "em-detail-section em-detail-summary-card");
     summarySection.append(
-      sectionTitle("\u6545\u4E8B\u6458\u8981"),
+      sectionTitle("\u8FD9\u6BB5\u7ECF\u5386"),
       textNode("p", episode.summary || "\u8FD9\u6BB5\u8BB0\u5FC6\u5C1A\u672A\u751F\u6210\u6458\u8981\u3002", "em-detail-summary")
     );
-    const stats = node("dl", "em-detail-stats");
-    stats.append(
-      stat("\u539F\u5B50\u8BC1\u636E", `${(episode.atomRefs || []).length} \u6761`),
-      stat("\u5173\u952E\u4E8B\u4EF6", `${episode.events.length} \u4E2A`),
-      stat("\u663E\u8457\u5EA6", formatScore(episode.salience)),
-      stat("\u751F\u6210\u7F6E\u4FE1", formatOptionalScore(episode.confidence))
-    );
+    page.appendChild(summarySection);
     const tags = visibleTags(episode);
-    const tagSection = node("section", "em-detail-section");
-    tagSection.appendChild(sectionTitle("\u5173\u8054\u5BF9\u8C61\u4E0E\u4E3B\u9898"));
-    const tagList = node("div", "em-card-tags");
-    if (tags.length) tags.forEach((item) => tagList.appendChild(pill(item)));
-    else tagList.appendChild(textNode("span", "\u6682\u65E0\u6709\u6548\u6807\u7B7E", "em-source-note"));
-    tagSection.appendChild(tagList);
-    const eventSection = node("section", "em-detail-section em-detail-events-section");
-    eventSection.appendChild(sectionTitle("\u5173\u952E\u4E8B\u4EF6\u94FE"));
-    const chain = node("ol", "em-detail-event-chain");
-    if (episode.events.length) {
-      episode.events.forEach((event) => chain.appendChild(buildDetailEvent(event, state.selectedEventDate)));
-    } else {
-      chain.appendChild(textNode("li", "\u8BE5\u60C5\u8282\u6682\u672A\u63D0\u53D6\u51FA\u5173\u952E\u4E8B\u4EF6\u3002", "em-source-note"));
+    if (tags.length) {
+      const tagSection = node("section", "em-detail-section em-detail-tags-section");
+      tagSection.appendChild(sectionTitle("\u76F8\u5173\u4EBA\u7269\u4E0E\u4E3B\u9898"));
+      const tagList = node("div", "em-card-tags");
+      tags.forEach((item) => tagList.appendChild(pill(item)));
+      tagSection.appendChild(tagList);
+      page.appendChild(tagSection);
     }
-    eventSection.appendChild(chain);
-    const memoryMeta = node("div", "em-detail-memory-meta");
-    memoryMeta.append(
-      textNode("span", RETENTION_LABEL[episode.retentionTier] || "\u957F\u671F\u8BB0\u5FC6"),
-      textNode("span", `${episode.turnCount} \u8F6E\u76F8\u5173\u5BF9\u8BDD`)
+    const routes = node("div", "em-detail-routes");
+    routes.append(
+      detailRouteButton(
+        "open-story",
+        "\u4E8B\u60C5\u5982\u4F55\u53D1\u5C55",
+        `${episode.events.length} \u4E2A\u5173\u952E\u4E8B\u4EF6`,
+        "\u6309\u65E5\u671F\u67E5\u770B\u8FD9\u6BB5\u7ECF\u5386\u7684\u63A8\u8FDB\u8FC7\u7A0B"
+      ),
+      detailRouteButton(
+        "open-evidence",
+        "\u8BB0\u5FC6\u4F9D\u636E\u4E0E\u7CFB\u7EDF\u5224\u65AD",
+        `${(episode.atomRefs || []).length} \u6761\u539F\u5B50\u8BC1\u636E`,
+        "\u4E86\u89E3\u8FD9\u6BB5\u60C5\u8282\u7531\u54EA\u4E9B\u8BB0\u5FC6\u4FE1\u606F\u652F\u6491"
+      )
     );
-    container.append(top, title, stage, summarySection, stats, tagSection, eventSection, memoryMeta);
+    page.appendChild(routes);
   }
-  function buildDetailEvent(event, selectedDate) {
+  function renderStoryPage(page, episode, state) {
+    page.appendChild(buildDetailHeader(episode, "\u8FD4\u56DE\u6982\u89C8"));
+    page.append(
+      textNode("div", formatEpisodeDateRange(episode), "em-detail-page-kicker"),
+      detailHeading("\u4E8B\u60C5\u5982\u4F55\u53D1\u5C55"),
+      textNode("p", episode.title, "em-detail-context-title")
+    );
+    const groups = groupEventsByDate(episode.events);
+    const groupList = node("div", "em-detail-date-groups");
+    if (!groups.length) {
+      groupList.appendChild(textNode("p", "\u8BE5\u60C5\u8282\u6682\u672A\u63D0\u53D6\u51FA\u5173\u952E\u4E8B\u4EF6\u3002", "em-source-note"));
+    } else {
+      groups.forEach((group) => {
+        groupList.appendChild(buildEventDateGroup(group, episode, state));
+      });
+    }
+    page.appendChild(groupList);
+  }
+  function buildEventDateGroup(group, episode, state) {
+    const expanded = state.expandedEventDates.has(group.dateKey);
+    const selected = Boolean(state.selectedEventDate && state.selectedEventDate === group.dateKey);
+    const section = node("section", "em-detail-date-group");
+    section.classList.toggle("is-expanded", expanded);
+    section.classList.toggle("is-selected", selected);
+    section.dataset.eventDate = group.dateKey;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "em-detail-date-toggle";
+    toggle.dataset.emAction = "toggle-event-date";
+    toggle.dataset.episodeId = episode.id;
+    toggle.dataset.eventDate = group.dateKey;
+    toggle.dataset.eventGroup = group.dateKey;
+    toggle.setAttribute("aria-expanded", String(expanded));
+    toggle.append(
+      textNode("span", formatEventDate(group), "em-detail-date-label"),
+      textNode("span", `${group.events.length} \u4E2A\u4E8B\u4EF6`, "em-detail-date-count"),
+      textNode("span", "\u203A", "em-detail-route-arrow")
+    );
+    section.appendChild(toggle);
+    if (expanded) {
+      const list = node("ol", "em-detail-event-chain");
+      group.events.forEach((event) => list.appendChild(buildStoryEvent(event, episode)));
+      section.appendChild(list);
+    }
+    return section;
+  }
+  function buildStoryEvent(event, episode) {
     const meta = EVENT_TYPE_META[event.type] || EVENT_TYPE_META.observation;
     const item = node("li", "em-detail-event");
-    item.dataset.eventDate = event.rawTime || "";
-    item.classList.toggle("is-selected", Boolean(selectedDate && event.rawTime === selectedDate));
-    item.style.setProperty("--event-color", meta.color);
+    const dateKey = eventDateKey(event);
+    item.dataset.eventDate = dateKey;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "em-detail-event-button";
+    button.dataset.emAction = "open-event";
+    button.dataset.episodeId = episode.id;
+    button.dataset.eventId = event.id;
+    button.dataset.eventDate = dateKey;
+    button.style.setProperty("--event-color", meta.color);
     const marker = node("span", `em-detail-event-node is-${event.type}`);
     const body = document.createElement("div");
     const eventMeta = node("div", "em-detail-event-meta");
@@ -770,17 +965,183 @@
     );
     const copy = textNode("p", event.description, "em-detail-event-copy");
     body.append(eventMeta, copy);
-    item.append(marker, body);
+    button.append(marker, body, textNode("span", "\u203A", "em-detail-event-arrow"));
+    item.appendChild(button);
     return item;
+  }
+  function renderEventPage(page, episode, state) {
+    const event = episode.events.find((item) => item.id === state.selectedEventId);
+    if (!event) {
+      state.detailPage = "story";
+      state.detailDirection = "back";
+      page.dataset.detailPage = "story";
+      renderStoryPage(page, episode, state);
+      return;
+    }
+    const meta = EVENT_TYPE_META[event.type] || EVENT_TYPE_META.observation;
+    page.appendChild(buildDetailHeader(episode, "\u8FD4\u56DE\u4E8B\u60C5\u7ECF\u8FC7"));
+    const context = node("div", "em-detail-event-context");
+    context.style.setProperty("--event-color", meta.color);
+    context.append(
+      textNode("span", meta.label, "em-detail-event-type"),
+      textNode("time", formatEventDate(event))
+    );
+    page.append(
+      context,
+      detailHeading(event.description),
+      detailInfoCard("\u6240\u5C5E\u60C5\u8282", episode.title)
+    );
+    const facts = node("dl", "em-detail-fact-list");
+    facts.append(
+      detailFact("\u4E8B\u4EF6\u7C7B\u578B", meta.label),
+      detailFact("\u53D1\u751F\u65F6\u95F4", formatEventDate(event)),
+      detailFact("\u751F\u6210\u7F6E\u4FE1", formatOptionalScore(event.confidence))
+    );
+    if (event.sourceTurnId) facts.appendChild(detailFact("\u6765\u6E90\u8F6E\u6B21", event.sourceTurnId));
+    page.appendChild(facts);
+  }
+  function renderEvidencePage(page, episode) {
+    var _a;
+    page.appendChild(buildDetailHeader(episode, "\u8FD4\u56DE\u6982\u89C8"));
+    page.append(
+      textNode("div", "\u8BB0\u5FC6\u89E3\u91CA", "em-detail-page-kicker"),
+      detailHeading("\u8BB0\u5FC6\u4F9D\u636E\u4E0E\u7CFB\u7EDF\u5224\u65AD"),
+      textNode("p", "\u8FD9\u4E9B\u4FE1\u606F\u8BF4\u660E EchoMem \u4E3A\u4EC0\u4E48\u628A\u76F8\u5173\u8BB0\u5FC6\u7EC4\u7EC7\u6210\u8FD9\u4E00\u6BB5\u60C5\u8282\u3002", "em-detail-page-intro")
+    );
+    const measures = node("dl", "em-detail-evidence-summary");
+    measures.append(
+      detailMeasure("\u539F\u5B50\u8BC1\u636E", `${(episode.atomRefs || []).length} \u6761`),
+      detailMeasure("\u5173\u952E\u4E8B\u4EF6", `${episode.events.length} \u4E2A`)
+    );
+    page.appendChild(measures);
+    const factsSection = node("section", "em-detail-section");
+    factsSection.appendChild(sectionTitle("\u7CFB\u7EDF\u5224\u65AD"));
+    const facts = node("dl", "em-detail-fact-list");
+    facts.append(
+      detailFact("\u751F\u547D\u5468\u671F", STATUS_LABEL[episode.status] || episode.status || "\u672A\u8BB0\u5F55"),
+      detailFact("\u53D9\u4E8B\u9636\u6BB5", ARC_LABEL[episode.arcStage] || episode.arcStage || "\u672A\u8BB0\u5F55"),
+      detailFact("\u8BB0\u5FC6\u72B6\u6001", RETENTION_LABEL[episode.retentionTier] || "\u957F\u671F\u8BB0\u5FC6"),
+      detailFact("\u76F8\u5173\u5BF9\u8BDD", `${episode.turnCount} \u8F6E`),
+      detailFact("\u663E\u8457\u5EA6", formatScore(episode.salience)),
+      detailFact("\u751F\u6210\u7F6E\u4FE1", formatOptionalScore(episode.confidence))
+    );
+    factsSection.appendChild(facts);
+    page.appendChild(factsSection);
+    const tags = visibleTags(episode);
+    if (tags.length) {
+      const tagSection = node("section", "em-detail-section");
+      tagSection.appendChild(sectionTitle("\u5173\u8054\u5BF9\u8C61\u4E0E\u4E3B\u9898"));
+      const tagList = node("div", "em-card-tags");
+      tags.forEach((item) => tagList.appendChild(pill(item)));
+      tagSection.appendChild(tagList);
+      page.appendChild(tagSection);
+    }
+    if ((_a = episode.segments) == null ? void 0 : _a.length) {
+      const segmentSection = node("section", "em-detail-section");
+      segmentSection.appendChild(sectionTitle("\u8986\u76D6\u7684\u4F1A\u8BDD\u7247\u6BB5"));
+      const segments = node("div", "em-detail-source-list");
+      episode.segments.forEach((segment) => {
+        segments.appendChild(detailInfoCard(
+          segment.sessionId || "\u672A\u8BB0\u5F55\u4F1A\u8BDD",
+          `\u6D88\u606F ${segment.startMsgIdx}\u2014${segment.endMsgIdx}`
+        ));
+      });
+      segmentSection.appendChild(segments);
+      page.appendChild(segmentSection);
+    }
+    const sourcedEvents = episode.events.filter((event) => event.sourceTurnId);
+    if (sourcedEvents.length) {
+      const sourceSection = node("section", "em-detail-section");
+      sourceSection.appendChild(sectionTitle("\u53EF\u8FFD\u6EAF\u4E8B\u4EF6\u6765\u6E90"));
+      const sources = node("div", "em-detail-source-list");
+      sourcedEvents.forEach((event) => {
+        sources.appendChild(detailInfoCard(event.description, event.sourceTurnId));
+      });
+      sourceSection.appendChild(sources);
+      page.appendChild(sourceSection);
+    }
+  }
+  function buildDetailHeader(episode, backLabel = "") {
+    const top = node("div", "em-detail-panel-top");
+    if (backLabel) {
+      const back = document.createElement("button");
+      back.type = "button";
+      back.className = "em-detail-back";
+      back.dataset.emAction = "back-detail";
+      back.dataset.episodeId = episode.id;
+      back.append(
+        textNode("span", "\u2039", "em-detail-back-arrow"),
+        textNode("span", backLabel)
+      );
+      top.appendChild(back);
+    } else {
+      const overline = node("div", "em-detail-overline");
+      overline.append(
+        pill(STATUS_LABEL[episode.status] || episode.status, "em-status-pill"),
+        textNode("span", formatEpisodeDateRange(episode))
+      );
+      top.appendChild(overline);
+    }
+    top.appendChild(iconButton("\xD7", "close-detail", "\u6536\u8D77\u8BE6\u60C5"));
+    return top;
+  }
+  function detailHeading(text) {
+    const heading = textNode("h2", text, "em-detail-page-title");
+    heading.tabIndex = -1;
+    return heading;
+  }
+  function detailRouteButton(action, title, meta, copy) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "em-detail-route";
+    button.dataset.emAction = action;
+    const body = node("span", "em-detail-route-body");
+    body.append(
+      textNode("strong", title),
+      textNode("span", copy, "em-detail-route-copy")
+    );
+    button.append(
+      body,
+      textNode("span", meta, "em-detail-route-meta"),
+      textNode("span", "\u203A", "em-detail-route-arrow")
+    );
+    return button;
+  }
+  function detailMeasure(label, value) {
+    const item = node("div", "em-detail-measure");
+    item.append(
+      textNode("dt", label),
+      textNode("dd", value)
+    );
+    return item;
+  }
+  function detailFact(label, value) {
+    const item = node("div", "em-detail-fact");
+    item.append(
+      textNode("dt", label),
+      textNode("dd", value)
+    );
+    return item;
+  }
+  function detailInfoCard(title, copy) {
+    const card = node("div", "em-detail-info-card");
+    card.append(
+      textNode("strong", title),
+      textNode("span", copy)
+    );
+    return card;
   }
   function groupEventsByDate(events) {
     const groups = /* @__PURE__ */ new Map();
     events.forEach((event, index) => {
-      const key = event.rawTime || (event.time != null ? String(event.time) : `unknown-${index}`);
+      const day = toTimelineDay(event.time);
+      const dateKey = day != null ? String(day) : event.rawTime || `unknown-${index}`;
+      const key = dateKey;
       if (!groups.has(key)) {
         groups.set(key, {
+          dateKey,
           rawTime: event.rawTime || "",
-          time: event.time,
+          time: day,
           events: []
         });
       }
@@ -788,12 +1149,31 @@
     });
     return [...groups.values()];
   }
+  function rememberDetailScroll(detail, state) {
+    const page = detail.querySelector(".em-detail-page");
+    if (page && state.detailPage in state.detailScroll) {
+      state.detailScroll[state.detailPage] = page.scrollTop;
+    }
+  }
+  function restoreDetailScroll(detail, state, pageName) {
+    requestAnimationFrame(() => {
+      const page = detail.querySelector(".em-detail-page");
+      if (page) page.scrollTop = state.detailScroll[pageName] || 0;
+    });
+  }
+  function focusDetailPage(detail) {
+    requestAnimationFrame(() => {
+      var _a;
+      (_a = detail.querySelector(".em-detail-page-title")) == null ? void 0 : _a.focus({ preventScroll: true });
+    });
+  }
   function collectionRange(episodes) {
     const values = episodes.flatMap((episode) => [
       episode.startTime,
       episode.endTime,
+      episode.lastActiveAt,
       ...episode.events.map((event) => event.time)
-    ]).filter((value) => value != null);
+    ]).map(toTimelineDay).filter((value) => value != null);
     if (!values.length) {
       const now = Date.now();
       return { min: now, max: now + DAY_MS };
@@ -802,17 +1182,41 @@
     const rawMax = Math.max(...values);
     return { min, max: rawMax === min ? min + DAY_MS : rawMax };
   }
-  function buildTicks(min, max, count) {
+  function buildTicks(min, max, count, boundaryDates = []) {
+    const meaningfulDays = [.../* @__PURE__ */ new Set([
+      min,
+      ...boundaryDates.map(toTimelineDay).filter((value) => value != null),
+      max
+    ])].sort((a, b) => a - b);
     const safeCount = Math.max(2, count);
-    const step = (max - min) / (safeCount - 1);
-    return Array.from({ length: safeCount }, (_, index) => min + step * index);
+    if (meaningfulDays.length <= safeCount) return meaningfulDays;
+    const lastIndex = meaningfulDays.length - 1;
+    const indexes = Array.from(
+      { length: safeCount },
+      (_, index) => Math.round(index * lastIndex / (safeCount - 1))
+    );
+    return [...new Set(indexes)].map((index) => meaningfulDays[index]);
+  }
+  function toTimelineDay(value) {
+    if (value == null) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+  function eventDateKey(event) {
+    const day = toTimelineDay(event == null ? void 0 : event.time);
+    return day != null ? String(day) : String((event == null ? void 0 : event.rawTime) || "");
   }
   function toPercent(value, min, max) {
     if (value == null || max <= min) return 0;
     return Math.max(0, Math.min(100, (value - min) / (max - min) * 100));
   }
   function formatAxisDate(value) {
-    return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" }).format(new Date(value)).replace("/", ".");
+    return new Intl.DateTimeFormat("zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+      timeZone: "UTC"
+    }).format(new Date(value)).replace("/", ".");
   }
   function formatRangeFromEpisodes(episodes) {
     const first = episodes[0];
@@ -873,34 +1277,21 @@
   function sectionTitle(text) {
     return textNode("h3", text, "em-detail-section-title");
   }
-  function detailDatum(label, value) {
-    const item = node("span", "em-detail-datum");
-    item.append(
-      textNode("span", label),
-      textNode("strong", value)
-    );
-    return item;
-  }
-  function stat(label, value) {
-    const item = node("div", "em-detail-stat");
-    item.append(
-      textNode("dt", label),
-      textNode("dd", value, "em-detail-stat-value")
-    );
-    return item;
-  }
   function formatScore(value) {
     const score = Number(value);
     return Number.isFinite(score) ? score.toFixed(2) : "\u672A\u8BB0\u5F55";
   }
   function formatOptionalScore(value) {
+    if (value == null || value === "") return "\u672A\u8BB0\u5F55";
     const score = Number(value);
     if (!Number.isFinite(score)) return "\u672A\u8BB0\u5F55";
     return `${Math.round(Math.max(0, Math.min(1, score)) * 100)}%`;
   }
-  function legendItem(className, label) {
+  function legendItem(className, label, markerText = "") {
     const item = node("span", "em-legend-item");
-    item.append(node("i", className), textNode("span", label));
+    const marker = node("i", className);
+    if (markerText) marker.textContent = markerText;
+    item.append(marker, textNode("span", label));
     return item;
   }
   function iconButton(label, action, ariaLabel) {
@@ -927,7 +1318,7 @@
     empty.innerHTML = `
     <div class="em-state-orb"></div>
     <p class="em-state-title">\u957F\u671F\u8BB0\u5FC6\u8FD8\u6CA1\u6709\u5F62\u6210\u60C5\u8282</p>
-    <p class="em-state-copy">\u76F8\u5173\u4E8B\u4EF6\u79EF\u7D2F\u540E\uFF0CEchoMem \u4F1A\u628A\u5B83\u4EEC\u7EC4\u7EC7\u4E3A\u53EF\u9605\u8BFB\u7684 Episode \u6545\u4E8B\u7EBF\u3002</p>
+    <p class="em-state-copy">\u76F8\u5173\u4E8B\u4EF6\u79EF\u7D2F\u540E\uFF0CEchoMem \u4F1A\u628A\u5B83\u4EEC\u7EC4\u7EC7\u4E3A\u53EF\u9605\u8BFB\u7684\u60C5\u8282\u6545\u4E8B\u7EBF\u3002</p>
   `;
     container.appendChild(empty);
   }
@@ -964,23 +1355,26 @@
         linear-gradient(145deg, #fffbfe 0%, #fef7ff 55%, #f6f1fa 100%);
     }
     .em-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; padding: 3px 9px; border: 1px solid var(--em-line); border-radius: 999px; color: var(--em-text-2); background: rgba(255,255,255,.72); font-size: 11px; }
-    .em-kicker { color: var(--em-cyan); font: 600 10px/1.3 "JetBrains Mono",monospace; letter-spacing: .14em; text-transform: uppercase; }
+    .em-kicker { color: var(--em-cyan); font: 600 10px/1.3 var(--em-font-sans); letter-spacing: .08em; }
     .em-episode-view { position: absolute; inset: 0; overflow: hidden; color: var(--em-text); }
+    .em-view-stage[data-em-view="timeline"] .em-pill { min-height: 26px; font-size: 12px; }
+    .em-view-stage[data-em-view="timeline"] .em-kicker { font-size: 12px; }
     .em-episode-timeline-shell { height: 100%; display: grid; grid-template-columns: minmax(0,1fr) minmax(330px,29%); background: rgba(255,255,255,.28); transition: grid-template-columns .28s cubic-bezier(.2,.7,.2,1); }
     .em-episode-timeline-shell.is-detail-closed { grid-template-columns: minmax(0,1fr) 0; }
     .em-timeline-main { min-width: 0; overflow: auto; background: linear-gradient(150deg,rgba(255,255,255,.72),rgba(254,247,255,.82)); }
     .em-timeline-toolbar { position: sticky; z-index: 8; top: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 24px 28px 19px; border-bottom: 1px solid var(--em-line); background: rgba(255,255,255,.94); backdrop-filter: blur(12px); }
     .em-timeline-title-line { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
     .em-timeline-title-line h1 { margin: 0; color: var(--em-text); font-size: clamp(21px,2.1vw,29px); font-weight: 570; letter-spacing: -.03em; }
-    .em-timeline-toolbar p { margin: 7px 0 0; color: var(--em-text-3); font-size: 11px; }
-    .em-timeline-legend { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; color: var(--em-text-3); font-size: 10px; }
+    .em-timeline-toolbar p { margin: 7px 0 0; color: var(--em-text-3); font-size: 13px; line-height: 1.55; }
+    .em-timeline-legend { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; color: var(--em-text-3); font-size: 12px; }
     .em-legend-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-    .em-legend-item i { display: inline-grid; place-items: center; width: 9px; height: 9px; border-radius: 50%; background: var(--em-blue); }
+    .em-legend-item i { position: relative; display: inline-grid; place-items: center; width: 9px; height: 9px; border-radius: 50%; color: #fff; background: var(--em-blue); font: 700 8px/1 var(--em-font-sans); }
+    .em-legend-item .em-legend-single-day { width: 24px; height: 10px; border: 1px solid rgba(103,80,164,.42); border-radius: 999px; background: rgba(103,80,164,.2); }
     .em-legend-item .em-legend-cluster { width: 14px; height: 14px; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(103,80,164,.34); background: var(--em-purple); }
-    .em-legend-item .em-legend-decision { border-radius: 2px; background: var(--em-amber); transform: rotate(45deg); }
+    .em-legend-item .em-legend-decision { width: 9px; height: 9px; border-radius: 2px; background: var(--em-amber); box-shadow: 0 0 0 1px rgba(184,122,36,.18); transform: rotate(45deg); }
     .em-timeline-chart { min-width: 630px; padding: 10px 28px 20px; }
     .em-timeline-axis, .em-timeline-row { display: grid; grid-template-columns: minmax(160px,210px) minmax(300px,1fr) 52px; gap: 14px; align-items: center; }
-    .em-timeline-axis { min-height: 42px; color: var(--em-text-3); font: 600 9px/1.2 "JetBrains Mono",monospace; }
+    .em-timeline-axis { min-height: 42px; color: var(--em-text-3); font: 600 12px/1.2 var(--em-font-sans); font-variant-numeric: tabular-nums; }
     .em-axis-track, .em-timeline-track { position: relative; min-width: 0; }
     .em-axis-track { height: 100%; }
     .em-axis-tick { position: absolute; top: 50%; white-space: nowrap; transform: translate(-50%,-50%); }
@@ -992,59 +1386,102 @@
     .em-timeline-row:hover { background: rgba(103,80,164,.035); }
     .em-timeline-row.is-selected { background: linear-gradient(90deg,rgba(103,80,164,.075),rgba(103,80,164,.018)); }
     .em-timeline-row-label { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 13px 8px 13px 0; border: 0; color: var(--em-text); background: transparent; text-align: left; cursor: pointer; }
-    .em-row-title { width: 100%; overflow: hidden; font-size: 13px; font-weight: 650; line-height: 1.42; text-overflow: ellipsis; white-space: nowrap; }
-    .em-row-meta { color: var(--em-text-3); font-size: 10px; }
+    .em-row-title { width: 100%; overflow: hidden; font-size: 15px; font-weight: 650; line-height: 1.42; text-overflow: ellipsis; white-space: nowrap; }
+    .em-row-meta { color: var(--em-text-3); font-size: 12px; }
     .em-timeline-track { height: 42px; }
     .em-timeline-track::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(73,50,115,.13); transform: translateY(-50%); }
     .em-timeline-gridline { position: absolute; top: -26px; bottom: -26px; width: 1px; background: rgba(73,50,115,.07); pointer-events: none; }
-    .em-episode-span { position: absolute; z-index: 1; top: 50%; min-width: 18px; height: 18px; border: 1px solid rgba(103,80,164,.4); border-radius: 999px; background: linear-gradient(90deg,rgba(103,80,164,.2),rgba(103,80,164,.32)); cursor: pointer; transform: translateY(-50%); transition: box-shadow .16s ease,background .16s ease,transform .16s ease; }
+    .em-episode-span { position: absolute; z-index: 1; top: 50%; min-width: 0; height: 20px; padding: 0; border: 1px solid rgba(103,80,164,.4); border-radius: 999px; background: linear-gradient(90deg,rgba(103,80,164,.2),rgba(103,80,164,.32)); cursor: pointer; transform: translate(var(--em-span-shift,0%),-50%); transform-origin: center; transition: box-shadow .16s ease,background .16s ease; }
+    .em-episode-span.is-point { width: 44px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.38),0 3px 9px rgba(73,50,115,.1); }
     .em-episode-span.is-beginning { border-color: rgba(82,120,197,.42); background: linear-gradient(90deg,rgba(82,120,197,.16),rgba(82,120,197,.3)); }
     .em-episode-span.is-end { border-color: rgba(173,85,126,.4); background: linear-gradient(90deg,rgba(173,85,126,.15),rgba(173,85,126,.28)); }
     .em-episode-span.is-ongoing { border-color: rgba(59,143,108,.42); background: linear-gradient(90deg,rgba(59,143,108,.15),rgba(59,143,108,.3)); }
-    .em-timeline-row.is-selected .em-episode-span { box-shadow: 0 0 0 3px rgba(103,80,164,.1),0 7px 18px rgba(73,50,115,.13); transform: translateY(-50%) scaleY(1.08); }
-    .em-timeline-event-mark { position: absolute; z-index: 3; top: 50%; width: 13px; height: 13px; padding: 0; border: 2px solid #fff; border-radius: 50%; color: #fff; background: var(--em-blue); font: 650 8px/1 "JetBrains Mono",monospace; cursor: pointer; box-shadow: 0 0 0 1px rgba(82,120,197,.42),0 4px 10px rgba(36,48,74,.15); transform: translate(-50%,-50%); transition: transform .15s ease,box-shadow .15s ease; }
-    .em-timeline-event-mark:hover, .em-timeline-event-mark:focus-visible { transform: translate(-50%,-50%) scale(1.18); box-shadow: 0 0 0 3px rgba(82,120,197,.15),0 5px 12px rgba(36,48,74,.18); }
-    .em-timeline-event-mark.is-cluster { width: 21px; height: 21px; background: var(--em-purple); box-shadow: 0 0 0 1px rgba(103,80,164,.42),0 4px 10px rgba(73,50,115,.18); }
-    .em-timeline-event-mark.has-decision { border-radius: 5px; background: var(--em-amber); }
-    .em-timeline-row-tail { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--em-text-3); font-size: 9px; }
-    .em-timeline-row-tail strong { color: var(--em-text-2); font: 650 13px/1 "JetBrains Mono",monospace; }
-    .em-timeline-footnote { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 22px; padding: 0 28px 26px; color: var(--em-text-3); font-size: 9px; }
-    .em-episode-detail-panel { min-width: 0; overflow: auto; padding: 23px 24px 28px; border-left: 1px solid rgba(73,50,115,.13); color: var(--em-text); background: rgba(255,255,255,.93); box-shadow: -18px 0 52px rgba(67,45,86,.08); backdrop-filter: blur(24px); transform: translateX(0); transition: opacity .22s ease,transform .28s cubic-bezier(.2,.7,.2,1); }
-    .em-episode-timeline-shell.is-detail-closed .em-episode-detail-panel { overflow: hidden; padding-left: 0; padding-right: 0; border-left: 0; opacity: 0; transform: translateX(32px); pointer-events: none; }
-    .em-detail-panel-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
-    .em-detail-overline { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--em-text-3); font-size: 10px; }
+    .em-timeline-row.is-selected .em-episode-span { border-color: rgba(103,80,164,.72); background: linear-gradient(90deg,rgba(103,80,164,.26),rgba(103,80,164,.38)); box-shadow: inset 0 0 0 1px rgba(103,80,164,.16); transform: translate(var(--em-span-shift,0%),-50%); }
+    .em-timeline-event-mark { --em-event-mark-color: var(--em-blue); position: absolute; z-index: 3; top: 50%; display: grid; place-items: center; width: 12px; height: 12px; margin: 0; padding: 0; appearance: none; border: 2px solid #fff; border-radius: 50%; color: #fff; background: var(--em-event-mark-color); font-family: var(--em-font-sans); font-variant-numeric: tabular-nums; line-height: 1; cursor: pointer; box-shadow: 0 0 0 1px rgba(82,120,197,.42),0 2px 5px rgba(36,48,74,.14); transform: translate(-50%,-50%); transition: background .16s ease,box-shadow .16s ease; }
+    .em-timeline-event-mark.is-cluster { --em-event-mark-color: var(--em-purple); width: 16px; height: 16px; box-shadow: 0 0 0 1px rgba(103,80,164,.42),0 2px 5px rgba(73,50,115,.14); }
+    .em-timeline-event-mark.is-cluster.contains-decision { border-color: var(--em-amber); box-shadow: 0 0 0 1px rgba(184,122,36,.42),0 2px 5px rgba(73,50,115,.14); }
+    .em-timeline-event-count { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; margin: 0; padding: 0; color: #fff; font-family: var(--em-font-sans); font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; line-height: 1; text-align: center; transform: none; pointer-events: none; }
+    .em-timeline-event-mark.is-decision { --em-event-mark-color: var(--em-amber); border-radius: 2px; transform: translate(-50%,-50%) rotate(45deg); }
+    .em-timeline-event-mark:hover, .em-timeline-event-mark:focus-visible { background: linear-gradient(rgba(255,255,255,.16),rgba(255,255,255,.16)),var(--em-event-mark-color); box-shadow: 0 0 0 2px rgba(103,80,164,.2),0 4px 9px rgba(73,50,115,.2); transform: translate(-50%,-50%); }
+    .em-timeline-event-mark.is-decision:hover, .em-timeline-event-mark.is-decision:focus-visible { transform: translate(-50%,-50%) rotate(45deg); }
+    .em-timeline-row-tail { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--em-text-3); font-size: 11px; }
+    .em-timeline-row-tail strong { color: var(--em-text-2); font: 650 15px/1 var(--em-font-sans); font-variant-numeric: tabular-nums; }
+    .em-timeline-footnote { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 22px; padding: 0 28px 26px; color: var(--em-text-3); font-size: 11px; line-height: 1.5; }
+    .em-episode-detail-panel { min-width: 0; overflow: hidden; padding: 0; border-left: 1px solid rgba(73,50,115,.13); color: var(--em-text); background: rgba(255,255,255,.96); box-shadow: -18px 0 52px rgba(67,45,86,.08); transform: translateX(0); transition: opacity .22s ease,transform .28s cubic-bezier(.2,.7,.2,1); }
+    .em-episode-timeline-shell.is-detail-closed .em-episode-detail-panel { border-left: 0; opacity: 0; transform: translateX(32px); pointer-events: none; }
+    .em-detail-page { height: 100%; overflow-y: auto; padding: 23px 24px 28px; scrollbar-gutter: stable; }
+    .em-detail-page.is-forward { animation: em-detail-forward .2s ease-out; }
+    .em-detail-page.is-back { animation: em-detail-back .2s ease-out; }
+    .em-detail-panel-top { position: sticky; z-index: 5; top: -23px; display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 54px; margin: -23px -24px 0; padding: 13px 24px 9px; background: linear-gradient(180deg,#fff 72%,rgba(255,255,255,.9)); }
+    .em-detail-overline { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--em-text-3); font-size: 12px; }
     .em-status-pill { color: #3b6f5a; border-color: rgba(59,143,108,.22); background: rgba(59,143,108,.07); }
-    .em-detail-close { flex: 0 0 auto; width: 31px; height: 31px; border: 1px solid var(--em-line); border-radius: 9px; color: var(--em-text-3); background: rgba(255,255,255,.64); font-size: 19px; line-height: 1; cursor: pointer; }
+    .em-detail-close { flex: 0 0 auto; width: 36px; height: 36px; border: 1px solid var(--em-line); border-radius: 10px; color: var(--em-text-3); background: rgba(255,255,255,.82); font-size: 19px; line-height: 1; cursor: pointer; }
     .em-detail-close:hover { color: #493273; border-color: rgba(103,80,164,.28); background: rgba(103,80,164,.06); }
-    .em-episode-detail-panel > h2 { margin: 17px 0 0; color: var(--em-text); font-size: clamp(20px,2vw,27px); font-weight: 570; line-height: 1.4; letter-spacing: -.025em; }
-    .em-detail-stage-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-    .em-detail-datum { display: inline-flex; align-items: center; gap: 6px; color: var(--em-text-3); font-size: 10px; }
-    .em-detail-datum strong { color: var(--em-text-2); font-weight: 650; }
-    .em-detail-section { margin-top: 23px; }
-    .em-detail-section-title { margin: 0 0 9px; color: var(--em-text-3); font: 650 9px/1.3 "JetBrains Mono",monospace; letter-spacing: .1em; text-transform: uppercase; }
-    .em-detail-summary { margin: 0; color: var(--em-text-2); font-size: 13px; line-height: 1.75; }
-    .em-detail-stats { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1px; margin: 21px 0 0; overflow: hidden; border: 1px solid var(--em-line); border-radius: 11px; background: var(--em-line); }
-    .em-detail-stats > * { min-width: 0; display: flex; flex-direction: column; margin: 0; padding: 11px 12px; background: rgba(255,255,255,.94); }
-    .em-detail-stat-value { order: -1; margin: 0; color: var(--em-text); font: 650 14px/1.2 "JetBrains Mono",monospace; }
-    .em-detail-stats dt { color: var(--em-text-3); font-size: 9px; }
+    .em-detail-back { min-height: 36px; display: inline-flex; align-items: center; gap: 7px; padding: 7px 8px 7px 4px; border: 0; border-radius: 9px; color: #493273; background: transparent; font: 600 13px/1 var(--em-font-sans); cursor: pointer; }
+    .em-detail-back:hover, .em-detail-back:focus-visible { background: rgba(103,80,164,.07); }
+    .em-detail-back-arrow { font-size: 22px; font-weight: 400; line-height: .7; }
+    .em-detail-page-title { margin: 16px 0 0; color: var(--em-text); font-size: clamp(20px,2vw,27px); font-weight: 570; line-height: 1.4; letter-spacing: -.025em; }
+    .em-detail-page-title:focus { outline: none; }
+    .em-detail-page-kicker { margin-top: 14px; color: var(--em-text-3); font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+    .em-detail-page-intro { margin: 10px 0 0; color: var(--em-text-3); font-size: 14px; line-height: 1.65; }
+    .em-detail-context-title { margin: 7px 0 0; color: var(--em-text-3); font-size: 13px; line-height: 1.55; }
+    .em-detail-section { margin-top: 22px; }
+    .em-detail-section-title { margin: 0 0 9px; color: var(--em-text-3); font: 650 12px/1.3 var(--em-font-sans); letter-spacing: .05em; }
+    .em-detail-summary-card { padding: 15px 16px 16px; border: 1px solid rgba(103,80,164,.12); border-radius: 13px; background: linear-gradient(145deg,rgba(103,80,164,.055),rgba(255,255,255,.8)); }
+    .em-detail-summary { margin: 0; color: var(--em-text-2); font-size: 15px; line-height: 1.7; }
     .em-card-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .em-detail-section .em-card-tags { margin-top: 0; }
-    .em-detail-events-section { padding-top: 21px; border-top: 1px solid var(--em-line); }
-    .em-detail-event-chain { position: relative; display: flex; flex-direction: column; gap: 0; margin: 0; padding: 1px 0 0; list-style: none; }
-    .em-detail-event-chain::before { content: ''; position: absolute; left: 6px; top: 14px; bottom: 14px; width: 1px; background: linear-gradient(rgba(103,80,164,.32),rgba(103,80,164,.08)); }
-    .em-detail-event { position: relative; display: grid; grid-template-columns: 20px minmax(0,1fr); gap: 10px; padding: 0 0 17px; transition: background .16s ease; }
-    .em-detail-event:last-child { padding-bottom: 0; }
-    .em-detail-event.is-selected { margin: -7px -8px 10px; padding: 7px 8px 10px; border-radius: 9px; background: rgba(103,80,164,.06); }
-    .em-detail-event-node { position: relative; z-index: 1; width: 13px; height: 13px; margin-top: 3px; border: 3px solid #fff; border-radius: 50%; background: var(--event-color,var(--em-blue)); box-shadow: 0 0 0 1px var(--event-color,var(--em-blue)); }
+    .em-detail-routes { display: flex; flex-direction: column; gap: 10px; margin-top: 23px; }
+    .em-detail-route { display: grid; grid-template-columns: minmax(0,1fr) auto 14px; align-items: center; gap: 10px; width: 100%; min-height: 76px; padding: 13px 14px; border: 1px solid rgba(103,80,164,.14); border-radius: 13px; color: var(--em-text); background: rgba(255,255,255,.82); cursor: pointer; text-align: left; transition: border-color .16s ease,background .16s ease,box-shadow .16s ease; }
+    .em-detail-route:hover, .em-detail-route:focus-visible { border-color: rgba(103,80,164,.34); background: rgba(103,80,164,.055); box-shadow: 0 5px 16px rgba(73,50,115,.08); }
+    .em-detail-route-body { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+    .em-detail-route-body strong { font-size: 15px; font-weight: 650; }
+    .em-detail-route-copy { color: var(--em-text-3); font-size: 12px; line-height: 1.5; }
+    .em-detail-route-meta { color: #6750a4; font-size: 12px; white-space: nowrap; }
+    .em-detail-route-arrow, .em-detail-event-arrow { color: #8069ae; font-size: 20px; line-height: 1; transition: transform .16s ease; }
+    .em-detail-route:hover .em-detail-route-arrow, .em-detail-route:focus-visible .em-detail-route-arrow { transform: translateX(2px); }
+    .em-detail-date-groups { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+    .em-detail-date-group { overflow: hidden; border: 1px solid rgba(103,80,164,.12); border-radius: 13px; background: rgba(255,255,255,.76); }
+    .em-detail-date-group.is-selected { border-color: rgba(103,80,164,.36); box-shadow: 0 0 0 2px rgba(103,80,164,.06); }
+    .em-detail-date-toggle { display: grid; grid-template-columns: minmax(0,1fr) auto 14px; align-items: center; gap: 9px; width: 100%; min-height: 48px; padding: 11px 13px; border: 0; color: var(--em-text); background: transparent; cursor: pointer; text-align: left; }
+    .em-detail-date-toggle:hover, .em-detail-date-toggle:focus-visible { background: rgba(103,80,164,.055); }
+    .em-detail-date-label { font-size: 14px; font-weight: 650; }
+    .em-detail-date-count { color: var(--em-text-3); font-size: 12px; white-space: nowrap; }
+    .em-detail-date-group.is-expanded .em-detail-route-arrow { transform: rotate(90deg); }
+    .em-detail-event-chain { position: relative; display: flex; flex-direction: column; gap: 0; margin: 0; padding: 3px 10px 10px; border-top: 1px solid rgba(103,80,164,.09); list-style: none; }
+    .em-detail-event-chain::before { content: ''; position: absolute; left: 22px; top: 20px; bottom: 24px; width: 1px; background: linear-gradient(rgba(103,80,164,.32),rgba(103,80,164,.08)); }
+    .em-detail-event { position: relative; margin: 0; padding: 0; }
+    .em-detail-event-button { position: relative; z-index: 1; display: grid; grid-template-columns: 20px minmax(0,1fr) 12px; gap: 9px; align-items: start; width: 100%; min-height: 52px; padding: 10px 6px; border: 0; border-radius: 9px; color: inherit; background: transparent; cursor: pointer; text-align: left; }
+    .em-detail-event-button:hover, .em-detail-event-button:focus-visible { background: rgba(103,80,164,.055); }
+    .em-detail-event-node { position: relative; z-index: 1; width: 13px; height: 13px; margin: 3px 0 0 1px; border: 3px solid #fff; border-radius: 50%; background: var(--event-color,var(--em-blue)); box-shadow: 0 0 0 1px var(--event-color,var(--em-blue)); }
     .em-detail-event-node.is-decision { border-radius: 3px; transform: rotate(45deg) scale(.9); }
     .em-detail-event-node.is-state_change { clip-path: polygon(50% 0,100% 100%,0 100%); border-radius: 0; }
-    .em-detail-event-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 7px; color: var(--em-text-3); font-size: 9px; }
+    .em-detail-event-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 7px; color: var(--em-text-3); font-size: 11px; }
     .em-detail-event-type { color: var(--event-color,var(--em-blue)); font-weight: 650; }
-    .em-detail-event-copy { margin: 5px 0 0; color: var(--em-text-2); font-size: 12px; line-height: 1.6; }
-    .em-detail-memory-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--em-line); color: var(--em-text-3); font-size: 9px; }
-    .em-source-note { margin: 16px 0 0; color: var(--em-text-3); font-size: 13px; line-height: 1.7; }
+    .em-detail-event-copy { margin: 5px 0 0; color: var(--em-text-2); font-size: 14px; line-height: 1.6; }
+    .em-detail-event-arrow { align-self: center; }
+    .em-detail-event-context { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 15px; color: var(--em-text-3); font-size: 12px; }
+    .em-detail-info-card { display: flex; flex-direction: column; gap: 5px; margin-top: 18px; padding: 13px 14px; border: 1px solid rgba(103,80,164,.12); border-radius: 12px; background: rgba(103,80,164,.045); }
+    .em-detail-info-card strong { color: var(--em-text-2); font-size: 14px; font-weight: 650; line-height: 1.5; }
+    .em-detail-info-card span { color: var(--em-text-3); font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+    .em-detail-evidence-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1px; margin: 21px 0 0; overflow: hidden; border: 1px solid var(--em-line); border-radius: 12px; background: var(--em-line); }
+    .em-detail-measure { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 13px 14px; background: rgba(255,255,255,.96); }
+    .em-detail-measure dt { color: var(--em-text-3); font-size: 11px; }
+    .em-detail-measure dd { order: -1; margin: 0; color: var(--em-text); font: 650 16px/1.2 var(--em-font-sans); font-variant-numeric: tabular-nums; }
+    .em-detail-fact-list { display: flex; flex-direction: column; margin: 0; overflow: hidden; border: 1px solid rgba(103,80,164,.12); border-radius: 12px; background: rgba(255,255,255,.8); }
+    .em-detail-page > .em-detail-fact-list { margin-top: 20px; }
+    .em-detail-fact { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; min-height: 41px; padding: 10px 12px; border-bottom: 1px solid rgba(103,80,164,.09); }
+    .em-detail-fact:last-child { border-bottom: 0; }
+    .em-detail-fact dt { color: var(--em-text-3); font-size: 12px; }
+    .em-detail-fact dd { margin: 0; color: var(--em-text-2); font-size: 13px; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+    .em-detail-source-list { display: flex; flex-direction: column; gap: 8px; }
+    .em-detail-source-list .em-detail-info-card { margin-top: 0; }
+    .em-source-note { margin: 16px 0 0; color: var(--em-text-3); font-size: 14px; line-height: 1.7; }
+    @keyframes em-detail-forward { from { opacity: .45; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes em-detail-back { from { opacity: .45; transform: translateX(-18px); } to { opacity: 1; transform: translateX(0); } }
     @media (prefers-reduced-motion: reduce) {
       .em-episode-timeline-shell, .em-episode-detail-panel, .em-episode-span, .em-timeline-event-mark { transition: none !important; }
+      .em-detail-page { animation: none !important; }
     }
     @media (max-width: 820px) {
       .em-episode-view { overflow: hidden; }
@@ -1057,7 +1494,8 @@
         box-shadow: 0 -20px 60px rgba(67,45,86,.16);
       }
       .em-episode-detail-panel.is-open { opacity: 1; transform: translateY(0); pointer-events: auto; }
-      .em-episode-timeline-shell.is-detail-closed .em-episode-detail-panel { overflow: auto; padding: 23px 24px 28px; opacity: 0; transform: translateY(105%); }
+      .em-episode-detail-panel[data-detail-page="story"], .em-episode-detail-panel[data-detail-page="evidence"], .em-episode-detail-panel[data-detail-page="event"] { max-height: 92%; }
+      .em-episode-timeline-shell.is-detail-closed .em-episode-detail-panel { opacity: 0; transform: translateY(105%); }
     }
     @media (max-width: 560px) {
       .em-timeline-toolbar { position: relative; align-items: flex-start; flex-direction: column; padding: 18px 16px 14px; }
@@ -1070,7 +1508,11 @@
       .em-timeline-track { grid-column: 1/-1; grid-row: 2; height: 38px; }
       .em-timeline-gridline { top: -4px; bottom: -4px; }
       .em-timeline-footnote { padding: 0 16px 22px; }
-      .em-episode-detail-panel, .em-episode-timeline-shell.is-detail-closed .em-episode-detail-panel { padding: 20px 18px 24px; }
+      .em-detail-page { padding: 20px 18px 24px; }
+      .em-detail-panel-top { top: -20px; margin: -20px -18px 0; padding: 10px 18px 8px; }
+      .em-detail-route { grid-template-columns: minmax(0,1fr) 14px; }
+      .em-detail-route-meta { grid-column: 1; grid-row: 2; }
+      .em-detail-route-arrow { grid-column: 2; grid-row: 1/3; }
     }
   `;
     container.appendChild(style);
