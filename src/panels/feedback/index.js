@@ -28,7 +28,7 @@ export function getGraphOverlayContent() {
     const views = getOptionalFeedbackViews();
 
     mountViewSwitcher(wrapper, {
-      defaultKey: 'timeline',
+      defaultKey: 'summary',
       views,
     });
   }, 100);

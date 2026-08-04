@@ -3,6 +3,7 @@
 
 import { fetchPeriodicReview } from './summary-client.js';
 import { renderDailyCards, renderWeeklyCards } from './summary-cards.js';
+import { injectSummaryTheme } from './summary-theme.js';
 
 const MODE_OPTIONS = [
   { key: 'daily', label: '每日回顾' },
@@ -12,6 +13,7 @@ const MODE_OPTIONS = [
 export function renderSummary(container, options = {}) {
   cleanupSummary(container);
   container.innerHTML = '';
+  injectSummaryTheme(container);
   container.style.position = 'relative';
 
   const isActive = () => {
