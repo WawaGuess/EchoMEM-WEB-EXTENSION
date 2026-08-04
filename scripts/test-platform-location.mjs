@@ -22,8 +22,6 @@ const matchingUrls = [
   'http://localhost:31010/home',
   'http://localhost:31010/home/',
   'http://127.0.0.1:31010/home/session',
-  'http://7.250.106.74:31010/home/session/session-123',
-  'http://192.168.1.100:31010/home/workspace/workspace-123',
   'https://echo-agent.online/home/session/session-123',
   'https://higo.world/home/workspace/workspace-123',
 ];

@@ -95,7 +95,7 @@ EchoMEM-WEB-EXTENSION/
 
 ### 后端服务客户端
 - `src/services/echomem-client.js`：EchoMem 后端客户端，提供资源/Skill/Usage 等接口调用
-- `src/services/episode-client.js`：Episode 数据客户端（原 graph-client.js 已归档）
+- `src/services/graph-client.js`：认知图谱数据客户端
 - `src/services/openview-client.js`：HIGO Office 本地/OpenView 会话 Token 统计客户端
 - 跨域请求统一通过 Background Service Worker 代理转发
 
@@ -133,7 +133,7 @@ EchoMEM-WEB-EXTENSION/
 - **功能导航**：右侧 EchoMem 首页面板，包含 5 个功能入口
 - **资源管理**：上传区域和资源列表
 - **输入联想**：可开关的输入联想功能
-- **认知反馈**：Episode 情节记忆时间线（原 Three.js 3D 认知知识图谱已关闭）
+- **认知反馈**：基于 Three.js 的 3D 认知知识图谱，以及会话统计分析
 - **Skill 商店**：Skill 列表（「我的 Skill」卡片点击写入 `/dirName`，独立详情入口承载版本历史）、上传 Skill、安装管理
 - **效能概览**：Token 消耗概览，支持 HIGO 平台会话级统计与 EchoMem 后端 Usage 统计
 

@@ -27,7 +27,7 @@ function createLabel(text, color) {
   canvas.width = 512;
   canvas.height = 64;
 
-  ctx.font = '600 26px Roboto, "Noto Sans SC", sans-serif';
+  ctx.font = 'bold 26px "JetBrains Mono", "PingFang SC", "Microsoft YaHei", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#e8f4ff';
@@ -241,7 +241,7 @@ function createPanels(container) {
     backdrop-filter: blur(20px);
     border: 1px solid rgba(0, 230, 255, 0.15);
     color: #e0f0ff;
-    font-family: Roboto, "Noto Sans SC", sans-serif;
+    font-family: "JetBrains Mono", "PingFang SC", "Microsoft YaHei", monospace;
     z-index: 10;
     pointer-events: auto;
   `;
@@ -520,7 +520,7 @@ export function renderThreeGraph(container, graphData, options = {}) {
       border-radius: 6px;
       color: #e0f0ff;
       font-size: 12px;
-      font-family: Roboto, "Noto Sans SC", sans-serif;
+      font-family: "JetBrains Mono", "PingFang SC", "Microsoft YaHei", monospace;
       z-index: 10000;
       opacity: 0;
       transition: opacity 0.15s ease;

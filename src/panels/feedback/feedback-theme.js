@@ -11,14 +11,13 @@ export function injectFeedbackTheme(container) {
     .echomem-feedback-shell,
     .echomem-feedback-shell * { box-sizing: border-box; }
     .echomem-feedback-shell {
-      --em-font-sans: Roboto, "Noto Sans SC", sans-serif;
       --em-bg: #05070a; --em-panel: rgba(2,8,20,.92); --em-panel-strong: #07101c;
       --em-line: rgba(0,230,255,.12); --em-line-strong: rgba(0,230,255,.42);
       --em-text: #e7fbff; --em-text-2: #b5d5df; --em-text-3: #7593a1;
       --em-cyan: #00e6ff; --em-blue: #4f8cff; --em-green: #4cd6a1;
       --em-amber: #f2b84b; --em-pink: #e16fa4; --em-purple: #a269ff;
       color: var(--em-text); background: var(--em-bg);
-      font-family: var(--em-font-sans); color-scheme: dark;
+      font-family: Roboto, "Noto Sans SC", sans-serif; color-scheme: dark;
     }
     .em-topbar {
       --em-line: rgba(121,116,126,.24); --em-text: #1d1b20;
