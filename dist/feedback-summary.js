@@ -455,6 +455,9 @@
   function colorFor(index) {
     return TOPIC_COLORS[index % TOPIC_COLORS.length];
   }
+  function normalizeTrendSeries(series) {
+    return Array.isArray(series) ? series : [];
+  }
   function parseDateKey(key) {
     const [year, month, day] = key.split("-").map(Number);
     return new Date(Date.UTC(year, month - 1, day));
@@ -602,8 +605,8 @@
           label: "\u5173\u6CE8\u53D8\u5316",
           kicker: "\u672C\u5468\u5173\u6CE8\u53D8\u5316",
           title: "\u4F60\u7684\u6CE8\u610F\u529B\uFF0C\u5982\u4F55\u4E00\u6B65\u6B65\u8F6C\u79FB",
-          ariaLabel: `\u672C\u5468\u5173\u6CE8\u8D8B\u52BF\uFF1A${trend.series.map((s) => s.label).join("\u3001")}`,
-          series: (trend.series || []).map((s, index) => ({ label: s.label || "", color: colorFor(index) })),
+          ariaLabel: `\u672C\u5468\u5173\u6CE8\u8D8B\u52BF\uFF1A${normalizeTrendSeries(trend.series).map((s) => s.label).join("\u3001")}`,
+          series: normalizeTrendSeries(trend.series).map((s, index) => ({ label: s.label || "", color: colorFor(index) })),
           rows: (trend.rows || []).map((row) => ({
             day: row.day || (row.date ? weekdayFor(row.date) : ""),
             values: Array.isArray(row.values) ? row.values : []

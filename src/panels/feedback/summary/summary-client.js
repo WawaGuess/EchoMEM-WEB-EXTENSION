@@ -14,6 +14,10 @@ function colorFor(index) {
   return TOPIC_COLORS[index % TOPIC_COLORS.length];
 }
 
+function normalizeTrendSeries(series) {
+  return Array.isArray(series) ? series : [];
+}
+
 function parseDateKey(key) {
   const [year, month, day] = key.split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day));
@@ -192,8 +196,8 @@ function mapWeeklyToReview(raw) {
         label: '关注变化',
         kicker: '本周关注变化',
         title: '你的注意力，如何一步步转移',
-        ariaLabel: `本周关注趋势：${trend.series.map((s) => s.label).join('、')}`,
-        series: (trend.series || []).map((s, index) => ({ label: s.label || '', color: colorFor(index) })),
+        ariaLabel: `本周关注趋势：${normalizeTrendSeries(trend.series).map((s) => s.label).join('、')}`,
+        series: normalizeTrendSeries(trend.series).map((s, index) => ({ label: s.label || '', color: colorFor(index) })),
         rows: (trend.rows || []).map((row) => ({
           day: row.day || (row.date ? weekdayFor(row.date) : ''),
           values: Array.isArray(row.values) ? row.values : [],
