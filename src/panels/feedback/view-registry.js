@@ -1,4 +1,4 @@
-const VIEW_ORDER = ['timeline', 'summary'];
+const VIEW_ORDER = ['summary', 'timeline'];
 
 export function getOptionalFeedbackViews() {
   const registry = globalThis.__ECHOMEM_FEEDBACK_VIEWS__;
