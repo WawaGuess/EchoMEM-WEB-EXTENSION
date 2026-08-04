@@ -1,7 +1,104 @@
-// 认知反馈公共视图壳：Episode / Summary 由独立 bundle 注册。
+// 认知反馈公共视图壳：图谱由底座提供，Episode / Summary 由独立 bundle 注册。
 
+import { fetchGraphData } from '../../services/graph-client.js';
+import { renderThreeGraph, cleanupThreeGraph } from './graph-three.js';
 import { mountViewSwitcher } from './view-switcher.js';
 import { getOptionalFeedbackViews } from './view-registry.js';
+
+const DEFAULT_MODE = 'all';
+
+function isViewActive(container, viewApi) {
+  return container.isConnected && (
+    typeof viewApi.isActive !== 'function' || viewApi.isActive()
+  );
+}
+
+function setLoadingState(container, label = '认知反馈') {
+  container.innerHTML = `
+    <div class="em-loading" role="status" aria-live="polite">
+      <div class="em-state-orb" aria-hidden="true"></div>
+      <p class="em-state-title">正在加载${label}…</p>
+      <p class="em-state-copy">EchoMem 正在整理相关记忆，请稍候。</p>
+    </div>
+  `;
+}
+
+function setErrorState(container, err, onRetry) {
+  container.innerHTML = `
+    <div class="em-error" role="alert">
+      <div class="em-state-orb" aria-hidden="true"></div>
+      <p class="em-state-title">加载失败</p>
+      <p class="em-state-copy"></p>
+      <button class="em-primary-btn" type="button">重试</button>
+    </div>
+  `;
+  container.querySelector('.em-state-copy').textContent = err?.message || '未知错误';
+  container.querySelector('.em-primary-btn')?.addEventListener('click', onRetry);
+}
+
+function setEmptyState(container) {
+  container.innerHTML = `
+    <div class="em-empty">
+      <div class="em-state-orb" aria-hidden="true"></div>
+      <p class="em-state-title">当前视图暂无数据</p>
+      <p class="em-state-copy">认知图谱下没有找到可渲染的节点或关系。</p>
+    </div>
+  `;
+}
+
+function filterGraphData(graphData, mode) {
+  const visibleNodes = graphData.nodes.filter((node) => !node.id.startsWith('episode:'));
+  const visibleIds = new Set(visibleNodes.map((node) => node.id));
+  const visibleLinks = graphData.links.filter(
+    (link) => visibleIds.has(link.source) && visibleIds.has(link.target)
+  );
+  const visibleGraph = { ...graphData, nodes: visibleNodes, links: visibleLinks };
+
+  if (mode === 'all') return visibleGraph;
+
+  const filteredLinks = visibleLinks.filter((link) => link.name === mode);
+  const linkedIds = new Set();
+  filteredLinks.forEach((link) => {
+    linkedIds.add(link.source);
+    linkedIds.add(link.target);
+  });
+  const filteredNodes = visibleNodes.filter((node) => linkedIds.has(node.id));
+  const usedCategories = new Set(filteredNodes.map((node) => node.category));
+
+  return {
+    ...visibleGraph,
+    nodes: filteredNodes,
+    links: filteredLinks,
+    categories: graphData.categories.filter((_, index) => usedCategories.has(index)),
+  };
+}
+
+async function renderGraph(container, viewApi = {}) {
+  try {
+    setLoadingState(container, '认知图谱');
+    let graphData = container._graphData;
+    if (!graphData) {
+      graphData = await fetchGraphData();
+      container._graphData = graphData;
+    }
+    if (!isViewActive(container, viewApi)) return;
+
+    const viewData = filterGraphData(graphData, DEFAULT_MODE);
+    if (viewData.nodes.length === 0) {
+      setEmptyState(container);
+      return;
+    }
+    renderThreeGraph(container, viewData);
+  } catch (err) {
+    console.error('EchoMem: 加载认知图谱失败', err);
+    if (!isViewActive(container, viewApi)) return;
+    setErrorState(container, err, () => {
+      if (!isViewActive(container, viewApi)) return;
+      container._graphData = null;
+      renderGraph(container, viewApi);
+    });
+  }
+}
 
 export function getFeedbackContent() {
   return `
@@ -25,10 +122,22 @@ export function getGraphOverlayContent() {
     const wrapper = document.getElementById(wrapperId);
     if (!wrapper) return;
 
-    const views = getOptionalFeedbackViews();
+    const optionalViews = getOptionalFeedbackViews();
+    const views = [
+      {
+        key: 'relation',
+        label: '记忆图谱',
+        mount: (element, api) => renderGraph(element, api),
+        cleanup: (element) => {
+          cleanupThreeGraph(element);
+          element._graphData = null;
+        },
+      },
+      ...optionalViews,
+    ];
 
     mountViewSwitcher(wrapper, {
-      defaultKey: 'timeline',
+      defaultKey: optionalViews[0]?.key || 'relation',
       views,
     });
   }, 100);
@@ -36,6 +145,7 @@ export function getGraphOverlayContent() {
   return `<div id="${wrapperId}" style="display:flex;flex-direction:column;width:100%;height:100%;min-height:400px;background:#05070a;"></div>`;
 }
 
-export function cleanupGraph(_containerId) {
-  // 记忆图谱功能已关闭，无需清理。
+export function cleanupGraph(containerId) {
+  const container = document.getElementById(containerId);
+  if (container) cleanupThreeGraph(container);
 }

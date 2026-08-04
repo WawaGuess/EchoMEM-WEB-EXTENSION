@@ -12,9 +12,9 @@
 - 支持开启/关闭输入联想功能
 - 智能补全、代码片段联想、历史记录联想
 
-### 3. 认知反馈
-- 展示 Episode 情节记忆时间线
-- 支持总览、详情、来源跳转与错误重试
+### 3. 认知图谱
+- 基于 Three.js 渲染记忆实体关系
+- 支持缩放、旋转、节点聚焦和关系筛选
 
 ### 4. Skill 管理
 - **我的 Skill**：查看和管理已上传/使用过的 Skill；点击卡片可将 `/Skill目录名` 写入聊天输入框，通过独立「详情」按钮查看完整内容、版本历史与版本回退
@@ -126,7 +126,7 @@ EchoMEM-WEB-EXTENSION/
 | `src/config/` | 配置加载器，负责加载 `platforms.json` 等运行时配置 |
 | `src/utils/` | 通用工具，包括 `skill-parser`（解析 SKILL.md）、`text-processor`（文本处理）等 |
 | `src/panels/` | EchoMem 功能面板和面板注册表；每个主功能入口使用独立目录，便于继续拆分子功能 |
-| `src/services/` | 服务封装，包括 EchoMem 后端客户端、Episode 客户端、OpenView 统计客户端、存储和消息代理 |
+| `src/services/` | 服务封装，包括 EchoMem 后端客户端、认知图谱客户端、OpenView 统计客户端、存储和消息代理 |
 | `icons/` | 扩展图标资源 |
 | `docs/` | 文档目录，按功能域分为架构决策、流程、参考和历史归档 |
 
@@ -140,7 +140,7 @@ EchoMEM-WEB-EXTENSION/
 | `src/panels/echomem/` | EchoMem 首页 | 展示主功能导航入口 |
 | `src/panels/resource/` | 资源管理 | 资源上传区域和资源列表入口 |
 | `src/panels/association/` | 输入联想 | 输入联想开关和状态展示 |
-| `src/panels/feedback/` | 认知反馈 | Episode 情节记忆时间线 |
+| `src/panels/feedback/` | 认知图谱 | 3D 记忆实体关系图谱 |
 | `src/panels/skill-store/` | Skill 管理 | Skill 列表、上传、安装管理 |
 | `src/panels/performance/` | 效能 | Token 消耗概览：会话级统计（HIGO）+ EchoMem 后端 Usage |
 
@@ -169,7 +169,7 @@ EchoMEM-WEB-EXTENSION/
 ### Overlay 功能导航
 - **资源管理**：管理文件资源
 - **输入联想**：开启/关闭智能联想
-- **认知反馈**：查看 Episode 情节记忆时间线
+- **认知图谱**：查看 3D 记忆实体关系图谱
 - **Skill 管理**：管理、上传和删除 Skill，并在「我的 Skill」中查看版本历史和回退版本
 - **效能**：查看 EchoMem 后端 Token 消耗
 - **后端连接配置**：管理 EchoMem 与 EchoAgent 连接
@@ -193,7 +193,7 @@ EchoMEM-WEB-EXTENSION/
 - **事件委托**：处理动态生成的元素点击事件
 - **平台适配器**：`src/adapters/` 提供配置驱动的 `BaseAdapter`，平台差异优先通过 `platforms.json` 声明；未注册平台自动回退到默认实现
 - **流式完成检测**：`src/streaming/` 注册多种检测策略（如 `button-svg-poll`、`text-stability`、`selector-state`），用于适配不同平台的流式输出
-- **后端客户端**：`src/services/echomem-client.js` 对接 EchoMem 后端，`episode-client.js` 获取 Episode 情节记忆数据，`openview-client.js` 拉取 HIGO Office 本地/OpenView 会话统计
+- **后端客户端**：`src/services/echomem-client.js` 对接 EchoMem 后端，`graph-client.js` 获取认知图谱，`openview-client.js` 拉取 HIGO Office 本地/OpenView 会话统计
 - **会话录制**：`src/core/session-recorder.js` 基于适配器抽象和流式检测，自动提取当前页面的聊天消息
 
 ## 开发调试
