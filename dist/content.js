@@ -11,7 +11,6 @@
         detection: {
           hostnames: ["localhost", "127.0.0.1", "echo-agent.online", "higo.world", "<ip>"],
           pathnamePrefixes: ["/home"],
-          urlPatterns: ["/home/session/", "/home/workspace/"],
           titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
           domFeatures: {
             required: [".MuiDrawer-root", ".MuiPaper-root"],
