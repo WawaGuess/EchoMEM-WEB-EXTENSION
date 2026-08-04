@@ -71,7 +71,14 @@ async function listJsonFiles(client, uri) {
 }
 
 async function readBodies(client, uri) {
-  const files = await listJsonFiles(client, uri);
+  let files;
+  try {
+    files = await listJsonFiles(client, uri);
+  } catch (err) {
+    // 目录不存在时返回空列表；鉴权、网络和 5xx 仍作为错误抛出。
+    if (err.status === 404) return [];
+    throw err;
+  }
   const results = await Promise.all(
     files.map(async (entry) => {
       try {

@@ -484,7 +484,13 @@
     );
   }
   async function readBodies(client, uri) {
-    const files = await listJsonFiles(client, uri);
+    let files;
+    try {
+      files = await listJsonFiles(client, uri);
+    } catch (err) {
+      if (err.status === 404) return [];
+      throw err;
+    }
     const results = await Promise.all(
       files.map(async (entry) => {
         try {
