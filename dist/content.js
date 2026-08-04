@@ -2646,7 +2646,7 @@ ${block}` : block;
       if (!wrapper) return;
       const views = getOptionalFeedbackViews();
       mountViewSwitcher(wrapper, {
-        defaultKey: "timeline",
+        defaultKey: "summary",
         views
       });
     }, 100);
