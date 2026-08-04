@@ -8,47 +8,13 @@
     html, body, #app { width: 100%; height: 100%; margin: 0; }
     body { background: #02070b; }
   </style>
-  <script type="importmap">
-    {
-      "imports": {
-        "swiper": "../node_modules/swiper/swiper.mjs",
-        "swiper/modules": "../node_modules/swiper/modules/index.mjs"
-      }
-    }
-  </script>
 </head>
 <body>
   <div id="app"></div>
   <script type="module">
     import { mountViewSwitcher } from '../src/panels/feedback/view-switcher.js';
-    import { renderDailyCards } from '../src/panels/feedback/summary/summary-cards.js';
-    import { injectSummaryTheme } from '../src/panels/feedback/summary/summary-theme.js';
-
-    const daily = {
-      date: '2026-07-12',
-      generatedAt: '2026-07-14T12:56:23Z',
-      overview: '你梳理了下周工作重点，并决定开始实践授权与团队共创。',
-      narrative: '晚上，你围绕客户反馈关闭入口、候选人二面和下周工作重点进行了规划。更重要的是，你反思了自己习惯独自决策的管理方式，决定从周一开始让团队共同参与方案形成。',
-      metrics: { sessions: 1, turns: 7, user_messages: 4, peak_hour: '21:00' },
-      keyFacts: [
-        { statement: '关注客户反馈的关闭入口是否按计划上线', importance: 'high', is_update: false },
-        { statement: '关注候选人二面的结果', importance: 'medium', is_update: false },
-        { statement: '从 7 月 13 日开始实施授权与团队共创方案', importance: 'high', is_update: true },
-      ],
-      decisions: [
-        { description: '让团队共创方案，而不是继续由一个人拍板', evidence: '来自对管理方式的反思' },
-      ],
-      actionItems: [
-        { description: '梳理下周工作重点' },
-        { description: '在周一早会上实践授权与团队共创' },
-      ],
-      topics: ['工作规划', '授权与团队共创', '客户反馈', '招聘'],
-      emotions: ['平静', '反思'],
-      people: ['团队', '候选人'],
-      highlight: { type: 'decision', description: '决定开始放权，让团队真正参与方案与决策。' },
-      agentNote: '真正的授权不是少做一点，而是让团队拥有形成答案的空间。',
-      basedOn: { sessions: ['s1'], atom_count: 5, message_count: 7 },
-    };
+    import { renderSummary, cleanupSummary } from '../src/panels/feedback/summary/summary-view.js';
+    import { injectFeedbackTheme } from '../src/panels/feedback/feedback-theme.js';
 
     mountViewSwitcher(document.getElementById('app'), {
       defaultKey: 'summary',
@@ -57,11 +23,11 @@
           key: 'summary',
           label: '周期总结',
           mount: (element) => {
-            injectSummaryTheme(element);
-            element.appendChild(renderDailyCards(daily));
+            injectFeedbackTheme(element);
+            renderSummary(element);
           },
           cleanup: (element) => {
-            element.querySelector('.em-recap')?._cleanup?.();
+            cleanupSummary(element);
             element.innerHTML = '';
           },
         },

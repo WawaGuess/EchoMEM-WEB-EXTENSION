@@ -1,443 +1,372 @@
-// Wrapped-style tenant memory review cards, powered by Swiper's stable core slider.
-import Swiper from 'swiper';
-import { A11y, Keyboard } from 'swiper/modules';
+// Periodic-review cards for the frontend preview data.
+// All memory-derived copy is assigned through textContent; no tenant data is interpolated into HTML.
 
-export function renderDailyCards(summary) {
-  const slides = [];
-
-  slides.push(coverCard({
-    eyebrow: '你的每日记忆',
-    title: summary.overview || '这一天的记忆已经整理好了',
-    period: formatDate(summary.date),
-    theme: 'ocean',
-  }));
-
-  if (summary.metrics) slides.push(metricsCard(summary.metrics, '这一天，留下了这些记录', 'violet'));
-  if (summary.narrative) slides.push(readingCard('这一天发生了什么', summary.narrative, 'blue'));
-  if (summary.highlight?.description) slides.push(highlightCard(summary.highlight, 'amber'));
-  if (summary.keyFacts?.length) slides.push(listCard('EchoMem 记住了', '从会话里沉淀出的关键事实', summary.keyFacts, factText, 'cyan'));
-  if (summary.decisions?.length || summary.actionItems?.length) {
-    slides.push(actionCard(summary.decisions || [], summary.actionItems || [], 'green'));
-  }
-  if (hasTags(summary)) slides.push(tagsCard(summary, 'rose'));
-  if (summary.agentNote) slides.push(agentCard(summary.agentNote, 'purple'));
-  slides.push(sourceCard(summary.basedOn, summary.generatedAt, 'daily', 'slate'));
-
-  return buildRecap(slides, '每日记忆回顾');
+export function renderDailyCards(review) {
+  const cards = review.cards;
+  return buildReview(review, [
+    overviewCard(cards.overview),
+    topicCard(cards.topics),
+    memoryCard(cards.facts),
+    actionCard(cards.next),
+  ], '每日回顾');
 }
 
-export function renderWeeklyCards(summary) {
-  const slides = [];
-  const period = summary.dateRange
-    ? `${formatDate(summary.dateRange.start)} — ${formatDate(summary.dateRange.end)}`
-    : `第 ${summary.week || ''} 周`;
-
-  slides.push(coverCard({
-    eyebrow: '你的每周记忆',
-    title: '这一周，你经历了什么？',
-    period,
-    theme: 'violet',
-    note: summary.metrics ? `${summary.metrics.days || 0} 天 · ${summary.metrics.sessions || 0} 个会话 · ${summary.metrics.turns || 0} 轮对话` : '',
-  }));
-
-  if (summary.narrative) slides.push(readingCard('这一周的故事', summary.narrative, 'blue'));
-  if (summary.metrics) slides.push(metricsCard(summary.metrics, '这一周，记忆这样生长', 'ocean'));
-  if (summary.themeClusters?.length) slides.push(themesCard(summary.themeClusters, 'cyan'));
-  if (summary.highlights?.length) slides.push(listCard('本周关键转折', '决定、变化与里程碑', summary.highlights, highlightText, 'amber'));
-  if (summary.memoryUpdates?.length) slides.push(updatesCard(summary.memoryUpdates, 'rose'));
-  if (summary.suggestions?.length) slides.push(listCard('接下来值得关注', '由本周长期记忆提炼', summary.suggestions, String, 'green'));
-  if (hasTags(summary)) slides.push(tagsCard(summary, 'purple'));
-  if (summary.agentNote) slides.push(agentCard(summary.agentNote, 'violet'));
-  slides.push(sourceCard(summary.basedOn, summary.generatedAt, 'weekly', 'slate'));
-
-  return buildRecap(slides, '每周记忆回顾');
+export function renderWeeklyCards(review) {
+  const cards = review.cards;
+  return buildReview(review, [
+    overviewCard(cards.overview),
+    highlightsCard(cards.highlights),
+    trendCard(cards.trend),
+    memoryCard(cards.changes),
+    actionCard(cards.next),
+  ], '每周回顾');
 }
 
-function buildRecap(slides, label) {
-  const root = node('section', 'em-recap');
-  root.classList.add('is-initializing');
+function buildReview(review, cards, label) {
+  const root = node('section', 'em-periodic-review');
+  root.tabIndex = 0;
   root.setAttribute('aria-label', label);
 
-  const progress = node('div', 'em-recap-progress');
-  const progressButtons = slides.map((_, index) => {
+  const rail = node('aside', 'em-periodic-rail');
+  const railHeading = node('div', 'em-periodic-rail-heading');
+  const kicker = node('span', 'em-periodic-rail-kicker');
+  kicker.textContent = review.modeLabel;
+  const title = document.createElement('h2');
+  title.textContent = review.railTitle;
+  railHeading.append(kicker, title);
+
+  const steps = node('nav', 'em-periodic-steps');
+  steps.setAttribute('aria-label', '回顾卡片');
+  const stepButtons = cards.map((card, index) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.setAttribute('aria-label', `查看第 ${index + 1} 张回顾卡片`);
-    button.addEventListener('click', () => goTo(index));
-    progress.appendChild(button);
+    button.className = 'em-periodic-step';
+    button.setAttribute('aria-label', `查看第 ${index + 1} 张：${card.dataset.label}`);
+    const number = node('span', 'em-periodic-step-index');
+    number.textContent = String(index + 1).padStart(2, '0');
+    const copy = node('span', 'em-periodic-step-label');
+    copy.textContent = card.dataset.label;
+    button.append(number, copy);
+    steps.appendChild(button);
     return button;
   });
+  rail.append(railHeading, steps);
 
-  const swiperEl = node('div', 'swiper em-recap-swiper');
-  const wrapper = node('div', 'swiper-wrapper');
-  slides.forEach((slide) => wrapper.appendChild(slide));
-  swiperEl.appendChild(wrapper);
+  const stage = node('div', 'em-periodic-stage');
+  const cardStack = node('div', 'em-periodic-card-stack');
+  cards.forEach((card) => cardStack.appendChild(card));
+  const navRow = node('div', 'em-periodic-nav-row');
+  const count = node('span', 'em-periodic-page-count');
+  count.setAttribute('aria-live', 'polite');
+  const navButtons = node('div', 'em-periodic-nav-buttons');
+  const prev = navButton('prev', '上一张卡片');
+  const next = navButton('next', '下一张卡片');
+  navButtons.append(prev, next);
+  navRow.append(count, navButtons);
+  stage.append(cardStack, navRow);
+  root.append(rail, stage);
 
-  const prev = navButton('‹', '上一张卡片', 'is-prev');
-  const next = navButton('›', '下一张卡片', 'is-next');
-  const footer = node('div', 'em-recap-footer');
-  const count = node('span', 'em-recap-count');
-  const hint = document.createElement('span');
-  hint.textContent = '滑动卡片或使用方向键';
-  footer.append(count, hint);
-  root.append(progress, swiperEl, prev, next, footer);
-
-  let swiperInstance = null;
-  let initTimer = null;
-  let initFrame = null;
   let currentIndex = 0;
 
-  function update(index = 0) {
-    currentIndex = index;
-    progressButtons.forEach((button, buttonIndex) => {
-      button.classList.toggle('is-complete', buttonIndex < index);
-      button.classList.toggle('is-active', buttonIndex === index);
-      button.setAttribute('aria-current', buttonIndex === index ? 'step' : 'false');
+  function update(index) {
+    currentIndex = Math.max(0, Math.min(cards.length - 1, index));
+    cards.forEach((card, cardIndex) => {
+      const active = cardIndex === currentIndex;
+      card.hidden = !active;
+      card.classList.toggle('is-active', active);
+      card.setAttribute('aria-hidden', String(!active));
+      if (active) card.scrollTop = 0;
     });
-    count.textContent = `${String(index + 1).padStart(2, '0')} / ${String(slides.length).padStart(2, '0')}`;
-    prev.disabled = index === 0;
-    next.disabled = index === slides.length - 1;
+    stepButtons.forEach((button, buttonIndex) => {
+      const active = buttonIndex === currentIndex;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-current', active ? 'step' : 'false');
+    });
+    count.textContent = `${String(currentIndex + 1).padStart(2, '0')} / ${String(cards.length).padStart(2, '0')}`;
+    prev.disabled = currentIndex === 0;
+    next.disabled = currentIndex === cards.length - 1;
   }
 
-  function goTo(index) {
-    const safeIndex = Math.max(0, Math.min(slides.length - 1, index));
-    if (swiperInstance) swiperInstance.slideTo(safeIndex);
-    else if (root.classList.contains('is-fallback')) enableFallback(safeIndex);
-  }
-
-  function enableFallback(index = 0) {
-    const safeIndex = Math.max(0, Math.min(slides.length - 1, index));
-    if (swiperInstance) {
-      swiperInstance.destroy(true, true);
-      swiperInstance = null;
+  stepButtons.forEach((button, index) => button.addEventListener('click', () => update(index)));
+  prev.addEventListener('click', () => update(currentIndex - 1));
+  next.addEventListener('click', () => update(currentIndex + 1));
+  root.addEventListener('keydown', (event) => {
+    if (event.target.closest?.('.em-periodic-topic-button')) return;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      update(currentIndex - 1);
     }
-    root.classList.remove('is-initializing', 'is-ready');
-    root.classList.add('is-fallback');
-    wrapper.style.transform = 'none';
-    slides.forEach((slide, slideIndex) => {
-      slide.style.display = slideIndex === safeIndex ? 'block' : 'none';
-      slide.style.width = '100%';
-      slide.style.height = '100%';
-      slide.style.opacity = slideIndex === safeIndex ? '1' : '0';
-      slide.style.transform = 'none';
-    });
-    update(safeIndex);
-  }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      update(currentIndex + 1);
+    }
+  });
 
-  prev.addEventListener('click', () => goTo(currentIndex - 1));
-  next.addEventListener('click', () => goTo(currentIndex + 1));
+  root._cleanup = () => {};
   update(0);
-
-  function initWhenSized(attempt = 0) {
-    if (!root.isConnected) return;
-    const rect = swiperEl.getBoundingClientRect();
-    if ((rect.width < 120 || rect.height < 180) && attempt < 60) {
-      initFrame = requestAnimationFrame(() => initWhenSized(attempt + 1));
-      return;
-    }
-    if (rect.width < 120 || rect.height < 180) {
-      enableFallback(0);
-      return;
-    }
-    root.classList.remove('is-initializing');
-    try {
-      swiperInstance = new Swiper(swiperEl, {
-        modules: [Keyboard, A11y],
-        effect: 'slide',
-        slidesPerView: 1,
-        spaceBetween: 28,
-        roundLengths: true,
-        grabCursor: true,
-        speed: 480,
-        resistanceRatio: 0.68,
-        keyboard: { enabled: true, onlyInViewport: true },
-        a11y: { enabled: true, prevSlideMessage: '上一张回顾', nextSlideMessage: '下一张回顾' },
-        observer: true,
-        observeParents: true,
-        on: { slideChange: (swiper) => update(swiper.activeIndex) },
-      });
-      root.classList.add('is-ready');
-      requestAnimationFrame(() => swiperInstance?.update());
-      setTimeout(() => {
-        if (!swiperInstance || !root.isConnected) return;
-        const active = swiperEl.querySelector('.swiper-slide-active');
-        const activeRect = active?.getBoundingClientRect();
-        const hostRect = swiperEl.getBoundingClientRect();
-        const intersects = activeRect && activeRect.width > 100 && activeRect.height > 180 &&
-          activeRect.right > hostRect.left && activeRect.left < hostRect.right &&
-          activeRect.bottom > hostRect.top && activeRect.top < hostRect.bottom;
-        if (!intersects) enableFallback(swiperInstance.activeIndex || 0);
-      }, 120);
-    } catch (err) {
-      console.error('EchoMem: 回顾卡片特效初始化失败，已降级为首卡展示', err);
-      enableFallback(0);
-    }
-  }
-
-  initTimer = setTimeout(() => initWhenSized(), 0);
-
-  root._cleanup = () => {
-    if (initTimer) clearTimeout(initTimer);
-    if (initFrame) cancelAnimationFrame(initFrame);
-    swiperInstance?.destroy(true, true);
-    swiperInstance = null;
-  };
   return root;
 }
 
-function cardShell(theme, eyebrow, title) {
-  // Cards Effect is most reliable when the visual card is the slide itself.
-  // A nested transform target can be shifted out of view when the extension overlay
-  // finishes sizing after Swiper's first measurement.
-  const slide = node('article', `swiper-slide em-recap-card is-${theme}`);
-  const card = slide;
-  const glow = node('div', 'em-recap-glow');
-  const top = node('header', 'em-recap-card-head');
-  const mark = node('span', 'em-recap-mark');
-  mark.textContent = 'ECHO';
-  const eyebrowEl = node('span', 'em-recap-eyebrow');
-  eyebrowEl.textContent = eyebrow;
-  top.append(mark, eyebrowEl);
-  card.append(glow, top);
-  if (title) {
-    const heading = document.createElement('h2');
-    heading.className = 'em-recap-title';
-    heading.textContent = title;
-    card.appendChild(heading);
-  }
-  slide._card = card;
-  return slide;
+function overviewCard(data) {
+  const card = cardShell(data);
+  const title = cardTitle(data.title, 'em-periodic-hero-title');
+  const subtitle = node('p', 'em-periodic-subtitle');
+  subtitle.textContent = data.subtitle;
+  card.append(title, subtitle, agentLine(data.agentLabel, data.agentText));
+  return card;
 }
 
-function coverCard({ eyebrow, title, period, theme, note = '' }) {
-  const slide = cardShell(theme, eyebrow, '');
-  const card = slide._card;
-  card.classList.add('is-cover');
-  const orb = node('div', 'em-recap-orb');
-  orb.innerHTML = '<span></span><span></span><span></span>';
-  const titleEl = document.createElement('h2');
-  titleEl.className = 'em-recap-cover-title';
-  titleEl.textContent = title;
-  const date = node('div', 'em-recap-period');
-  date.textContent = period;
-  card.append(orb, titleEl, date);
-  if (note) {
-    const noteEl = node('div', 'em-recap-cover-note');
-    noteEl.textContent = note;
-    card.appendChild(noteEl);
-  }
-  return slide;
-}
+function topicCard(data) {
+  const card = cardShell(data);
+  card.appendChild(cardTitle(data.title));
+  const layout = node('div', 'em-periodic-attention-layout');
+  const chartWrap = node('div', 'em-periodic-donut-wrap');
+  const donut = node('div', 'em-periodic-donut');
+  donut.setAttribute('role', 'img');
+  donut.setAttribute('aria-label', data.items.map((item) => `${item.label} ${item.percent}%`).join('，'));
+  donut.style.background = conicGradient(data.items);
+  const donutCenter = node('div', 'em-periodic-donut-center');
+  const donutValue = node('strong', 'em-periodic-donut-value');
+  const donutTopic = node('span', 'em-periodic-donut-topic');
+  donutCenter.append(donutValue, donutTopic);
+  donut.appendChild(donutCenter);
+  const note = node('p', 'em-periodic-chart-note');
+  note.textContent = data.note;
+  chartWrap.append(donut, note);
 
-function metricsCard(metrics, title, theme) {
-  const slide = cardShell(theme, '记忆足迹', title);
-  const grid = node('div', 'em-recap-metrics');
-  const items = [
-    ['sessions', '个会话'], ['turns', '轮对话'], ['user_messages', '条用户消息'],
-    [metrics.days !== undefined ? 'days' : 'peak_hour', metrics.days !== undefined ? '个记忆日' : '最活跃时段'],
-  ];
-  items.forEach(([key, label], index) => {
-    const cell = node('div', 'em-recap-metric');
-    const value = node('div', 'em-recap-metric-value');
-    value.textContent = metrics[key] ?? '—';
-    const caption = node('div', 'em-recap-metric-label');
-    caption.textContent = label;
-    cell.append(value, caption);
-    grid.appendChild(cell);
-  });
-  slide._card.appendChild(grid);
-  return slide;
-}
-
-function readingCard(title, text, theme) {
-  const slide = cardShell(theme, '记忆叙事', title);
-  const quote = node('p', 'em-recap-reading');
-  quote.textContent = text;
-  slide._card.appendChild(quote);
-  return slide;
-}
-
-function highlightCard(highlight, theme) {
-  const slide = cardShell(theme, typeLabel(highlight.type) || '今日高光', '这一刻，值得被记住');
-  const icon = node('div', 'em-recap-big-symbol');
-  icon.textContent = '✦';
-  const copy = node('p', 'em-recap-highlight');
-  copy.textContent = highlight.description;
-  slide._card.append(icon, copy);
-  return slide;
-}
-
-function listCard(title, eyebrow, items, formatter, theme) {
-  const slide = cardShell(theme, eyebrow, title);
-  const list = node('div', 'em-recap-list');
-  items.forEach((item, index) => {
-    const row = node('div', 'em-recap-list-row');
-    const number = node('span', 'em-recap-list-number');
-    number.textContent = String(index + 1).padStart(2, '0');
-    const copy = document.createElement('span');
-    copy.textContent = formatter(item);
-    row.append(number, copy);
-    list.appendChild(row);
-  });
-  slide._card.appendChild(list);
-  return slide;
-}
-
-function actionCard(decisions, actions, theme) {
-  const slide = cardShell(theme, '从记忆走向下一步', '决定与行动');
-  const groups = node('div', 'em-recap-action-groups');
-  if (decisions.length) groups.appendChild(actionGroup('已经决定', decisions, (item) => item.description || String(item), '✓'));
-  if (actions.length) groups.appendChild(actionGroup('接下来要做', actions, (item) => item.description || String(item), '→'));
-  slide._card.appendChild(groups);
-  return slide;
-}
-
-function actionGroup(title, items, formatter, symbol) {
-  const group = document.createElement('section');
-  const heading = node('div', 'em-recap-group-title');
-  heading.textContent = title;
-  group.appendChild(heading);
-  items.forEach((item) => {
-    const row = node('div', 'em-recap-action-row');
-    const icon = document.createElement('span');
-    icon.textContent = symbol;
-    const copy = document.createElement('span');
-    copy.textContent = formatter(item);
-    row.append(icon, copy);
-    group.appendChild(row);
-  });
-  return group;
-}
-
-function themesCard(clusters, theme) {
-  const slide = cardShell(theme, '主题聚类', '这一周，围绕这些事展开');
-  const list = node('div', 'em-recap-themes');
-  clusters.forEach((cluster) => {
-    const item = document.createElement('div');
-    const title = node('div', 'em-recap-theme-title');
-    title.textContent = cluster.theme;
-    const keywords = node('div', 'em-recap-theme-keywords');
-    keywords.textContent = cluster.keywords?.join(' · ') || '';
-    item.append(title, keywords);
-    list.appendChild(item);
-  });
-  slide._card.appendChild(list);
-  return slide;
-}
-
-function updatesCard(updates, theme) {
-  const slide = cardShell(theme, '记忆演化', '有些理解，已经改变');
-  const list = node('div', 'em-recap-updates');
-  updates.forEach((update) => {
-    const item = document.createElement('div');
-    if (update.previous_version) {
-      const before = node('div', 'em-recap-before');
-      before.textContent = update.previous_version;
-      item.appendChild(before);
-    }
-    const after = node('div', 'em-recap-after');
-    after.textContent = `${update.is_update ? '更新为' : '新增'}：${update.statement}`;
-    item.appendChild(after);
-    list.appendChild(item);
-  });
-  slide._card.appendChild(list);
-  return slide;
-}
-
-function tagsCard(summary, theme) {
-  const slide = cardShell(theme, '记忆中的线索', '这些人和事，被反复提起');
-  const groups = node('div', 'em-recap-tag-groups');
-  [
-    ['主题', summary.topics || []], ['人物', summary.people || []], ['情绪', summary.emotions || []],
-  ].forEach(([label, items]) => {
-    if (!items.length) return;
-    const group = document.createElement('div');
-    const heading = node('div', 'em-recap-group-title');
-    heading.textContent = label;
-    const wrap = node('div', 'em-recap-tags');
-    items.forEach((item) => {
-      const tag = document.createElement('span');
-      tag.textContent = item;
-      wrap.appendChild(tag);
+  const detail = node('div', 'em-periodic-topic-detail');
+  const legend = node('div', 'em-periodic-topic-legend');
+  const insight = agentLine('ECHO 的解读', data.items[0]?.insight || '');
+  const insightCopy = insight.querySelector('.em-periodic-agent-text');
+  const buttons = data.items.map((item, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'em-periodic-topic-button';
+    button.setAttribute('aria-pressed', String(index === 0));
+    const dot = node('span', 'em-periodic-topic-dot');
+    dot.style.background = item.color;
+    const copy = node('span', 'em-periodic-topic-copy');
+    const name = document.createElement('strong');
+    name.textContent = item.label;
+    const count = document.createElement('span');
+    count.textContent = item.countLabel;
+    copy.append(name, count);
+    const value = node('span', 'em-periodic-topic-value');
+    value.textContent = `${item.percent}%`;
+    button.append(dot, copy, value);
+    button.addEventListener('click', () => {
+      buttons.forEach((other) => other.setAttribute('aria-pressed', String(other === button)));
+      donutValue.textContent = `${item.percent}%`;
+      donutTopic.textContent = item.label;
+      insightCopy.textContent = item.insight;
     });
-    group.append(heading, wrap);
-    groups.appendChild(group);
+    legend.appendChild(button);
+    return button;
   });
-  slide._card.appendChild(groups);
-  return slide;
+  detail.append(legend, insight);
+  layout.append(chartWrap, detail);
+  card.appendChild(layout);
+
+  if (data.items[0]) {
+    donutValue.textContent = `${data.items[0].percent}%`;
+    donutTopic.textContent = data.items[0].label;
+  }
+  return card;
 }
 
-function agentCard(note, theme) {
-  const slide = cardShell(theme, 'ECHO 的观察', '最后，想对你说');
-  const mark = node('div', 'em-recap-agent-mark');
-  mark.textContent = 'E';
-  const quote = node('p', 'em-recap-agent-note');
-  quote.textContent = note;
-  slide._card.append(mark, quote);
-  return slide;
+function memoryCard(data) {
+  const card = cardShell(data);
+  card.appendChild(cardTitle(data.title));
+  const grid = node('div', 'em-periodic-memory-grid');
+  data.items.forEach((item) => {
+    const memory = node('section', 'em-periodic-memory-item');
+    const tag = node('span', 'em-periodic-memory-tag');
+    tag.textContent = item.tag;
+    const copy = document.createElement('p');
+    copy.textContent = item.text;
+    memory.append(tag, copy);
+    if (item.evidence) {
+      const evidence = document.createElement('small');
+      evidence.textContent = item.evidence;
+      memory.appendChild(evidence);
+    }
+    grid.appendChild(memory);
+  });
+  card.appendChild(grid);
+  return card;
 }
 
-function sourceCard(basedOn = {}, generatedAt, type, theme) {
-  const slide = cardShell(theme, '回顾完成', '每一段记忆，都有来处');
-  const sessions = Array.isArray(basedOn.sessions) ? basedOn.sessions.length : 0;
-  const days = Array.isArray(basedOn.daily_dates) ? basedOn.daily_dates.length : 0;
-  const atoms = basedOn.atom_count ?? basedOn.total_atom_count ?? 0;
-  const messages = basedOn.message_count ?? 0;
-  const list = node('div', 'em-recap-source');
-  [
-    ['数据来源', 'EchoMem 租户长期记忆'],
-    [type === 'daily' ? '覆盖会话' : '聚合回顾', type === 'daily' ? `${sessions} 个会话` : `${days} 个每日回顾`],
-    ['事实记忆', `${atoms} 条${messages ? ` · ${messages} 条消息` : ''}`],
-    ['生成时间', generatedAt ? formatDateTime(generatedAt) : '未记录'],
-  ].forEach(([label, value]) => {
-    const row = document.createElement('div');
-    const key = document.createElement('span');
-    key.textContent = label;
-    const val = document.createElement('strong');
-    val.textContent = value;
-    row.append(key, val);
+function actionCard(data) {
+  const card = cardShell(data);
+  card.appendChild(cardTitle(data.title));
+  const list = node('div', 'em-periodic-action-list');
+  data.items.forEach((item) => {
+    const row = node('div', 'em-periodic-action-item');
+    const mark = node('span', 'em-periodic-action-mark');
+    mark.appendChild(arrowIcon('right'));
+    const copy = node('span', 'em-periodic-action-copy');
+    const title = document.createElement('strong');
+    title.textContent = item.title;
+    const detail = document.createElement('span');
+    detail.textContent = item.detail;
+    copy.append(title, detail);
+    const status = node('span', 'em-periodic-status');
+    status.textContent = item.status;
+    row.append(mark, copy, status);
     list.appendChild(row);
   });
-  slide._card.appendChild(list);
-  return slide;
+  card.appendChild(list);
+  if (data.agentText) card.appendChild(agentLine(data.agentLabel, data.agentText));
+  return card;
 }
 
-function navButton(symbol, label, className) {
+function highlightsCard(data) {
+  const card = cardShell(data);
+  card.appendChild(cardTitle(data.title));
+  const list = node('div', 'em-periodic-highlight-list');
+  data.items.forEach((item) => {
+    const highlight = node('section', 'em-periodic-highlight');
+    const date = node('span', 'em-periodic-highlight-date');
+    date.textContent = item.date;
+    const copy = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = item.title;
+    const text = document.createElement('p');
+    text.textContent = item.text;
+    copy.append(title, text);
+    highlight.append(date, copy);
+    list.appendChild(highlight);
+  });
+  card.appendChild(list);
+  return card;
+}
+
+function trendCard(data) {
+  const card = cardShell(data);
+  card.appendChild(cardTitle(data.title));
+  const chart = node('div', 'em-periodic-trend');
+  chart.setAttribute('role', 'img');
+  chart.setAttribute('aria-label', data.ariaLabel);
+  data.rows.forEach((row) => {
+    const item = node('div', 'em-periodic-trend-row');
+    const day = document.createElement('span');
+    day.textContent = row.day;
+    const bar = node('div', 'em-periodic-trend-bar');
+    row.values.forEach((value, index) => {
+      if (!value) return;
+      const segment = document.createElement('span');
+      segment.style.width = `${value}%`;
+      segment.style.background = data.series[index].color;
+      segment.title = `${data.series[index].label} ${value}%`;
+      bar.appendChild(segment);
+    });
+    item.append(day, bar);
+    chart.appendChild(item);
+  });
+  const legend = node('div', 'em-periodic-trend-legend');
+  data.series.forEach((series) => {
+    const item = document.createElement('span');
+    const dot = document.createElement('i');
+    dot.style.background = series.color;
+    item.append(dot, document.createTextNode(series.label));
+    legend.appendChild(item);
+  });
+  chart.append(legend, trendTable(data));
+  card.append(chart, agentLine(data.agentLabel, data.agentText));
+  return card;
+}
+
+function trendTable(data) {
+  const table = document.createElement('table');
+  table.className = 'em-sr-only';
+  const caption = document.createElement('caption');
+  caption.textContent = '本周每日关注主题占比';
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  ['日期', ...data.series.map((series) => series.label)].forEach((label) => {
+    const cell = document.createElement('th');
+    cell.scope = 'col';
+    cell.textContent = label;
+    headRow.appendChild(cell);
+  });
+  head.appendChild(headRow);
+  const body = document.createElement('tbody');
+  data.rows.forEach((row) => {
+    const tableRow = document.createElement('tr');
+    [row.day, ...row.values.map((value) => `${value}%`)].forEach((value, index) => {
+      const cell = document.createElement(index === 0 ? 'th' : 'td');
+      if (index === 0) cell.scope = 'row';
+      cell.textContent = value;
+      tableRow.appendChild(cell);
+    });
+    body.appendChild(tableRow);
+  });
+  table.append(caption, head, body);
+  return table;
+}
+
+function cardShell(data) {
+  const card = node('article', 'em-periodic-card');
+  card.dataset.label = data.label;
+  const kicker = node('span', 'em-periodic-card-kicker');
+  kicker.textContent = data.kicker;
+  card.appendChild(kicker);
+  return card;
+}
+
+function cardTitle(text, className = '') {
+  const title = document.createElement('h2');
+  title.className = ['em-periodic-card-title', className].filter(Boolean).join(' ');
+  title.textContent = text;
+  return title;
+}
+
+function agentLine(label, text) {
+  const line = node('div', 'em-periodic-agent-line');
+  const avatar = node('span', 'em-periodic-agent-avatar');
+  avatar.textContent = 'E';
+  avatar.setAttribute('aria-hidden', 'true');
+  const copy = document.createElement('div');
+  const heading = document.createElement('small');
+  heading.textContent = label;
+  const content = node('span', 'em-periodic-agent-text');
+  content.textContent = text;
+  copy.append(heading, content);
+  line.append(avatar, copy);
+  return line;
+}
+
+function navButton(direction, label) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = `em-recap-nav ${className}`;
-  button.textContent = symbol;
+  button.className = 'em-periodic-nav-button';
   button.setAttribute('aria-label', label);
+  button.appendChild(arrowIcon(direction === 'prev' ? 'left' : 'right'));
   return button;
 }
 
-function factText(item) {
-  return typeof item === 'string' ? item : item.statement || '';
+function arrowIcon(direction) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.8');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', direction === 'left' ? 'm15 18-6-6 6-6' : 'm9 18 6-6-6-6');
+  svg.appendChild(path);
+  return svg;
 }
 
-function highlightText(item) {
-  return typeof item === 'string' ? item : item.description || '';
-}
-
-function typeLabel(type) {
-  return ({ decision: '重要决定', state_change: '状态变化', action: '关键行动', observation: '新的观察', milestone: '里程碑' })[type] || '';
-}
-
-function hasTags(summary) {
-  return Boolean(summary.emotions?.length || summary.topics?.length || summary.people?.length);
-}
-
-function formatDate(value) {
-  if (!value) return '日期未记录';
-  const date = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }).format(date);
-}
-
-function formatDateTime(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
+function conicGradient(items) {
+  let start = 0;
+  const segments = items.map((item) => {
+    const end = start + item.percent;
+    const segment = `${item.color} ${start}% ${end}%`;
+    start = end;
+    return segment;
+  });
+  return `conic-gradient(${segments.join(', ')})`;
 }
 
 function node(tag, className) {

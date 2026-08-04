@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EchoMem 周期回顾 V2 原型</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #677085;
+      --line: rgba(56, 46, 34, .12);
+      --paper: #fffdf7;
+      --paper-2: #f8f2e8;
+      --violet: #6558a8;
+      --violet-dark: #40366f;
+      --gold: #c38742;
+      --coral: #d47463;
+      --teal: #418d88;
+      --blue: #5b78a8;
+      --shadow: 0 28px 80px rgba(74, 57, 37, .13), 0 4px 18px rgba(74, 57, 37, .07);
+      --radius: 28px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 8% 8%, rgba(212, 116, 99, .13), transparent 28%),
+        radial-gradient(circle at 88% 82%, rgba(101, 88, 168, .13), transparent 30%),
+        #f4efe6;
+    }
+
+    button { font: inherit; }
+    button:focus-visible { outline: 3px solid rgba(101, 88, 168, .35); outline-offset: 3px; }
+
+    .prototype {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      min-height: 74px;
+      padding: 14px clamp(18px, 4vw, 54px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      border-bottom: 1px solid rgba(56, 46, 34, .08);
+      background: rgba(255, 253, 247, .78);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+      width: 38px; height: 38px; border-radius: 13px;
+      display: grid; place-items: center;
+      color: white; font-weight: 750;
+      background: linear-gradient(145deg, var(--violet), var(--violet-dark));
+      box-shadow: 0 8px 22px rgba(64, 54, 111, .2);
+    }
+    .brand-copy strong { display: block; font-size: 15px; letter-spacing: .01em; }
+    .brand-copy span { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+
+    .mode-tabs {
+      display: inline-flex; gap: 4px; padding: 4px;
+      border: 1px solid var(--line); border-radius: 999px;
+      background: rgba(255, 255, 255, .58);
+    }
+    .mode-tab {
+      min-width: 98px; min-height: 40px; padding: 0 18px;
+      border: 0; border-radius: 999px;
+      color: var(--muted); background: transparent; cursor: pointer;
+      transition: color .2s ease, background .2s ease, box-shadow .2s ease;
+    }
+    .mode-tab[aria-selected="true"] {
+      color: white; background: var(--violet);
+      box-shadow: 0 7px 16px rgba(101, 88, 168, .22);
+    }
+
+    .topbar-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .period-select {
+      min-height: 40px; padding: 0 14px;
+      border: 1px solid var(--line); border-radius: 999px;
+      color: var(--ink); background: rgba(255, 255, 255, .58);
+      font: inherit; font-size: 13px; cursor: pointer;
+    }
+
+    .workspace {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: clamp(24px, 4vw, 48px) clamp(18px, 4vw, 44px) 34px;
+      display: grid;
+      grid-template-columns: 184px minmax(0, 1fr);
+      gap: clamp(18px, 3vw, 38px);
+      align-items: stretch;
+    }
+
+    .rail {
+      display: flex; flex-direction: column; gap: 22px;
+      padding: 22px 0;
+    }
+    .rail-kicker { color: var(--gold); font-size: 11px; font-weight: 750; letter-spacing: .16em; }
+    .rail h1 { margin: 8px 0 0; font-family: Georgia, "Songti SC", serif; font-size: 30px; line-height: 1.18; }
+    .rail-period { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .steps { display: grid; gap: 9px; }
+    .step {
+      min-height: 44px; padding: 10px 12px;
+      display: grid; grid-template-columns: 24px 1fr; gap: 8px; align-items: center;
+      border: 0; border-radius: 14px; text-align: left;
+      color: var(--muted); background: transparent; cursor: pointer;
+      transition: color .2s ease, background .2s ease;
+    }
+    .step:hover { background: rgba(255, 255, 255, .48); }
+    .step[aria-current="step"] { color: var(--violet-dark); background: rgba(255, 255, 255, .74); }
+    .step-index {
+      width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+      border: 1px solid var(--line); font-size: 10px; font-variant-numeric: tabular-nums;
+    }
+    .step[aria-current="step"] .step-index { color: white; border-color: var(--violet); background: var(--violet); }
+    .step-label { font-size: 12px; font-weight: 650; }
+
+    .stage { min-width: 0; display: grid; grid-template-rows: 1fr auto; gap: 15px; }
+    .card {
+      position: relative;
+      min-height: min(660px, calc(100vh - 160px));
+      overflow: hidden;
+      padding: clamp(28px, 5vw, 64px);
+      display: none;
+      border: 1px solid rgba(56, 46, 34, .1);
+      border-radius: var(--radius);
+      background: rgba(255, 253, 247, .96);
+      box-shadow: var(--shadow);
+      animation: cardIn .28s ease both;
+    }
+    .card.is-active { display: flex; flex-direction: column; }
+    .card::before {
+      content: ""; position: absolute; width: 330px; height: 330px; border-radius: 50%;
+      right: -165px; top: -165px; background: rgba(101, 88, 168, .055);
+    }
+    .card::after {
+      content: ""; position: absolute; width: 190px; height: 190px; border: 1px solid rgba(195, 135, 66, .12);
+      border-radius: 50%; right: -72px; top: -72px;
+    }
+    @keyframes cardIn { from { opacity: 0; transform: translateY(8px); } }
+
+    .card-kicker { position: relative; z-index: 1; color: var(--gold); font-size: 11px; font-weight: 760; letter-spacing: .15em; }
+    .card h2 {
+      position: relative; z-index: 1; max-width: 760px;
+      margin: 14px 0 0; font-family: Georgia, "Songti SC", serif;
+      font-size: clamp(30px, 5vw, 56px); font-weight: 520; line-height: 1.22; letter-spacing: -.035em;
+    }
+    .card-subtitle { position: relative; z-index: 1; max-width: 690px; margin: 18px 0 0; color: var(--muted); font-size: 15px; line-height: 1.8; }
+
+    .agent-line {
+      position: relative; z-index: 1; margin-top: auto; padding-top: 30px;
+      display: grid; grid-template-columns: 42px 1fr; gap: 14px; align-items: start;
+      max-width: 760px;
+    }
+    .agent-avatar {
+      width: 42px; height: 42px; border-radius: 15px; display: grid; place-items: center;
+      color: white; font-weight: 760; background: var(--violet);
+    }
+    .agent-copy { padding: 13px 16px; border-radius: 6px 18px 18px; color: #433b63; background: #f0ecfb; line-height: 1.7; }
+    .agent-copy small { display: block; margin-bottom: 4px; color: var(--violet); font-weight: 720; letter-spacing: .05em; }
+
+    .attention-layout {
+      position: relative; z-index: 1; flex: 1; margin-top: 30px;
+      display: grid; grid-template-columns: minmax(250px, .88fr) minmax(300px, 1.12fr); gap: clamp(28px, 6vw, 76px); align-items: center;
+    }
+    .donut-wrap { display: grid; place-items: center; }
+    .donut {
+      width: min(286px, 66vw); aspect-ratio: 1; border-radius: 50%;
+      display: grid; place-items: center;
+      background: conic-gradient(var(--violet) 0 40%, var(--teal) 40% 80%, var(--gold) 80% 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.75), 0 20px 50px rgba(62, 48, 39, .12);
+      transform: rotate(-90deg);
+    }
+    .donut-center {
+      width: 61%; aspect-ratio: 1; border-radius: 50%; display: grid; place-content: center; text-align: center;
+      background: var(--paper); box-shadow: 0 0 0 10px rgba(255, 253, 247, .72);
+      transform: rotate(90deg);
+    }
+    .donut-value { font-family: Georgia, serif; font-size: 42px; color: var(--violet-dark); }
+    .donut-topic { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    .legend { display: grid; gap: 9px; }
+    .legend-item {
+      min-height: 56px; width: 100%; padding: 10px 12px;
+      display: grid; grid-template-columns: 12px 1fr auto; gap: 11px; align-items: center;
+      border: 1px solid transparent; border-radius: 15px; color: var(--ink); background: transparent; text-align: left; cursor: pointer;
+    }
+    .legend-item:hover, .legend-item[aria-pressed="true"] { border-color: var(--line); background: rgba(255,255,255,.72); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dot); }
+    .legend-copy strong { display: block; font-size: 13px; }
+    .legend-copy span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .legend-number { color: var(--violet-dark); font-size: 16px; font-weight: 740; font-variant-numeric: tabular-nums; }
+    .chart-note { margin-top: 10px; color: var(--muted); font-size: 10px; }
+
+    .memory-grid { position: relative; z-index: 1; margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+    .memory-item { min-height: 132px; padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,255,255,.62); }
+    .memory-tag { color: var(--gold); font-size: 10px; font-weight: 750; letter-spacing: .09em; }
+    .memory-item p { margin: 11px 0 0; font-size: 14px; line-height: 1.7; }
+    .memory-item small { display: block; margin-top: 12px; color: var(--muted); font-size: 10px; }
+
+    .action-list { position: relative; z-index: 1; margin-top: 30px; display: grid; gap: 10px; max-width: 760px; }
+    .action-item {
+      padding: 17px 18px; display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center;
+      border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.66);
+    }
+    .action-mark { width: 27px; height: 27px; border-radius: 9px; display: grid; place-items: center; color: var(--violet); background: #eeebfa; }
+    .action-mark svg { width: 15px; height: 15px; }
+    .action-copy strong { display: block; font-size: 13px; }
+    .action-copy span { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+    .status { padding: 5px 9px; border-radius: 999px; color: #8b5b28; background: #f8ead7; font-size: 10px; }
+
+    .highlight-list { position: relative; z-index: 1; margin-top: 28px; display: grid; gap: 10px; }
+    .highlight {
+      padding: 18px 20px; display: grid; grid-template-columns: 58px 1fr; gap: 16px;
+      border: 1px solid rgba(195,135,66,.2); border-radius: 20px; background: #fff8e9;
+    }
+    .highlight-date { color: #986632; font: 720 12px/1.4 Georgia, serif; }
+    .highlight strong { display: block; font-size: 14px; }
+    .highlight p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+
+    .trend { position: relative; z-index: 1; margin-top: 28px; display: grid; gap: 13px; }
+    .trend-row { display: grid; grid-template-columns: 42px 1fr; gap: 12px; align-items: center; }
+    .trend-day { color: var(--muted); font-size: 11px; }
+    .trend-bar { height: 22px; display: flex; overflow: hidden; border-radius: 999px; background: #ebe7df; }
+    .trend-bar span { height: 100%; min-width: 2px; }
+    .trend-legend { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 15px; color: var(--muted); font-size: 10px; }
+    .trend-legend span { display: inline-flex; gap: 6px; align-items: center; }
+    .trend-legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); }
+
+    .nav-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .nav-buttons { display: flex; gap: 8px; }
+    .nav-button {
+      width: 46px; height: 46px; border-radius: 15px; border: 1px solid var(--line);
+      display: grid; place-items: center; color: var(--ink); background: rgba(255,253,247,.74); cursor: pointer;
+    }
+    .nav-button:disabled { opacity: .35; cursor: default; }
+    .nav-button svg { width: 18px; height: 18px; }
+    .page-count { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+    @media (max-width: 820px) {
+      .workspace { grid-template-columns: 1fr; padding-top: 18px; }
+      .rail { padding: 0; gap: 12px; }
+      .rail-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+      .rail h1 { font-size: 24px; }
+      .steps { display: flex; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+      .step { flex: 0 0 auto; min-width: auto; grid-template-columns: 24px auto; }
+      .card { min-height: 640px; }
+      .attention-layout { grid-template-columns: 1fr; gap: 20px; }
+      .donut { width: 220px; }
+      .legend { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 560px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .mode-tabs { width: 100%; }
+      .mode-tab { flex: 1; min-width: 0; }
+      .workspace { padding-inline: 12px; }
+      .card { min-height: 670px; padding: 28px 22px; border-radius: 23px; }
+      .card h2 { font-size: 34px; }
+      .memory-grid { grid-template-columns: 1fr; }
+      .memory-item { min-height: auto; }
+      .legend { grid-template-columns: 1fr; }
+      .highlight { grid-template-columns: 48px 1fr; }
+      .action-item { grid-template-columns: 28px 1fr; }
+      .status { grid-column: 2; width: fit-content; }
+      .agent-line { grid-template-columns: 36px 1fr; }
+      .agent-avatar { width: 36px; height: 36px; }
+      .rail-period { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="prototype">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">E</div>
+        <div class="brand-copy"><strong>EchoMem 周期回顾</strong><span>真实记忆证据 · LLM 生成 · attempt 4</span></div>
+      </div>
+      <div class="topbar-controls">
+        <div class="mode-tabs" role="tablist" aria-label="回顾周期">
+          <button class="mode-tab" role="tab" aria-selected="true" data-mode="daily">每日回顾</button>
+          <button class="mode-tab" role="tab" aria-selected="false" data-mode="weekly">每周回顾</button>
+        </div>
+        <select class="period-select" id="periodSelect" aria-label="选择回顾时间"></select>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="rail">
+        <div class="rail-heading">
+          <div><div class="rail-kicker" id="railKicker">DAILY RECAP</div><h1 id="railTitle">今天，值得看清什么</h1></div>
+          <div class="rail-period" id="railPeriod">2026 年 7 月 9 日<br>1 段会话 · 5 条原子 · 9 条消息</div>
+        </div>
+        <nav class="steps" id="steps" aria-label="回顾卡片"></nav>
+      </aside>
+
+      <section class="stage" aria-live="polite">
+        <div id="cards"></div>
+        <div class="nav-row">
+          <div class="page-count" id="pageCount">01 / 04</div>
+          <div class="nav-buttons">
+            <button class="nav-button" id="prevButton" aria-label="上一张卡片">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <button class="nav-button" id="nextButton" aria-label="下一张卡片">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="./periodic-review-v2-render.js"></script>
+</body>
+</html>
