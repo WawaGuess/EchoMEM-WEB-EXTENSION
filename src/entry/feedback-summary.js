@@ -2,14 +2,12 @@ import {
   renderSummary,
   cleanupSummary,
 } from '../panels/feedback/summary/summary-view.js';
-import { injectSummaryTheme } from '../panels/feedback/summary/summary-theme.js';
 
 const summaryFeedbackView = {
   key: 'summary',
   label: '周期总结',
-  mount: (container) => {
-    injectSummaryTheme(container);
-    renderSummary(container);
+  mount: (container, api) => {
+    renderSummary(container, { api });
   },
   cleanup: (container) => cleanupSummary(container),
 };

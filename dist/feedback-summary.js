@@ -1584,9 +1584,8 @@
   var summaryFeedbackView = {
     key: "summary",
     label: "\u5468\u671F\u603B\u7ED3",
-    mount: (container) => {
-      injectSummaryTheme(container);
-      renderSummary(container);
+    mount: (container, api) => {
+      renderSummary(container, { api });
     },
     cleanup: (container) => cleanupSummary(container)
   };
