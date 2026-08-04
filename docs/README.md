@@ -57,7 +57,7 @@ docs/
 |--------|-----------|-------|-----------|
 | 面板系统 | 001-统一浮层面板模式、007-扩展入口统一为网页浮层 | panel-system/生命周期、居中浮层、工具栏打开浮层 | 面板注册参考 |
 | 平台检测 | — | platform-detection/检测流程 | 平台配置参考 |
-| 认知反馈 | 002-认知反馈居中浮层 | cognitive-feedback/图谱渲染 | — |
+| 认知反馈 | 002-认知反馈居中浮层 | cognitive-feedback/Episode情节记忆展示 | — |
 | 输入联想 | — | input-association/补全流程 | — |
 | 会话录制 | — | session-recording/录制流程 | — |
 | 资源管理 | — | resource/导入流程 | — |
