@@ -9,6 +9,8 @@
         enabled: true,
         record: false,
         detection: {
+          hostnames: ["localhost", "127.0.0.1", "echo-agent.online", "higo.world", "<ip>"],
+          pathnamePrefixes: ["/home"],
           urlPatterns: ["/home/session/", "/home/workspace/"],
           titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
           domFeatures: {
@@ -246,6 +248,9 @@
   function normalizeHostname(hostname) {
     return String(hostname || "").trim().toLowerCase().replace(/\.$/, "");
   }
+  function isIPv4Address(hostname) {
+    return /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
+  }
   function normalizePathPrefix(prefix) {
     const normalized = String(prefix || "").trim();
     if (!normalized || normalized === "/") return normalized;
@@ -254,9 +259,11 @@
   function matchesAllowedHostname(hostname, allowedHostnames) {
     if (!Array.isArray(allowedHostnames) || allowedHostnames.length === 0) return true;
     const normalizedHostname = normalizeHostname(hostname);
-    return allowedHostnames.some(
-      (allowedHostname) => normalizedHostname === normalizeHostname(allowedHostname)
-    );
+    return allowedHostnames.some((allowedHostname) => {
+      const normalizedAllowed = normalizeHostname(allowedHostname);
+      if (normalizedAllowed === "<ip>") return isIPv4Address(normalizedHostname);
+      return normalizedHostname === normalizedAllowed;
+    });
   }
   function matchesPathnamePrefixes(pathname, pathnamePrefixes) {
     if (!Array.isArray(pathnamePrefixes) || pathnamePrefixes.length === 0) return true;
