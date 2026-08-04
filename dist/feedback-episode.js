@@ -1221,18 +1221,18 @@
   function formatRangeFromEpisodes(episodes) {
     const first = episodes[0];
     const last = episodes.reduce((latest, episode) => {
-      const latestTime = latest.endTime ?? latest.startTime ?? 0;
-      const episodeTime = episode.endTime ?? episode.startTime ?? 0;
+      const latestTime = latest.endTime ?? latest.lastActiveAt ?? latest.startTime ?? 0;
+      const episodeTime = episode.endTime ?? episode.lastActiveAt ?? episode.startTime ?? 0;
       return episodeTime > latestTime ? episode : latest;
     }, first);
-    const start = first.rawStartTime || first.rawEndTime;
-    const end = last.rawEndTime || last.rawStartTime;
+    const start = first.rawStartTime || first.rawLastActiveAt || first.rawEndTime;
+    const end = last.rawEndTime || last.rawLastActiveAt || last.rawStartTime;
     return formatRawDateRange(start, end);
   }
   function formatEpisodeDateRange(episode) {
     return formatRawDateRange(
-      episode.rawStartTime || episode.rawEndTime,
-      episode.rawEndTime || episode.rawStartTime
+      episode.rawStartTime || episode.rawLastActiveAt || episode.rawEndTime,
+      episode.rawEndTime || episode.rawLastActiveAt || episode.rawStartTime
     );
   }
   function formatRawDateRange(start, end) {
