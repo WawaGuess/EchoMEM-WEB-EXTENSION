@@ -1,0 +1,40 @@
+{
+  "result": {
+    "daily": [
+      {
+        "type": "daily",
+        "date": "2026-07-15",
+        "year": 2026,
+        "generated_at": "2026-07-15T23:59:59Z",
+        "based_on": {
+          "sessions": ["session_001"],
+          "atom_count": 12,
+          "message_count": 48
+        },
+        "metrics": {
+          "sessions": 1,
+          "turns": 24,
+          "user_messages": 12,
+          "assistant_messages": 12
+        },
+        "overview": "今日完成了融资方案初稿并与团队对齐了里程碑。",
+        "narrative": "上午梳理了融资材料，下午与投资人进行了两轮沟通，晚上把反馈整理成待办。",
+        "key_facts": [
+          { "statement": "融资方案初稿已完成", "importance": "high", "is_update": true, "previous_version": "融资方案待写" },
+          { "statement": "团队对齐了 Q3 里程碑", "importance": "medium" }
+        ],
+        "decisions": [
+          { "description": "下周一开始正式路演", "evidence": "投资人表示时间合适" }
+        ],
+        "action_items": [
+          { "description": "整理投资人反馈清单", "due": "2026-07-16", "source": "session_001" }
+        ],
+        "emotions": ["专注", "期待"],
+        "topics": ["融资", "里程碑"],
+        "people": ["投资人 A"],
+        "agent_note": "今天进展不错，建议明天优先处理反馈清单。"
+      }
+    ],
+    "weekly": []
+  }
+}
