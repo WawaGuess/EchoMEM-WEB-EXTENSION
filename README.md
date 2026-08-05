@@ -18,7 +18,7 @@
 
 ### 4. Skill 管理
 - **我的 Skill**：查看和管理已上传/使用过的 Skill；点击卡片可将 `/Skill目录名` 写入聊天输入框，通过独立「详情」按钮查看完整内容、版本历史与版本回退
-- **上传 Skill**：上传 `.md` / `.txt` 格式的单文件 SKILL.md（最大 10 MB），或上传包含 `SKILL.md` 及 scripts、assets、templates、references 等目录的完整 `.zip` Skill Package（最大 50 MB）
+- **上传 Skill**：上传 `.md` / `.txt` 格式的单文件 SKILL.md（最大 10 MB），或上传包含 `SKILL.md` 及 scripts、assets、templates、references 等目录的完整 `.zip` Skill Package（最大 45 MB；为 Base64 编码后的扩展消息预留空间）
 - **安装管理**：管理已安装的 Skill，支持删除
 
 ### 5. 效能

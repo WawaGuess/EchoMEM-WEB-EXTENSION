@@ -1,5 +1,7 @@
 export const MAX_SINGLE_SKILL_BYTES = 10 * 1024 * 1024;
-export const MAX_SKILL_PACKAGE_BYTES = 50 * 1024 * 1024;
+// Package bytes are Base64-encoded inside one chrome.runtime message. Keep
+// enough headroom below Chrome's 64 MiB message limit for JSON metadata.
+export const MAX_SKILL_PACKAGE_BYTES = 45 * 1024 * 1024;
 
 const SUPPORTED_EXTENSIONS = new Set(['md', 'txt', 'zip']);
 

@@ -9,7 +9,7 @@ import {
   validateSkillUploadFile,
 } from '../src/panels/skill-store/upload.js';
 
-test('Skill upload accepts single files up to 10 MB and ZIP packages up to 50 MB', () => {
+test('Skill upload accepts single files up to 10 MB and ZIP packages up to 45 MB', () => {
   assert.deepEqual(validateSkillUploadFile({ name: 'SKILL.md', size: MAX_SINGLE_SKILL_BYTES }), {
     extension: 'md',
     maxBytes: MAX_SINGLE_SKILL_BYTES,
@@ -20,12 +20,20 @@ test('Skill upload accepts single files up to 10 MB and ZIP packages up to 50 MB
   });
   assert.throws(
     () => validateSkillUploadFile({ name: 'skill.zip', size: MAX_SKILL_PACKAGE_BYTES + 1 }),
-    /不能超过 50 MB/,
+    /不能超过 45 MB/,
   );
   assert.throws(
     () => validateSkillUploadFile({ name: 'skill.tar', size: 1 }),
     /仅支持 .md \/ .txt \/ .zip/,
   );
+});
+
+test('maximum ZIP package leaves runtime message headroom after Base64 encoding', () => {
+  const chromeRuntimeMessageLimitBytes = 64 * 1024 * 1024;
+  const base64PayloadBytes = 4 * Math.ceil(MAX_SKILL_PACKAGE_BYTES / 3);
+
+  assert.equal(base64PayloadBytes, 60 * 1024 * 1024);
+  assert.ok(base64PayloadBytes < chromeRuntimeMessageLimitBytes);
 });
 
 test('Skill upload names remove supported extensions without overriding package frontmatter', () => {

@@ -3426,7 +3426,7 @@ ${block}` : block;
 
   // src/panels/skill-store/upload.js
   var MAX_SINGLE_SKILL_BYTES = 10 * 1024 * 1024;
-  var MAX_SKILL_PACKAGE_BYTES = 50 * 1024 * 1024;
+  var MAX_SKILL_PACKAGE_BYTES = 45 * 1024 * 1024;
   var SUPPORTED_EXTENSIONS = /* @__PURE__ */ new Set(["md", "txt", "zip"]);
   function getSkillUploadExtension(fileName) {
     const name = String(fileName || "").trim();
@@ -4657,7 +4657,7 @@ ${block}` : block;
       <div id="claw-skill-dropzone" class="claw-skill-dropzone" aria-label="\u9009\u62E9\u6216\u62D6\u653E Skill \u6587\u4EF6">
         <span class="claw-skill-upload-icon">${getSkillIcon("upload", 25)}</span>
         <p class="claw-skill-dropzone-title">\u70B9\u51FB\u9009\u62E9\u6216\u62D6\u62FD\u6587\u4EF6\u5230\u8FD9\u91CC</p>
-        <p class="claw-skill-dropzone-copy">\u652F\u6301 SKILL.md \u5355\u6587\u4EF6\u548C\u5B8C\u6574 Skill Package\uFF1B\u5355\u6587\u4EF6\u4E0D\u8D85\u8FC7 10 MB\uFF0CZIP \u4E0D\u8D85\u8FC7 50 MB\u3002</p>
+        <p class="claw-skill-dropzone-copy">\u652F\u6301 SKILL.md \u5355\u6587\u4EF6\u548C\u5B8C\u6574 Skill Package\uFF1B\u5355\u6587\u4EF6\u4E0D\u8D85\u8FC7 10 MB\uFF0CZIP \u4E0D\u8D85\u8FC7 45 MB\u3002</p>
         <div class="claw-skill-format-row" aria-hidden="true">
           <span class="claw-skill-format-chip">.MD</span>
           <span class="claw-skill-format-chip">.TXT</span>

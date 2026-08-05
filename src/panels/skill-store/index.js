@@ -1234,7 +1234,7 @@ export function getSkillUploadContent() {
       <div id="claw-skill-dropzone" class="claw-skill-dropzone" aria-label="选择或拖放 Skill 文件">
         <span class="claw-skill-upload-icon">${getSkillIcon('upload', 25)}</span>
         <p class="claw-skill-dropzone-title">点击选择或拖拽文件到这里</p>
-        <p class="claw-skill-dropzone-copy">支持 SKILL.md 单文件和完整 Skill Package；单文件不超过 10 MB，ZIP 不超过 50 MB。</p>
+        <p class="claw-skill-dropzone-copy">支持 SKILL.md 单文件和完整 Skill Package；单文件不超过 10 MB，ZIP 不超过 45 MB。</p>
         <div class="claw-skill-format-row" aria-hidden="true">
           <span class="claw-skill-format-chip">.MD</span>
           <span class="claw-skill-format-chip">.TXT</span>
