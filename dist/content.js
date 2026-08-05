@@ -1323,6 +1323,19 @@
     if (nativeSetter) nativeSetter.call(control, value);
     else control.value = value;
   }
+  function replaceContentEditableText(control, text) {
+    const documentRef = control.ownerDocument;
+    if (typeof control.replaceChildren !== "function" || !(documentRef == null ? void 0 : documentRef.createTextNode) || !(documentRef == null ? void 0 : documentRef.createElement)) {
+      control.textContent = text;
+      return;
+    }
+    const nodes = [];
+    text.split("\n").forEach((line, index) => {
+      if (index > 0) nodes.push(documentRef.createElement("br"));
+      if (line) nodes.push(documentRef.createTextNode(line));
+    });
+    control.replaceChildren(...nodes);
+  }
   function createInputEvent(control, data = null, inputType = "insertText") {
     var _a;
     const view = (_a = control.ownerDocument) == null ? void 0 : _a.defaultView;
@@ -1339,15 +1352,40 @@
     control.dispatchEvent(createInputEvent(control, options.data, options.inputType));
   }
   function placeContentEditableCaret(control, offset) {
-    var _a;
     const documentRef = control.ownerDocument;
     const view = documentRef == null ? void 0 : documentRef.defaultView;
     if (!(documentRef == null ? void 0 : documentRef.createRange) || !(view == null ? void 0 : view.getSelection)) return;
     const range = documentRef.createRange();
-    const textNode = control.firstChild;
-    if ((textNode == null ? void 0 : textNode.nodeType) === 3) {
-      range.setStart(textNode, Math.min(offset, ((_a = textNode.textContent) == null ? void 0 : _a.length) || 0));
-    } else {
+    let remaining = Math.max(0, offset);
+    const locateOffset = (node) => {
+      var _a;
+      for (const child of Array.from(node.childNodes || [])) {
+        if (child.nodeType === 3) {
+          const length = ((_a = child.textContent) == null ? void 0 : _a.length) || 0;
+          if (remaining <= length) {
+            range.setStart(child, remaining);
+            return true;
+          }
+          remaining -= length;
+          continue;
+        }
+        if (String(child.tagName || "").toUpperCase() === "BR") {
+          if (remaining === 0) {
+            range.setStartBefore(child);
+            return true;
+          }
+          remaining -= 1;
+          if (remaining === 0) {
+            range.setStartAfter(child);
+            return true;
+          }
+          continue;
+        }
+        if (locateOffset(child)) return true;
+      }
+      return false;
+    };
+    if (!locateOffset(control)) {
       range.selectNodeContents(control);
       range.collapse(false);
     }
@@ -1368,7 +1406,7 @@
       } catch (_) {
       }
     } else if (isContentEditableControl(control)) {
-      control.textContent = text;
+      replaceContentEditableText(control, text);
       placeContentEditableCaret(control, cursor);
     } else {
       return false;

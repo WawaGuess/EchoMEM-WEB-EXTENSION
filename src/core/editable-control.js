@@ -38,6 +38,25 @@ function setTextControlValue(control, value) {
   else control.value = value;
 }
 
+function replaceContentEditableText(control, text) {
+  const documentRef = control.ownerDocument;
+  if (
+    typeof control.replaceChildren !== 'function'
+    || !documentRef?.createTextNode
+    || !documentRef?.createElement
+  ) {
+    control.textContent = text;
+    return;
+  }
+
+  const nodes = [];
+  text.split('\n').forEach((line, index) => {
+    if (index > 0) nodes.push(documentRef.createElement('br'));
+    if (line) nodes.push(documentRef.createTextNode(line));
+  });
+  control.replaceChildren(...nodes);
+}
+
 function createInputEvent(control, data = null, inputType = 'insertText') {
   const view = control.ownerDocument?.defaultView;
   if (view?.InputEvent) {
@@ -61,10 +80,39 @@ function placeContentEditableCaret(control, offset) {
   if (!documentRef?.createRange || !view?.getSelection) return;
 
   const range = documentRef.createRange();
-  const textNode = control.firstChild;
-  if (textNode?.nodeType === 3) {
-    range.setStart(textNode, Math.min(offset, textNode.textContent?.length || 0));
-  } else {
+  let remaining = Math.max(0, offset);
+
+  const locateOffset = (node) => {
+    for (const child of Array.from(node.childNodes || [])) {
+      if (child.nodeType === 3) {
+        const length = child.textContent?.length || 0;
+        if (remaining <= length) {
+          range.setStart(child, remaining);
+          return true;
+        }
+        remaining -= length;
+        continue;
+      }
+
+      if (String(child.tagName || '').toUpperCase() === 'BR') {
+        if (remaining === 0) {
+          range.setStartBefore(child);
+          return true;
+        }
+        remaining -= 1;
+        if (remaining === 0) {
+          range.setStartAfter(child);
+          return true;
+        }
+        continue;
+      }
+
+      if (locateOffset(child)) return true;
+    }
+    return false;
+  };
+
+  if (!locateOffset(control)) {
     range.selectNodeContents(control);
     range.collapse(false);
   }
@@ -88,7 +136,7 @@ export function setEditableText(control, value, options = {}) {
       // Some controlled inputs do not expose selection offsets.
     }
   } else if (isContentEditableControl(control)) {
-    control.textContent = text;
+    replaceContentEditableText(control, text);
     placeContentEditableCaret(control, cursor);
   } else {
     return false;

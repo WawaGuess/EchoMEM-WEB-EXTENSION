@@ -28,6 +28,70 @@ function createBaseControl(overrides = {}) {
   return { control, events, wasFocused: () => focused };
 }
 
+function createStructuredContentEditable() {
+  const events = [];
+  let focused = false;
+  let caret = null;
+  const selection = {
+    removeAllRanges() {},
+    addRange(range) { caret = range.caret; },
+  };
+  const createTextNode = text => ({ nodeType: 3, textContent: text });
+  const createElement = tagName => ({ nodeType: 1, tagName: tagName.toUpperCase() });
+  const documentRef = {
+    defaultView: {
+      Event: FakeEvent,
+      getSelection: () => selection,
+    },
+    createTextNode,
+    createElement,
+    createRange() {
+      return {
+        caret: null,
+        setStart(node, offset) { this.caret = { placement: 'text', node, offset }; },
+        setStartBefore(node) { this.caret = { placement: 'before', node }; },
+        setStartAfter(node) { this.caret = { placement: 'after', node }; },
+        selectNodeContents(node) { this.caret = { placement: 'contents', node }; },
+        collapse() {},
+      };
+    },
+  };
+  const control = {
+    tagName: 'DIV',
+    isContentEditable: true,
+    ownerDocument: documentRef,
+    childNodes: [],
+    firstChild: null,
+    replaceChildren(...nodes) {
+      this.childNodes = nodes;
+      this.firstChild = nodes[0] || null;
+    },
+    dispatchEvent(event) { events.push(event); return true; },
+    focus() { focused = true; },
+  };
+  Object.defineProperties(control, {
+    textContent: {
+      get() {
+        return control.childNodes.map(node => node.nodeType === 3 ? node.textContent : '').join('');
+      },
+      set(value) {
+        control.replaceChildren(...value ? [createTextNode(String(value))] : []);
+      },
+    },
+    innerText: {
+      get() {
+        return control.childNodes.map(node => node.tagName === 'BR' ? '\n' : node.textContent).join('');
+      },
+    },
+  });
+  return {
+    control,
+    events,
+    getCaret: () => caret,
+    wasFocused: () => focused,
+  };
+}
+
 test('editable controls distinguish textarea/input from contenteditable editors', () => {
   assert.equal(isTextControl({ tagName: 'TEXTAREA' }), true);
   assert.equal(isTextControl({ tagName: 'input' }), true);
@@ -79,6 +143,25 @@ test('contenteditable controls preserve visual line breaks when read', () => {
   });
 
   assert.equal(readEditableText(control), '第一行\n第二行\n第三行');
+});
+
+test('contenteditable replacement preserves multiline DOM structure and caret', () => {
+  const { control, events, getCaret, wasFocused } = createStructuredContentEditable();
+
+  assert.equal(setEditableText(control, '第一行\n\n第三行'), true);
+  assert.deepEqual(
+    control.childNodes.map(node => node.nodeType === 3 ? `text:${node.textContent}` : node.tagName),
+    ['text:第一行', 'BR', 'BR', 'text:第三行']
+  );
+  assert.equal(readEditableText(control), '第一行\n\n第三行');
+  assert.deepEqual(getCaret(), {
+    placement: 'text',
+    node: control.childNodes[3],
+    offset: 3,
+  });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'input');
+  assert.equal(wasFocused(), true);
 });
 
 test('insertEditableText appends to contenteditable when no DOM Range is available', () => {
