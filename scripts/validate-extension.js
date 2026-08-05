@@ -18,9 +18,12 @@ function read(relativePath) {
 }
 
 const manifest = JSON.parse(read('manifest.json'));
+const manifestScriptFiles = [...new Set(
+  (manifest.content_scripts || []).flatMap((entry) => entry.js || [])
+)];
 const requiredFiles = [
   'background.js',
-  'dist/content.js',
+  ...manifestScriptFiles,
   'assets/echomem-lockup.png',
   'assets/echomem-symbol.png',
   'icons/icon16.png',
@@ -43,14 +46,17 @@ for (const relativePath of requiredFiles) {
 
 if (profileId) {
   const profile = resolveDeploymentProfile(profileId);
-  const contentBundle = read('dist/content.js');
+  const contentBundles = manifestScriptFiles.map((relativePath) => ({
+    relativePath,
+    source: read(relativePath),
+  }));
   assert(
     manifest.name.includes(profile.label),
     `manifest name must identify the ${profile.label} deployment profile`
   );
   assert(
-    contentBundle.includes(profile.defaultBaseUrl),
-    `content bundle must include the ${profile.label} default service address`
+    contentBundles.every((bundle) => bundle.source.includes(profile.defaultBaseUrl)),
+    `all content bundles must include the ${profile.label} default service address`
   );
 
   for (const otherProfileId of RELEASE_PROFILE_IDS) {
@@ -59,8 +65,8 @@ if (profileId) {
     if (!process.env[otherProfileMetadata.baseUrlEnv]) continue;
     const otherProfile = resolveDeploymentProfile(otherProfileId);
     assert(
-      !contentBundle.includes(otherProfile.defaultBaseUrl),
-      `content bundle must not include the ${otherProfile.label} service address`
+      contentBundles.every((bundle) => !bundle.source.includes(otherProfile.defaultBaseUrl)),
+      `content bundles must not include the ${otherProfile.label} service address`
     );
   }
 }

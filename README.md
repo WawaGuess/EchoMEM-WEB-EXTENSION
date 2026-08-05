@@ -76,6 +76,8 @@ npm test
 npm run build
 ```
 
+提交前执行 `npm run check`；校验会确认 `manifest.json` 加载的三个 `dist/*.js` bundle 均已由当前源码重新生成，避免只提交部分构建产物。
+
 构建完成后，可以本地手动打包发行包：
 
 ```bash
