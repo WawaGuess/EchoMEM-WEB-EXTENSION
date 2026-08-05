@@ -15,6 +15,23 @@ const TEST_ENVIRONMENT = Object.freeze({
   ECHOMEM_INTRANET_BASE_URL: 'http://intranet.example.test:41040',
 });
 
+const PREFIX_ENVIRONMENTS = Object.freeze({
+  port: Object.freeze({
+    ECHOMEM_PUBLIC_BASE_URL: 'https://api.example.test',
+    ECHOMEM_INTRANET_BASE_URL: 'https://api.example.test:8443',
+  }),
+  path: Object.freeze({
+    ECHOMEM_PUBLIC_BASE_URL: 'https://api.example.test/echomem',
+    ECHOMEM_INTRANET_BASE_URL: 'https://api.example.test/echomem/internal',
+  }),
+});
+
+const BUNDLE_NAMES = Object.freeze([
+  'content.js',
+  'feedback-episode.js',
+  'feedback-summary.js',
+]);
+
 test('deployment profiles resolve service addresses from the environment', () => {
   assert.equal(DEPLOYMENT_PROFILES.public.baseUrlEnv, 'ECHOMEM_PUBLIC_BASE_URL');
   assert.equal(DEPLOYMENT_PROFILES.intranet.baseUrlEnv, 'ECHOMEM_INTRANET_BASE_URL');
@@ -56,7 +73,42 @@ test('profile builds embed only their own default service address', async (t) =>
     });
     const bundle = await fs.readFile(path.join(outdir, 'content.js'), 'utf8');
 
-    assert.match(bundle, new RegExp(profile.defaultBaseUrl.replaceAll('.', '\\.')));
-    assert.doesNotMatch(bundle, new RegExp(otherProfile.defaultBaseUrl.replaceAll('.', '\\.')));
+    assert.ok(bundle.includes(JSON.stringify(profile.defaultBaseUrl)));
+    assert.ok(!bundle.includes(JSON.stringify(otherProfile.defaultBaseUrl)));
+  }
+});
+
+test('profile builds keep prefix-related service address literals distinct', async (t) => {
+  const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'echomem-prefix-profile-build-'));
+  t.after(() => fs.rm(temporaryRoot, { recursive: true, force: true }));
+
+  for (const [scenario, environment] of Object.entries(PREFIX_ENVIRONMENTS)) {
+    for (const profileId of ['public', 'intranet']) {
+      const profile = resolveDeploymentProfile(profileId, environment);
+      const otherProfile = resolveDeploymentProfile(
+        profileId === 'public' ? 'intranet' : 'public',
+        environment
+      );
+      const outdir = path.join(temporaryRoot, scenario, profileId);
+
+      await buildExtension({
+        profileId,
+        outdir,
+        log: false,
+        environment,
+      });
+
+      for (const bundleName of BUNDLE_NAMES) {
+        const bundle = await fs.readFile(path.join(outdir, bundleName), 'utf8');
+        assert.ok(
+          bundle.includes(JSON.stringify(profile.defaultBaseUrl)),
+          `${scenario}/${profileId}/${bundleName} must include its exact address literal`
+        );
+        assert.ok(
+          !bundle.includes(JSON.stringify(otherProfile.defaultBaseUrl)),
+          `${scenario}/${profileId}/${bundleName} must exclude the other exact address literal`
+        );
+      }
+    }
   }
 });

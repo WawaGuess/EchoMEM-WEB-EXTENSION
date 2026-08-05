@@ -46,6 +46,7 @@ for (const relativePath of requiredFiles) {
 
 if (profileId) {
   const profile = resolveDeploymentProfile(profileId);
+  const profileAddressLiteral = JSON.stringify(profile.defaultBaseUrl);
   const contentBundles = manifestScriptFiles.map((relativePath) => ({
     relativePath,
     source: read(relativePath),
@@ -55,7 +56,7 @@ if (profileId) {
     `manifest name must identify the ${profile.label} deployment profile`
   );
   assert(
-    contentBundles.every((bundle) => bundle.source.includes(profile.defaultBaseUrl)),
+    contentBundles.every((bundle) => bundle.source.includes(profileAddressLiteral)),
     `all content bundles must include the ${profile.label} default service address`
   );
 
@@ -64,8 +65,9 @@ if (profileId) {
     const otherProfileMetadata = getDeploymentProfile(otherProfileId);
     if (!process.env[otherProfileMetadata.baseUrlEnv]) continue;
     const otherProfile = resolveDeploymentProfile(otherProfileId);
+    const otherProfileAddressLiteral = JSON.stringify(otherProfile.defaultBaseUrl);
     assert(
-      contentBundles.every((bundle) => !bundle.source.includes(otherProfile.defaultBaseUrl)),
+      contentBundles.every((bundle) => !bundle.source.includes(otherProfileAddressLiteral)),
       `content bundles must not include the ${otherProfile.label} service address`
     );
   }
