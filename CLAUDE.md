@@ -70,7 +70,7 @@ EchoMEM-WEB-EXTENSION/
 - 后台脚本以 **Service Worker** 形式运行（事件驱动，非持久化）
 - 工具栏 `action` 没有配置 `default_popup`；点击事件由 `background.js` 的 `chrome.action.onClicked` 直接处理
 - 内容脚本通过 `<all_urls>` 注入所有页面，经平台检测后决定是否注入 EchoMem UI
-- 权限：`activeTab`, `storage`, `scripting`
+- 权限：`activeTab`, `storage`
 
 ### 运行入口
 - 内容脚本源码入口为 `src/entry/content.js`，Chrome 通过 `manifest.json` 加载构建产物 `dist/content.js`
