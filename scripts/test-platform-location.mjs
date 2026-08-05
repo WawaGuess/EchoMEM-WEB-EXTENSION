@@ -25,6 +25,7 @@ const matchingUrls = [
   'http://7.250.106.74:31010/home/session/session-123',
   'http://192.168.1.100:31010/home/workspace/workspace-123',
   'https://echo-agent.online/home/session/session-123',
+  'https://www.echo-agent.online/home/',
   'https://higo.world/home/workspace/workspace-123',
 ];
 
@@ -35,6 +36,7 @@ const rejectedUrls = [
   'https://example.com/home',
   'https://higo.world.example.com/home',
   'https://sub.higo.world/home',
+  'https://sub.www.echo-agent.online/home',
 ];
 
 for (const url of matchingUrls) {
