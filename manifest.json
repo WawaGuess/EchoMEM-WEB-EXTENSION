@@ -5,8 +5,7 @@
   "description": "Enhances Claw-style web workflows with memory, resources, input association, feedback, skills, and productivity tools",
   "permissions": [
     "activeTab",
-    "storage",
-    "scripting"
+    "storage"
   ],
   "host_permissions": [
     "<all_urls>"
