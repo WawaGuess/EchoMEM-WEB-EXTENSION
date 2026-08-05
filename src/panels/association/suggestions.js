@@ -6,6 +6,7 @@
 //   4. 每次重渲染（新一轮搜索结果）清空已勾选状态
 
 import { escapeHtml } from '../../utils/text-processor.js';
+import { readEditableText, setEditableText } from '../../core/editable-control.js';
 
 // 记忆段标签
 const MEM_TAG_OPEN = '<relevant-memories>';
@@ -224,7 +225,7 @@ function bindContainerEvents(container, inputElement) {
       }
     });
     if (!selected.length) return;
-    composeAndInsert(currentInputElement, currentInputElement.value || '', selected);
+    commitSelectedSuggestions(currentInputElement, selected);
     hideSuggestions();
   });
 }
@@ -325,7 +326,7 @@ function stripMemoryBlock(userText) {
  * @param {Array<{key: string, item: Object}>} selected — 带 key 的选中条目
  */
 function composeAndInsert(textarea, userText, selected) {
-  if (!textarea) return;
+  if (!textarea) return false;
 
   const basePart = stripMemoryBlock(userText);
 
@@ -338,21 +339,21 @@ function composeAndInsert(textarea, userText, selected) {
   }
 
   const bodies = Array.from(committedItems.values());
-  if (!bodies.length) return;
+  if (!bodies.length) return false;
 
   const lines = bodies.map((b, i) => `${i + 1}. ${b}`);
   const prefix = basePart ? `${basePart}\n\n` : '';
   const next = `${prefix}${MEM_TAG_OPEN}\n${lines.join('\n')}\n${MEM_TAG_CLOSE}`;
 
-  textarea.value = next;
-  try {
-    textarea.selectionStart = textarea.selectionEnd = next.length;
-  } catch (_) {
-    // 某些受控组件可能不允许直接设置 selection，忽略即可
-  }
-  // 触发 input 事件，让受控组件感知变更
-  textarea.dispatchEvent(new Event('input', { bubbles: true }));
-  textarea.focus();
+  return setEditableText(textarea, next, { cursor: next.length });
+}
+
+/**
+ * 读取当前可编辑控件并提交选中的记忆。点击确认和键盘确认共用此入口，
+ * 避免 contenteditable 控件因不存在 value 属性而丢失用户原有输入。
+ */
+export function commitSelectedSuggestions(inputElement, selected) {
+  return composeAndInsert(inputElement, readEditableText(inputElement), selected);
 }
 
 /**
@@ -419,7 +420,7 @@ export function bindKeyboardNavigation(textarea) {
               selected.push({ key, item: c });
             }
           });
-          composeAndInsert(textarea, textarea.value || '', selected);
+          commitSelectedSuggestions(textarea, selected);
           hideSuggestions();
         }
         break;

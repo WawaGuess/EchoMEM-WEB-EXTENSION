@@ -31,7 +31,7 @@
           title: "\u6253\u5F00 EchoMem"
         },
         input: {
-          selector: "textarea[id^='_r_']"
+          selector: "textarea[id^='_r_'], [contenteditable='true'][role='textbox']"
         },
         messages: {
           messageContainers: [
@@ -817,6 +817,7 @@
     timeoutMs: 5e3,
     debug: true
   };
+  var DEFAULT_SKILL_PACKAGE_TIMEOUT_MS = 12e4;
   function log(prefix, ...args) {
     console.log(`EchoMem client [${prefix}]`, ...args);
   }
@@ -866,7 +867,7 @@
       var _a;
       const response = await fetchViaBackground(url, {
         ...options,
-        timeout: this.cfg.timeoutMs
+        timeout: options.timeout ?? this.cfg.timeoutMs
       });
       const data = response.data ?? response.text;
       if (data && data.status === "error") {
@@ -1060,6 +1061,35 @@
       });
       if (this.cfg.debug) {
         log("addSkill response", `name=${result == null ? void 0 : result.name}`, `uri=${result == null ? void 0 : result.uri}`);
+      }
+      return result;
+    }
+    async addSkillPackage(options = {}) {
+      if (!options.packageBase64) throw new Error("packageBase64 is required");
+      const timeout = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0 ? options.timeoutMs : Math.max(this.cfg.timeoutMs, DEFAULT_SKILL_PACKAGE_TIMEOUT_MS);
+      const body = {
+        package_base64: options.packageBase64,
+        filename: options.filename,
+        name: options.name,
+        description: options.description,
+        tags: options.tags,
+        allowed_tools: options.allowedTools,
+        metadata: options.metadata
+      };
+      Object.keys(body).forEach((key) => {
+        if (body[key] === void 0) delete body[key];
+      });
+      if (this.cfg.debug) {
+        log("addSkillPackage request", options.filename, JSON.stringify({ ...body, package_base64: void 0 }));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/skills/package`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body),
+        timeout
+      });
+      if (this.cfg.debug) {
+        log("addSkillPackage response", `name=${result == null ? void 0 : result.name}`, `uri=${result == null ? void 0 : result.uri}`);
       }
       return result;
     }
@@ -1264,6 +1294,207 @@
     };
   }
 
+  // src/core/editable-control.js
+  function isTextControl(control) {
+    const tagName = String((control == null ? void 0 : control.tagName) || "").toUpperCase();
+    return tagName === "TEXTAREA" || tagName === "INPUT";
+  }
+  function isContentEditableControl(control) {
+    var _a;
+    if (!control) return false;
+    if (control.isContentEditable === true) return true;
+    return ((_a = control.getAttribute) == null ? void 0 : _a.call(control, "contenteditable")) === "true";
+  }
+  function readEditableText(control) {
+    if (isTextControl(control)) return String(control.value ?? "");
+    if (isContentEditableControl(control)) {
+      if (typeof control.innerText === "string") {
+        return control.innerText.replace(/\r\n?/g, "\n");
+      }
+      return String(control.textContent ?? "");
+    }
+    return "";
+  }
+  function setTextControlValue(control, value) {
+    var _a, _b, _c, _d;
+    const view = (_a = control.ownerDocument) == null ? void 0 : _a.defaultView;
+    const prototype = String(control.tagName || "").toUpperCase() === "TEXTAREA" ? (_b = view == null ? void 0 : view.HTMLTextAreaElement) == null ? void 0 : _b.prototype : (_c = view == null ? void 0 : view.HTMLInputElement) == null ? void 0 : _c.prototype;
+    const nativeSetter = prototype ? (_d = Object.getOwnPropertyDescriptor(prototype, "value")) == null ? void 0 : _d.set : null;
+    if (nativeSetter) nativeSetter.call(control, value);
+    else control.value = value;
+  }
+  function replaceContentEditableText(control, text) {
+    const documentRef = control.ownerDocument;
+    if (typeof control.replaceChildren !== "function" || !(documentRef == null ? void 0 : documentRef.createTextNode) || !(documentRef == null ? void 0 : documentRef.createElement)) {
+      control.textContent = text;
+      return;
+    }
+    const nodes = [];
+    text.split("\n").forEach((line, index) => {
+      if (index > 0) nodes.push(documentRef.createElement("br"));
+      if (line) nodes.push(documentRef.createTextNode(line));
+    });
+    control.replaceChildren(...nodes);
+  }
+  function createInputEvent(control, data = null, inputType = "insertText") {
+    var _a;
+    const view = (_a = control.ownerDocument) == null ? void 0 : _a.defaultView;
+    if (view == null ? void 0 : view.InputEvent) {
+      try {
+        return new view.InputEvent("input", { bubbles: true, inputType, data });
+      } catch (_) {
+      }
+    }
+    const EventConstructor = (view == null ? void 0 : view.Event) || Event;
+    return new EventConstructor("input", { bubbles: true });
+  }
+  function dispatchEditableInput(control, options = {}) {
+    control.dispatchEvent(createInputEvent(control, options.data, options.inputType));
+  }
+  function placeContentEditableCaret(control, offset) {
+    const documentRef = control.ownerDocument;
+    const view = documentRef == null ? void 0 : documentRef.defaultView;
+    if (!(documentRef == null ? void 0 : documentRef.createRange) || !(view == null ? void 0 : view.getSelection)) return;
+    const range = documentRef.createRange();
+    let remaining = Math.max(0, offset);
+    const locateOffset = (node) => {
+      var _a;
+      for (const child of Array.from(node.childNodes || [])) {
+        if (child.nodeType === 3) {
+          const length = ((_a = child.textContent) == null ? void 0 : _a.length) || 0;
+          if (remaining <= length) {
+            range.setStart(child, remaining);
+            return true;
+          }
+          remaining -= length;
+          continue;
+        }
+        if (String(child.tagName || "").toUpperCase() === "BR") {
+          if (remaining === 0) {
+            range.setStartBefore(child);
+            return true;
+          }
+          remaining -= 1;
+          if (remaining === 0) {
+            range.setStartAfter(child);
+            return true;
+          }
+          continue;
+        }
+        if (locateOffset(child)) return true;
+      }
+      return false;
+    };
+    if (!locateOffset(control)) {
+      range.selectNodeContents(control);
+      range.collapse(false);
+    }
+    range.collapse(true);
+    const selection = view.getSelection();
+    selection == null ? void 0 : selection.removeAllRanges();
+    selection == null ? void 0 : selection.addRange(range);
+  }
+  function setEditableText(control, value, options = {}) {
+    var _a;
+    if (!control) return false;
+    const text = String(value ?? "");
+    const cursor = Number.isInteger(options.cursor) ? options.cursor : text.length;
+    if (isTextControl(control)) {
+      setTextControlValue(control, text);
+      try {
+        control.selectionStart = control.selectionEnd = cursor;
+      } catch (_) {
+      }
+    } else if (isContentEditableControl(control)) {
+      replaceContentEditableText(control, text);
+      placeContentEditableCaret(control, cursor);
+    } else {
+      return false;
+    }
+    if (options.dispatch !== false) {
+      dispatchEditableInput(control, {
+        data: options.data ?? text,
+        inputType: options.inputType || "insertText"
+      });
+    }
+    if (options.focus !== false) (_a = control.focus) == null ? void 0 : _a.call(control);
+    return true;
+  }
+  function isRangeWithin(control, range) {
+    if (!range) return false;
+    const contains = (node) => {
+      var _a;
+      return node === control || ((_a = control.contains) == null ? void 0 : _a.call(control, node));
+    };
+    return contains(range.startContainer) && contains(range.endContainer);
+  }
+  function createEndRange(control) {
+    var _a, _b;
+    const range = (_b = (_a = control.ownerDocument) == null ? void 0 : _a.createRange) == null ? void 0 : _b.call(_a);
+    if (!range) return null;
+    range.selectNodeContents(control);
+    range.collapse(false);
+    return range;
+  }
+  function textAroundRange(control, range) {
+    const beforeRange = range.cloneRange();
+    beforeRange.selectNodeContents(control);
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+    const afterRange = range.cloneRange();
+    afterRange.selectNodeContents(control);
+    afterRange.setStart(range.endContainer, range.endOffset);
+    return { before: beforeRange.toString(), after: afterRange.toString() };
+  }
+  function insertIntoContentEditable(control, content, options = {}) {
+    var _a, _b;
+    const cleanContent = String(content ?? "").trim();
+    if (!cleanContent) return false;
+    const documentRef = control.ownerDocument;
+    const view = documentRef == null ? void 0 : documentRef.defaultView;
+    const selection = (_a = view == null ? void 0 : view.getSelection) == null ? void 0 : _a.call(view);
+    const selectedRange = (selection == null ? void 0 : selection.rangeCount) ? selection.getRangeAt(0) : null;
+    const range = isRangeWithin(control, selectedRange) ? selectedRange.cloneRange() : createEndRange(control);
+    if (!range || !(documentRef == null ? void 0 : documentRef.createTextNode)) {
+      const result = composePlainTextInsertion(readEditableText(control), cleanContent);
+      return result ? setEditableText(control, result.value, {
+        ...options,
+        cursor: result.cursor,
+        data: cleanContent
+      }) : false;
+    }
+    const { before, after } = textAroundRange(control, range);
+    const prefix = before && !/\s$/.test(before) ? " " : "";
+    const suffix = after && /^\s/.test(after) ? "" : " ";
+    const inserted = `${prefix}${cleanContent}${suffix}`;
+    if (options.focus !== false) (_b = control.focus) == null ? void 0 : _b.call(control);
+    range.deleteContents();
+    const textNode = documentRef.createTextNode(inserted);
+    range.insertNode(textNode);
+    range.setStartAfter(textNode);
+    range.collapse(true);
+    selection == null ? void 0 : selection.removeAllRanges();
+    selection == null ? void 0 : selection.addRange(range);
+    dispatchEditableInput(control, { data: inserted, inputType: "insertText" });
+    return true;
+  }
+  function insertEditableText(control, content, options = {}) {
+    if (isContentEditableControl(control)) {
+      return insertIntoContentEditable(control, content, options);
+    }
+    if (!isTextControl(control)) return false;
+    const result = composePlainTextInsertion(
+      readEditableText(control),
+      content,
+      control.selectionStart,
+      control.selectionEnd
+    );
+    return result ? setEditableText(control, result.value, {
+      ...options,
+      cursor: result.cursor,
+      data: String(content ?? "").trim()
+    }) : false;
+  }
+
   // src/core/content-injector.js
   function findInputElement() {
     var _a, _b, _c, _d, _e;
@@ -1282,50 +1513,21 @@
     if (end === -1) return text.trim();
     return (text.slice(0, start2) + text.slice(end + MEM_TAG_CLOSE.length)).trim();
   }
-  function setTextControlValue(control, value) {
-    var _a, _b, _c, _d;
-    const view = (_a = control.ownerDocument) == null ? void 0 : _a.defaultView;
-    const prototype = control.tagName === "TEXTAREA" ? (_b = view == null ? void 0 : view.HTMLTextAreaElement) == null ? void 0 : _b.prototype : (_c = view == null ? void 0 : view.HTMLInputElement) == null ? void 0 : _c.prototype;
-    const nativeSetter = prototype ? (_d = Object.getOwnPropertyDescriptor(prototype, "value")) == null ? void 0 : _d.set : null;
-    if (nativeSetter) {
-      nativeSetter.call(control, value);
-    } else {
-      control.value = value;
-    }
-  }
   function insertPlainText(content, options = {}) {
-    var _a, _b;
-    const textarea = findInputElement();
-    if (!textarea) {
+    const inputElement = findInputElement();
+    if (!inputElement) {
       console.warn("EchoMem: \u672A\u627E\u5230\u8F93\u5165\u6846\uFF0C\u65E0\u6CD5\u63D2\u5165\u6587\u672C");
       return false;
     }
-    const result = composePlainTextInsertion(
-      textarea.value,
-      content,
-      textarea.selectionStart,
-      textarea.selectionEnd
-    );
-    if (!result) return false;
-    setTextControlValue(textarea, result.value);
-    try {
-      textarea.selectionStart = textarea.selectionEnd = result.cursor;
-    } catch (_) {
-    }
-    const EventConstructor = ((_b = (_a = textarea.ownerDocument) == null ? void 0 : _a.defaultView) == null ? void 0 : _b.Event) || Event;
-    textarea.dispatchEvent(new EventConstructor("input", { bubbles: true }));
-    if (options.focus !== false) {
-      textarea.focus();
-    }
-    return true;
+    return insertEditableText(inputElement, content, options);
   }
   function injectContent(content, options = {}) {
-    const textarea = findInputElement();
-    if (!textarea) {
+    const inputElement = findInputElement();
+    if (!inputElement) {
       console.warn("EchoMem: \u672A\u627E\u5230\u8F93\u5165\u6846\uFF0C\u65E0\u6CD5\u6CE8\u5165\u5185\u5BB9");
       return false;
     }
-    const existing = textarea.value || "";
+    const existing = readEditableText(inputElement);
     let base = options.replace ? stripMemoryBlock(existing) : existing;
     const cleanContent = content.replace(new RegExp(MEM_TAG_OPEN, "g"), "").replace(new RegExp(MEM_TAG_CLOSE, "g"), "").trim();
     if (!cleanContent) return false;
@@ -1335,16 +1537,7 @@ ${MEM_TAG_CLOSE}`;
     const next = base ? `${base}
 
 ${block}` : block;
-    setTextControlValue(textarea, next);
-    try {
-      textarea.selectionStart = textarea.selectionEnd = next.length;
-    } catch (_) {
-    }
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    if (options.focus !== false) {
-      textarea.focus();
-    }
-    return true;
+    return setEditableText(inputElement, next, { focus: options.focus, cursor: next.length });
   }
 
   // src/panels/resource/import.js
@@ -3269,6 +3462,48 @@ ${block}` : block;
     return key === "Enter" || key === " ";
   }
 
+  // src/panels/skill-store/upload.js
+  var MAX_SINGLE_SKILL_BYTES = 10 * 1024 * 1024;
+  var MAX_SKILL_PACKAGE_BYTES = 45 * 1024 * 1024;
+  var SUPPORTED_EXTENSIONS = /* @__PURE__ */ new Set(["md", "txt", "zip"]);
+  function getSkillUploadExtension(fileName) {
+    const name = String(fileName || "").trim();
+    const dotIndex = name.lastIndexOf(".");
+    const extension = dotIndex >= 0 ? name.slice(dotIndex + 1).toLowerCase() : "";
+    if (!SUPPORTED_EXTENSIONS.has(extension)) {
+      throw new Error("\u5F53\u524D\u7248\u672C\u4EC5\u652F\u6301 .md / .txt / .zip \u683C\u5F0F Skill");
+    }
+    return extension;
+  }
+  function getSkillUploadMaxBytes(extension) {
+    return extension === "zip" ? MAX_SKILL_PACKAGE_BYTES : MAX_SINGLE_SKILL_BYTES;
+  }
+  function validateSkillUploadFile(file) {
+    const extension = getSkillUploadExtension(file == null ? void 0 : file.name);
+    const maxBytes = getSkillUploadMaxBytes(extension);
+    if (!Number.isFinite(file == null ? void 0 : file.size) || file.size < 0) {
+      throw new Error("\u65E0\u6CD5\u8BFB\u53D6\u6587\u4EF6\u5927\u5C0F");
+    }
+    if (file.size > maxBytes) {
+      const maxMb = Math.round(maxBytes / (1024 * 1024));
+      throw new Error(`\u6587\u4EF6\u8FC7\u5927\uFF0C${extension === "zip" ? "Skill Package" : "\u5355\u6587\u4EF6 Skill"}\u4E0D\u80FD\u8D85\u8FC7 ${maxMb} MB`);
+    }
+    return { extension, maxBytes };
+  }
+  function normalizeSkillUploadName(name, fileName) {
+    const fallback = String(fileName || "").replace(/\.(md|txt|zip)$/i, "");
+    return String(typeof name === "string" && name.trim() ? name : fallback).replace(/\.(md|txt|zip)$/i, "").trim();
+  }
+  function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 32768;
+    let binary = "";
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+    }
+    return btoa(binary);
+  }
+
   // src/panels/skill-store/index.js
   var SKILL_ROOT_URI = "echo://skills";
   var SKILL_STORE_STYLES = `
@@ -4460,12 +4695,13 @@ ${block}` : block;
       <div id="claw-skill-dropzone" class="claw-skill-dropzone" aria-label="\u9009\u62E9\u6216\u62D6\u653E Skill \u6587\u4EF6">
         <span class="claw-skill-upload-icon">${getSkillIcon("upload", 25)}</span>
         <p class="claw-skill-dropzone-title">\u70B9\u51FB\u9009\u62E9\u6216\u62D6\u62FD\u6587\u4EF6\u5230\u8FD9\u91CC</p>
-        <p class="claw-skill-dropzone-copy">\u5185\u5BB9\u9700\u7B26\u5408 SKILL.md \u683C\u5F0F\uFF0C\u5355\u4E2A\u6587\u4EF6\u4E0D\u8D85\u8FC7 10MB\u3002</p>
+        <p class="claw-skill-dropzone-copy">\u652F\u6301 SKILL.md \u5355\u6587\u4EF6\u548C\u5B8C\u6574 Skill Package\uFF1B\u5355\u6587\u4EF6\u4E0D\u8D85\u8FC7 10 MB\uFF0CZIP \u4E0D\u8D85\u8FC7 45 MB\u3002</p>
         <div class="claw-skill-format-row" aria-hidden="true">
           <span class="claw-skill-format-chip">.MD</span>
           <span class="claw-skill-format-chip">.TXT</span>
+          <span class="claw-skill-format-chip">.ZIP</span>
         </div>
-        <input type="file" id="claw-skill-file-input" accept=".md,.txt" style="display: none;" />
+        <input type="file" id="claw-skill-file-input" accept=".md,.txt,.zip" style="display: none;" />
       </div>
 
       <!-- \u72B6\u6001\u63D0\u793A -->
@@ -4476,7 +4712,9 @@ ${block}` : block;
         <p class="claw-skill-guide-title"><span>${getSkillIcon("clipboard", 16)}</span>\u4E0A\u4F20\u987B\u77E5</p>
         <ul class="claw-skill-guide-list">
           <li>SKILL.md \u5FC5\u987B\u4EE5 <code>---</code> \u5F00\u5934</li>
-          <li>Skill \u540D\u79F0\u4F18\u5148\u53D6 frontmatter \u4E2D\u7684 <code>name</code>\uFF1B\u672A\u586B\u5199\u65F6\u53D6\u6587\u4EF6\u540D\uFF08\u53BB\u6389 <code>.md</code> / <code>.txt</code>\uFF09</li>
+          <li>ZIP Package \u5FC5\u987B\u5305\u542B <code>SKILL.md</code>\uFF0C\u53EF\u9644\u5E26 scripts\u3001assets\u3001templates\u3001references \u7B49\u76EE\u5F55</li>
+          <li>ZIP \u4E2D\u7981\u6B62\u9690\u85CF\u76EE\u5F55\u3001<code>.git</code>\u3001<code>.skill_evolution</code>\u3001\u8DEF\u5F84\u7A7F\u8D8A\u548C\u53EF\u6267\u884C\u6587\u4EF6\uFF1B\u6700\u7EC8\u7531 EchoMem \u670D\u52A1\u7AEF\u6821\u9A8C</li>
+          <li>Skill \u540D\u79F0\u4F18\u5148\u53D6 frontmatter \u4E2D\u7684 <code>name</code>\uFF1B\u5355\u6587\u4EF6\u672A\u586B\u5199\u65F6\u53D6\u6587\u4EF6\u540D\uFF08\u53BB\u6389\u6269\u5C55\u540D\uFF09</li>
           <li>Skill \u540D\u79F0\u4EC5\u652F\u6301\u5B57\u6BCD\u3001\u6570\u5B57\u3001\u4E0B\u5212\u7EBF\u3001\u77ED\u6A2A\u7EBF\uFF08\u6B63\u5219 <code>^[\\w-]+$</code>\uFF09</li>
           <li>\u5982\u5B58\u5728\u540C\u540D Skill\uFF0C\u5C06\u76F4\u63A5\u8986\u76D6</li>
           <li>\u524D\u7AEF\u6821\u9A8C\u4EC5\u4F9B\u53C2\u8003\uFF0C\u6700\u7EC8\u683C\u5F0F\u4EE5\u670D\u52A1\u7AEF\u89E3\u6790\u4E3A\u51C6</li>
@@ -4520,21 +4758,10 @@ ${block}` : block;
       return err.message;
     }
     function normalizeSkillName(name, fileName) {
-      let raw = "";
-      if (typeof name === "string" && name.trim()) {
-        raw = name.trim();
-      } else {
-        raw = fileName.replace(/\.(md|txt)$/i, "");
-      }
-      raw = raw.replace(/\.(md|txt)$/i, "").trim();
-      return raw;
+      return normalizeSkillUploadName(name, fileName);
     }
     async function validateFile(file) {
-      const MAX_SIZE = 10 * 1024 * 1024;
-      if (file.size > MAX_SIZE) {
-        throw new Error("\u6587\u4EF6\u8FC7\u5927\uFF0C\u8BF7\u538B\u7F29\u9644\u4EF6\u540E\u91CD\u8BD5");
-      }
-      const ext = file.name.split(".").pop().toLowerCase();
+      const { extension: ext } = validateSkillUploadFile(file);
       if (ext === "md" || ext === "txt") {
         const text = await file.text();
         if (!text.trim().startsWith("---")) {
@@ -4546,7 +4773,7 @@ ${block}` : block;
           throw new Error("frontmatter \u4E2D\u5FC5\u987B\u5305\u542B name \u5B57\u6BB5");
         }
       }
-      return true;
+      return ext;
     }
     async function executeUpload(file, skillName, skillText) {
       showStatus("\u6B63\u5728\u4E0A\u4F20...", "info");
@@ -4571,6 +4798,22 @@ ${block}` : block;
         showStatus(`\u4E0A\u4F20\u5931\u8D25\uFF1A${formatError(err)}`, "error");
       }
     }
+    async function executePackageUpload(file) {
+      showStatus("\u6B63\u5728\u4E0A\u4F20 Skill Package...", "info");
+      try {
+        const config = await getEchoMemConfig();
+        const client2 = createClient(config);
+        const packageBase64 = arrayBufferToBase64(await file.arrayBuffer());
+        const skillResult = await client2.addSkillPackage({
+          packageBase64,
+          filename: file.name
+        });
+        skillCache = null;
+        showStatus(`Skill Package\u300C${skillResult.name || file.name}\u300D\u4E0A\u4F20\u6210\u529F`, "success");
+      } catch (err) {
+        showStatus(`\u4E0A\u4F20\u5931\u8D25\uFF1A${formatError(err)}`, "error");
+      }
+    }
     async function doUpload(file) {
       showStatus("\u6B63\u5728\u6821\u9A8C\u6587\u4EF6...", "info");
       try {
@@ -4589,11 +4832,10 @@ ${block}` : block;
           skillName = normalizeSkillName(frontmatter.name, file.name);
         } catch {
         }
-      } else {
-        showStatus("\u5F53\u524D\u7248\u672C\u4EC5\u652F\u6301 .md / .txt \u683C\u5F0F Skill", "error");
-        return;
+      } else if (ext === "zip") {
+        skillName = file.name;
       }
-      if (!skillText) {
+      if (ext !== "zip" && !skillText) {
         showStatus("\u65E0\u6CD5\u8BFB\u53D6 Skill \u5185\u5BB9", "error");
         return;
       }
@@ -4604,7 +4846,7 @@ ${block}` : block;
         <div>
           <span class="claw-skill-dialog-icon">${getSkillIcon("upload", 23)}</span>
           <p class="claw-skill-dialog-title">\u786E\u8BA4\u4E0A\u4F20 Skill</p>
-          <p class="claw-skill-dialog-copy">\u5982\u5B58\u5728\u540C\u540D Skill\u300C<strong>${safeName}</strong>\u300D\uFF0C\u5C06\u76F4\u63A5\u8986\u76D6\u3002</p>
+          <p class="claw-skill-dialog-copy">${ext === "zip" ? "EchoMem \u5C06\u8BFB\u53D6\u5305\u5185 SKILL.md\uFF1B\u5982\u5B58\u5728\u540C\u540D Skill\uFF0C\u5C06\u76F4\u63A5\u8986\u76D6\u3002" : `\u5982\u5B58\u5728\u540C\u540D Skill\u300C<strong>${safeName}</strong>\u300D\uFF0C\u5C06\u76F4\u63A5\u8986\u76D6\u3002`}</p>
         </div>
         <div class="claw-skill-dialog-actions">
           <button type="button" id="claw-skill-confirm-cancel" class="claw-skill-dialog-button">\u53D6\u6D88</button>
@@ -4628,7 +4870,11 @@ ${block}` : block;
         });
         okBtn == null ? void 0 : okBtn.addEventListener("click", () => {
           closeOverlayPanel();
-          executeUpload(file, skillName, skillText);
+          if (ext === "zip") {
+            executePackageUpload(file);
+          } else {
+            executeUpload(file, skillName, skillText);
+          }
         });
       }, 50);
     }
@@ -7945,7 +8191,7 @@ ${block}` : block;
         }
       });
       if (!selected.length) return;
-      composeAndInsert(currentInputElement, currentInputElement.value || "", selected);
+      commitSelectedSuggestions(currentInputElement, selected);
       hideSuggestions();
     });
   }
@@ -8005,7 +8251,7 @@ ${block}` : block;
     return text.replace(regex, "").replace(/\s+$/, "");
   }
   function composeAndInsert(textarea, userText, selected) {
-    if (!textarea) return;
+    if (!textarea) return false;
     const basePart = stripMemoryBlock2(userText);
     for (const { key, item } of selected) {
       if (committedItems.has(key)) continue;
@@ -8014,7 +8260,7 @@ ${block}` : block;
       committedItems.set(key, body);
     }
     const bodies = Array.from(committedItems.values());
-    if (!bodies.length) return;
+    if (!bodies.length) return false;
     const lines = bodies.map((b, i) => `${i + 1}. ${b}`);
     const prefix = basePart ? `${basePart}
 
@@ -8022,13 +8268,10 @@ ${block}` : block;
     const next = `${prefix}${MEM_TAG_OPEN2}
 ${lines.join("\n")}
 ${MEM_TAG_CLOSE2}`;
-    textarea.value = next;
-    try {
-      textarea.selectionStart = textarea.selectionEnd = next.length;
-    } catch (_) {
-    }
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    textarea.focus();
+    return setEditableText(textarea, next, { cursor: next.length });
+  }
+  function commitSelectedSuggestions(inputElement, selected) {
+    return composeAndInsert(inputElement, readEditableText(inputElement), selected);
   }
   function hideSuggestions() {
     const container = document.getElementById("echomem-suggestions");
@@ -8074,7 +8317,7 @@ ${MEM_TAG_CLOSE2}`;
                 selected.push({ key, item: c });
               }
             });
-            composeAndInsert(textarea, textarea.value || "", selected);
+            commitSelectedSuggestions(textarea, selected);
             hideSuggestions();
           }
           break;
@@ -8314,7 +8557,7 @@ ${MEM_TAG_CLOSE2}`;
       if (!e.isTrusted) return;
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
-        const text = e.target.value.trim();
+        const text = readEditableText(e.target).trim();
         if (text.length >= 3) {
           try {
             await handleInput(textarea, text);

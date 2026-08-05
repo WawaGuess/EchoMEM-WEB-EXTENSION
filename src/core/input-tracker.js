@@ -7,6 +7,7 @@ import { getEchoMemConfig, getConfiguredAgentId } from '../services/config.js';
 import { getRecordingState } from './session-recorder.js';
 import { renderCompletions, hideSuggestions, bindKeyboardNavigation, shouldSuppressBlurClose } from '../panels/association/suggestions.js';
 import { generateCompletions } from './completion-engine.js';
+import { readEditableText } from './editable-control.js';
 
 let client = null;
 let debounceTimer = null;
@@ -62,7 +63,7 @@ export function tryBindInputElement() {
 
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(async () => {
-      const text = e.target.value.trim();
+      const text = readEditableText(e.target).trim();
       if (text.length >= 3) {
         try {
           await handleInput(textarea, text);

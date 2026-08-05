@@ -6,6 +6,7 @@
     timeoutMs: 5e3,
     debug: true
   };
+  var DEFAULT_SKILL_PACKAGE_TIMEOUT_MS = 12e4;
   function log(prefix, ...args) {
     console.log(`EchoMem client [${prefix}]`, ...args);
   }
@@ -55,7 +56,7 @@
       var _a;
       const response = await fetchViaBackground(url, {
         ...options,
-        timeout: this.cfg.timeoutMs
+        timeout: options.timeout ?? this.cfg.timeoutMs
       });
       const data = response.data ?? response.text;
       if (data && data.status === "error") {
@@ -249,6 +250,35 @@
       });
       if (this.cfg.debug) {
         log("addSkill response", `name=${result == null ? void 0 : result.name}`, `uri=${result == null ? void 0 : result.uri}`);
+      }
+      return result;
+    }
+    async addSkillPackage(options = {}) {
+      if (!options.packageBase64) throw new Error("packageBase64 is required");
+      const timeout = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0 ? options.timeoutMs : Math.max(this.cfg.timeoutMs, DEFAULT_SKILL_PACKAGE_TIMEOUT_MS);
+      const body = {
+        package_base64: options.packageBase64,
+        filename: options.filename,
+        name: options.name,
+        description: options.description,
+        tags: options.tags,
+        allowed_tools: options.allowedTools,
+        metadata: options.metadata
+      };
+      Object.keys(body).forEach((key) => {
+        if (body[key] === void 0) delete body[key];
+      });
+      if (this.cfg.debug) {
+        log("addSkillPackage request", options.filename, JSON.stringify({ ...body, package_base64: void 0 }));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/skills/package`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body),
+        timeout
+      });
+      if (this.cfg.debug) {
+        log("addSkillPackage response", `name=${result == null ? void 0 : result.name}`, `uri=${result == null ? void 0 : result.uri}`);
       }
       return result;
     }
