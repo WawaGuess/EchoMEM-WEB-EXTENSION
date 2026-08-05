@@ -1,7 +1,9 @@
 // 配置管理 — 记忆后端引擎连接配置持久化
 
+import { DEFAULT_ECHOMEM_BASE_URL } from '../config/deployment.js';
+
 const DEFAULT_ECHOMEM_CONFIG = {
-  baseUrl: 'http://127.0.0.1:8010',
+  baseUrl: DEFAULT_ECHOMEM_BASE_URL,
   authKey: '',
   agentId: '',
 };

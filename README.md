@@ -26,28 +26,33 @@
 - 支持手动刷新和定时轮询
 
 ### 6. 后端连接配置
-- 配置 EchoMem 服务地址、认证密钥和 Agent ID
+- 公网版和内网版的服务地址在打包时通过环境变量注入，仓库不保存真实地址
+- 用户仍可修改 EchoMem 服务地址、认证密钥和 Agent ID；已保存的地址优先于发行包预置值
 - 配置并登录 EchoAgent
+
+> 安全提示：公网发行地址应使用 HTTPS；若配置 HTTP，认证密钥会通过明文 HTTP 传输。
 
 ## 安装方法
 
 ### 方式一：从 GitHub Releases 下载并手动加载（适合新手，无需 npm）
 
 1. 打开本仓库右侧 **Releases** 页面
-2. 下载最新版本中的 `EchoMem-Extension.zip`
+2. 按网络环境下载对应发行包：
+   - 公网用户：`EchoMem-Extension-Public.zip`
+   - 内网/VPN 用户：`EchoMem-Extension-Intranet.zip`
 3. 解压到任意文件夹
 4. 打开 Chrome 或 Edge 浏览器，地址栏输入：
    - Chrome：`chrome://extensions/`
    - Edge：`edge://extensions/`
 5. 右上角开启「开发者模式」
 6. 点击「加载已解压的扩展程序」
-7. 选择解压后的 `EchoMem-Extension` 文件夹
+7. 选择解压后的 `EchoMem-Extension-Public` 或 `EchoMem-Extension-Intranet` 文件夹
 8. 扩展图标将出现在浏览器工具栏中
 
 ### 方式二：本地手动加载
 
 1. 下载本项目的 ZIP 文件并解压，或直接使用本地项目目录
-2. 如修改过 `src/` 源码，先执行 `npm install` 和 `npm run build`
+2. 如修改过 `src/` 源码，先执行 `npm ci` 和 `npm run build`
 3. 打开 Chrome 浏览器，地址栏输入 `chrome://extensions/`
 4. 右上角打开「开发者模式」
 5. 点击「加载已解压的扩展程序」
@@ -66,7 +71,7 @@
 如果修改了 `src/` 源码，需要先安装依赖并构建：
 
 ```bash
-npm install
+npm ci
 npm test
 npm run build
 ```
@@ -74,10 +79,22 @@ npm run build
 构建完成后，可以本地手动打包发行包：
 
 ```bash
+ECHOMEM_PUBLIC_BASE_URL=https://public.example.com \
+ECHOMEM_INTRANET_BASE_URL=http://intranet.example.com:8010 \
 npm run package
 ```
 
-输出目录为 `release/EchoMem-Extension/`。
+`npm run package` 会同时生成：
+
+- `release/EchoMem-Extension-Public/`
+- `release/EchoMem-Extension-Intranet/`
+
+也可以分别执行 `npm run package:public` 或 `npm run package:intranet`。
+
+实际服务地址不得提交到仓库。本地打包通过环境变量传入；GitHub Release 从仓库 Actions Secrets 中读取同名变量。地址发生变化时，更新 Secret 并重新发布即可，无需修改代码：
+
+- `ECHOMEM_PUBLIC_BASE_URL`
+- `ECHOMEM_INTRANET_BASE_URL`
 
 ```
 EchoMEM-WEB-EXTENSION/
@@ -101,6 +118,7 @@ EchoMEM-WEB-EXTENSION/
 │   ├── config/            # 配置加载
 │   ├── utils/             # 通用工具（Skill 解析、文本处理等）
 │   └── services/          # 后端/API 服务封装
+├── scripts/               # 构建、发行打包和扩展校验
 ├── docs/                  # 文档目录
 │   ├── decisions/         # 架构决策记录（ADR）
 │   ├── flows/             # 功能流程、调用链、数据流文档
@@ -123,7 +141,7 @@ EchoMEM-WEB-EXTENSION/
 | `src/platforms/` | 平台配置注册，目前包含 HIGO Office 和 DeepSeek |
 | `src/adapters/` | 平台适配器抽象。`BaseAdapter` 提供配置驱动的默认实现，`DeepseekAdapter` / `HigoAdapter` 按需覆盖 |
 | `src/streaming/` | 流式完成检测策略注册表，用于在流式输出场景判断助手消息是否已结束 |
-| `src/config/` | 配置加载器，负责加载 `platforms.json` 等运行时配置 |
+| `src/config/` | 配置加载器与构建期发行配置，负责平台配置及接收构建脚本注入的发行地址 |
 | `src/utils/` | 通用工具，包括 `skill-parser`（解析 SKILL.md）、`text-processor`（文本处理）等 |
 | `src/panels/` | EchoMem 功能面板和面板注册表；每个主功能入口使用独立目录，便于继续拆分子功能 |
 | `src/services/` | 服务封装，包括 EchoMem 后端客户端、Episode 客户端、OpenView 统计客户端、存储和消息代理 |
@@ -189,6 +207,7 @@ EchoMEM-WEB-EXTENSION/
 - **Content Script**：源码入口为 `src/entry/content.js`，构建后通过 `dist/content.js` 向支持页面注入自定义 UI
 - **工具栏入口**：Background 向活动标签页发送消息，由 Content Script 打开现有 overlay
 - **构建工具**：使用 esbuild 生成内容脚本 bundle
+- **双发行包**：同一源码分支按 `public` / `intranet` 构建配置生成公网版和内网版，真实地址由环境变量注入
 - **MutationObserver**：监听页面动态变化，确保 UI 正确挂载
 - **事件委托**：处理动态生成的元素点击事件
 - **平台适配器**：`src/adapters/` 提供配置驱动的 `BaseAdapter`，平台差异优先通过 `platforms.json` 声明；未注册平台自动回退到默认实现

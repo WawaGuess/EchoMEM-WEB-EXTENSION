@@ -3,8 +3,10 @@
 //
 // 所有请求通过 background.js 代理发送，避免内容脚本受页面 CORS 策略限制。
 
+import { DEFAULT_ECHOMEM_BASE_URL } from '../config/deployment.js';
+
 const DEFAULT_CONFIG = {
-  baseUrl: 'http://127.0.0.1:8010',
+  baseUrl: DEFAULT_ECHOMEM_BASE_URL,
   authKey: '',
   timeoutMs: 5000,
   debug: true,

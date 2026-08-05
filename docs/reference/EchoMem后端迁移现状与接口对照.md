@@ -103,8 +103,10 @@
 
 | 字段 | 必填 | 默认值 | 说明 |
 |---|---|---|---|
-| `baseUrl` | 是 | `http://127.0.0.1:8010` | EchoMem 后端地址 |
+| `baseUrl` | 是 | 公网版由 `ECHOMEM_PUBLIC_BASE_URL` 注入；内网版由 `ECHOMEM_INTRANET_BASE_URL` 注入 | EchoMem 后端地址；用户已保存值优先于发行包预置值 |
 | `authKey` | 是 | `''` | 认证密钥，对应后端 `X-Auth-Key` |
 | `agentId` | 否 | `echoagent` | 请求时使用的 `agent_id`，决定记忆隔离范围；可在配置面板修改 |
 
 > 注意：`agent_id` 必须与写入记忆时使用的 `agent_id` 一致，否则 recall 会返回空结果。例如后端数据写入 `higo_agent` 时，扩展配置面板也应填 `higo_agent`。
+
+> 安全提示：公网发行地址应使用 HTTPS，避免认证密钥在公网链路中明文传输。

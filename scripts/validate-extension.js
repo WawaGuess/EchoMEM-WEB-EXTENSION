@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  getDeploymentProfile,
+  RELEASE_PROFILE_IDS,
+  resolveDeploymentProfile,
+} from './deployment-profiles.mjs';
 
 const root = path.resolve(process.argv[2] || '.');
+const profileId = process.argv[3];
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -33,6 +39,30 @@ assert(
 
 for (const relativePath of requiredFiles) {
   assert(fs.existsSync(path.join(root, relativePath)), `required extension file is missing: ${relativePath}`);
+}
+
+if (profileId) {
+  const profile = resolveDeploymentProfile(profileId);
+  const contentBundle = read('dist/content.js');
+  assert(
+    manifest.name.includes(profile.label),
+    `manifest name must identify the ${profile.label} deployment profile`
+  );
+  assert(
+    contentBundle.includes(profile.defaultBaseUrl),
+    `content bundle must include the ${profile.label} default service address`
+  );
+
+  for (const otherProfileId of RELEASE_PROFILE_IDS) {
+    if (otherProfileId === profileId) continue;
+    const otherProfileMetadata = getDeploymentProfile(otherProfileId);
+    if (!process.env[otherProfileMetadata.baseUrlEnv]) continue;
+    const otherProfile = resolveDeploymentProfile(otherProfileId);
+    assert(
+      !contentBundle.includes(otherProfile.defaultBaseUrl),
+      `content bundle must not include the ${otherProfile.label} service address`
+    );
+  }
 }
 
 console.log(`EchoMem extension structure is valid: ${root}`);
