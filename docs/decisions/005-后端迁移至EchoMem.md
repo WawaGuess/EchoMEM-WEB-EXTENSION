@@ -4,6 +4,8 @@
 
 Implemented
 
+> 默认地址的当前发行策略已由 [ADR-008](008-单分支双发行包.md) 取代；本 ADR 中的 localhost 地址保留为迁移当时的历史决策。
+
 ## 背景
 
 当前 EchoMem Web Extension 默认对接的记忆后端已从 OpenViking 迁移到 EchoMem 本地后端（默认地址 `http://127.0.0.1:8010`）。原 `src/services/openviking-client.js` 已删除，统一由 `src/services/echomem-client.js` 封装 EchoMem HTTP API。

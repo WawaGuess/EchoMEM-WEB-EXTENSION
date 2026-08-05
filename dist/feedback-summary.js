@@ -1,7 +1,10 @@
 (() => {
+  // src/config/deployment.js
+  var DEFAULT_ECHOMEM_BASE_URL = true ? "" : "";
+
   // src/services/echomem-client.js
   var DEFAULT_CONFIG = {
-    baseUrl: "http://127.0.0.1:8010",
+    baseUrl: DEFAULT_ECHOMEM_BASE_URL,
     authKey: "",
     timeoutMs: 5e3,
     debug: true
@@ -464,7 +467,7 @@
 
   // src/services/config.js
   var DEFAULT_ECHOMEM_CONFIG = {
-    baseUrl: "http://127.0.0.1:8010",
+    baseUrl: DEFAULT_ECHOMEM_BASE_URL,
     authKey: "",
     agentId: ""
   };

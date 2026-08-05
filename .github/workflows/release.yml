@@ -23,21 +23,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build extension
-        run: npm run build
+      - name: Build and validate public and intranet packages
+        run: npm run package
+        env:
+          ECHOMEM_PUBLIC_BASE_URL: ${{ secrets.ECHOMEM_PUBLIC_BASE_URL }}
+          ECHOMEM_INTRANET_BASE_URL: ${{ secrets.ECHOMEM_INTRANET_BASE_URL }}
 
-      - name: Package release
-        run: ./scripts/package-release.sh
-
-      - name: Zip release package
+      - name: Zip release packages
         run: |
           cd release
-          zip -r EchoMem-Extension.zip EchoMem-Extension
+          zip -r EchoMem-Extension-Public.zip EchoMem-Extension-Public
+          zip -r EchoMem-Extension-Intranet.zip EchoMem-Extension-Intranet
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/EchoMem-Extension.zip
+          files: |
+            release/EchoMem-Extension-Public.zip
+            release/EchoMem-Extension-Intranet.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

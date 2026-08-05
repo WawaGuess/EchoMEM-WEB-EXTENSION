@@ -5,14 +5,17 @@
   "private": true,
   "description": "EchoMem Web Extension",
   "scripts": {
-    "build:content": "esbuild src/entry/content.js --bundle --format=iife --target=chrome88 --outfile=dist/content.js",
-    "build:feedback-episode": "esbuild src/entry/feedback-episode.js --bundle --format=iife --target=chrome88 --outfile=dist/feedback-episode.js",
-    "build:feedback-summary": "esbuild src/entry/feedback-summary.js --bundle --format=iife --target=chrome88 --outfile=dist/feedback-summary.js",
-    "build": "npm run build:content && npm run build:feedback-episode && npm run build:feedback-summary",
+    "build:content": "node scripts/build-extension.mjs --profile development --entry content --outdir dist",
+    "build:feedback-episode": "node scripts/build-extension.mjs --profile development --entry feedback-episode --outdir dist",
+    "build:feedback-summary": "node scripts/build-extension.mjs --profile development --entry feedback-summary --outdir dist",
+    "build": "node scripts/build-extension.mjs --profile development --outdir dist",
+    "check:generated": "node scripts/check-generated-bundles.mjs",
     "test:platform-detection": "node scripts/test-platform-location.mjs",
-    "check": "npm run test:platform-detection && npm run build && node --check dist/content.js && node --check dist/feedback-episode.js && node --check dist/feedback-summary.js && node --check background.js && node scripts/validate-extension.js",
+    "check": "npm run test:platform-detection && npm run check:generated && npm run build && node --check dist/content.js && node --check dist/feedback-episode.js && node --check dist/feedback-summary.js && node --check background.js && node scripts/validate-extension.js",
     "test": "node --test tests/*.test.js",
-    "package": "npm run build && ./scripts/package-release.sh && node scripts/validate-extension.js release/EchoMem-Extension"
+    "package:public": "node scripts/package-release.mjs public && node scripts/validate-extension.js release/EchoMem-Extension-Public public",
+    "package:intranet": "node scripts/package-release.mjs intranet && node scripts/validate-extension.js release/EchoMem-Extension-Intranet intranet",
+    "package": "npm run package:public && npm run package:intranet"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"

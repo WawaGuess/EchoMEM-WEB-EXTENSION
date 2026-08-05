@@ -12,6 +12,10 @@ import { createClient } from '../../services/echomem-client.js';
 import { login, getOpenViewAuth } from '../../services/openview-client.js';
 import { resetClient } from '../../core/input-tracker.js';
 import { getCurrentPlatform } from '../../core/detection.js';
+import {
+  DEFAULT_ECHOMEM_BASE_URL,
+  DEPLOYMENT_PROFILE_LABEL,
+} from '../../config/deployment.js';
 
 function isHigoPlatform() {
   const platform = getCurrentPlatform();
@@ -20,6 +24,9 @@ function isHigoPlatform() {
 
 export function getEchoMemConfigContent() {
   const showOpenView = isHigoPlatform();
+  const deploymentNotice = DEFAULT_ECHOMEM_BASE_URL
+    ? `当前为${DEPLOYMENT_PROFILE_LABEL}，已预置对应服务地址。`
+    : `当前为${DEPLOYMENT_PROFILE_LABEL}，请填写服务地址。`;
   const openViewSection = showOpenView ? `
       <div class="config-card config-service-card">
         <div class="config-card-heading">
@@ -211,7 +218,7 @@ export function getEchoMemConfigContent() {
     <div class="echomem-config-root">
       <div class="config-note">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
-        <span>此配置同时影响资源管理、输入联想等功能。</span>
+        <span>${deploymentNotice}此配置同时影响资源管理、输入联想等功能。</span>
       </div>
 
       <div class="config-card">
@@ -272,7 +279,7 @@ export async function initConfigPanel(bodyElement) {
 
   function normalizeBaseUrl(url) {
     const trimmed = (url || '').trim();
-    if (!trimmed) return 'http://127.0.0.1:8010';
+    if (!trimmed) return DEFAULT_ECHOMEM_BASE_URL;
     return trimmed.replace(/\/$/, '');
   }
 

@@ -22,18 +22,18 @@
 
 ### 方式二：发行包手动加载（适合不暴露源码的场景）
 
-1. 执行 `npm run package` 生成 `release/EchoMem-Extension/`
-2. 将 `release/EchoMem-Extension/` 压缩为 ZIP 分发
+1. 设置 `ECHOMEM_PUBLIC_BASE_URL` 和 `ECHOMEM_INTRANET_BASE_URL` 后执行 `npm run package`，同时生成公网版 `release/EchoMem-Extension-Public/` 和内网版 `release/EchoMem-Extension-Intranet/`
+2. 将两个目录分别压缩为 ZIP，并按用户网络环境分发
 3. 用户解压后，在 `chrome://extensions/` 页面点击"加载已解压的扩展程序"
-4. 选择解压后的 `EchoMem-Extension` 文件夹
+4. 选择解压后的公网版或内网版文件夹
 
 ## 发布到 GitHub Releases
 
 1. 在 `main`（或发布分支）上完成代码合并
 2. 打标签：`git tag v1.0.0`
 3. 推标签：`git push origin v1.0.0`
-4. GitHub Actions 自动构建、打包并创建 Release
-5. 用户在仓库右侧 **Releases** 页面下载 `EchoMem-Extension.zip`
+4. GitHub Actions 从 `ECHOMEM_PUBLIC_BASE_URL`、`ECHOMEM_INTRANET_BASE_URL` Secrets 注入地址，自动构建两个发行包并创建 Release
+5. 用户在仓库右侧 **Releases** 页面按网络环境下载 `EchoMem-Extension-Public.zip` 或 `EchoMem-Extension-Intranet.zip`
 
 ## 项目结构
 
@@ -53,9 +53,10 @@ EchoMEM-WEB-EXTENSION/
 │   ├── platforms/         # 平台注册与配置
 │   ├── adapters/          # 平台适配器（配置驱动 + 默认实现）
 │   ├── streaming/         # 流式完成检测策略
-│   ├── config/            # 运行时配置加载
+│   ├── config/            # 平台配置加载与构建期发行配置
 │   ├── utils/             # 通用工具（Skill 解析、文本处理等）
 │   └── services/          # Chrome API 与后端服务封装
+├── scripts/               # 构建、双发行包打包和扩展校验
 └── docs/                  # 文档目录
     ├── decisions/         # 架构决策记录 (ADR)
     ├── flows/             # 功能流程/调用链文档
@@ -99,6 +100,14 @@ EchoMEM-WEB-EXTENSION/
 - `src/services/openview-client.js`：HIGO Office 本地/OpenView 会话 Token 统计客户端
 - 跨域请求统一通过 Background Service Worker 代理转发
 
+### 公网版与内网版
+- 仓库只维护一个源码分支，通过 `scripts/build-extension.mjs` 在构建时注入发行类型和默认服务地址，真实地址不得写入源码或文档
+- 公网版从 `ECHOMEM_PUBLIC_BASE_URL` 读取地址，输出到 `release/EchoMem-Extension-Public/`
+- 内网版从 `ECHOMEM_INTRANET_BASE_URL` 读取地址，输出到 `release/EchoMem-Extension-Intranet/`
+- GitHub Release 从同名 Actions Secrets 注入地址；地址变化只需更新 Secret 并重新发布
+- `chrome.storage.local.echomemConfig.baseUrl` 始终优先于发行包预置值，升级不得覆盖用户已保存地址
+- 公网地址应使用 HTTPS；HTTP 会明文传输 `X-Auth-Key`
+
 ### 数据流
 1. 内容脚本通过 `MutationObserver` 监听 DOM 变化
 2. 平台检测校验 URL、标题、DOM 特征和内容关键字
@@ -110,7 +119,7 @@ EchoMEM-WEB-EXTENSION/
 ## 常见开发任务
 
 ### 修改后重新加载扩展
-修改 `src/` 下的内容脚本源码后，先执行 `npm run build`。修改 `background.js`、`manifest.json` 或其他直接加载文件时无需单独构建内容脚本。完成任何运行时修改后，都要到 `chrome://extensions/` 点击扩展卡片上的刷新图标或使用“更新”按钮；提交前执行 `npm test` 和 `npm run check`。`npm test` 只覆盖 `tests/` 下的聚焦单元测试，不能替代浏览器或后端集成验证。
+修改 `src/` 下的内容脚本源码后，先执行 `npm run build`；该命令生成不含真实服务地址的开发版 `dist/` 产物。修改 `background.js`、`manifest.json` 或其他直接加载文件时无需单独构建内容脚本。完成任何运行时修改后，都要到 `chrome://extensions/` 点击扩展卡片上的刷新图标或使用“更新”按钮；提交前执行 `npm test` 和 `npm run check`，其中 `npm run check` 会确认 `manifest.json` 加载的三个 `dist/*.js` bundle 均与当前源码同步。需要验证发行物时，通过 `ECHOMEM_PUBLIC_BASE_URL` 和 `ECHOMEM_INTRANET_BASE_URL` 临时注入地址后执行 `npm run package`。`npm test` 只覆盖 `tests/` 下的聚焦单元测试，不能替代浏览器或后端集成验证。
 
 ### 调试工具栏入口与 Background Script
 - 进入 `chrome://extensions/`
@@ -223,7 +232,8 @@ Accepted / Implemented
 
 ## 备注
 
-- 内容脚本变更需要构建：`npm run build`
+- 内容脚本变更需要构建：`npm run build`（无真实服务地址的开发版）
+- 双发行包构建：设置 `ECHOMEM_PUBLIC_BASE_URL`、`ECHOMEM_INTRANET_BASE_URL` 后执行 `npm run package`
 - esbuild 将 `src/entry/content.js` 打包为 `dist/content.js`
 - 图标目录 (`icons/`) 需要 PNG 文件：`icon16.png`、`icon48.png`、`icon128.png`
 - 扩展使用中文 (zh-CN) UI 文本

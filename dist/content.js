@@ -742,9 +742,13 @@
     setPanelOpen(true);
   }
 
+  // src/config/deployment.js
+  var DEPLOYMENT_PROFILE_LABEL = true ? "\u5F00\u53D1\u7248" : "\u5F00\u53D1\u7248";
+  var DEFAULT_ECHOMEM_BASE_URL = true ? "" : "";
+
   // src/services/config.js
   var DEFAULT_ECHOMEM_CONFIG = {
-    baseUrl: "http://127.0.0.1:8010",
+    baseUrl: DEFAULT_ECHOMEM_BASE_URL,
     authKey: "",
     agentId: ""
   };
@@ -812,7 +816,7 @@
 
   // src/services/echomem-client.js
   var DEFAULT_CONFIG = {
-    baseUrl: "http://127.0.0.1:8010",
+    baseUrl: DEFAULT_ECHOMEM_BASE_URL,
     authKey: "",
     timeoutMs: 5e3,
     debug: true
@@ -8627,6 +8631,7 @@ ${MEM_TAG_CLOSE2}`;
   }
   function getEchoMemConfigContent() {
     const showOpenView = isHigoPlatform2();
+    const deploymentNotice = DEFAULT_ECHOMEM_BASE_URL ? `\u5F53\u524D\u4E3A${DEPLOYMENT_PROFILE_LABEL}\uFF0C\u5DF2\u9884\u7F6E\u5BF9\u5E94\u670D\u52A1\u5730\u5740\u3002` : `\u5F53\u524D\u4E3A${DEPLOYMENT_PROFILE_LABEL}\uFF0C\u8BF7\u586B\u5199\u670D\u52A1\u5730\u5740\u3002`;
     const openViewSection = showOpenView ? `
       <div class="config-card config-service-card">
         <div class="config-card-heading">
@@ -8817,7 +8822,7 @@ ${MEM_TAG_CLOSE2}`;
     <div class="echomem-config-root">
       <div class="config-note">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
-        <span>\u6B64\u914D\u7F6E\u540C\u65F6\u5F71\u54CD\u8D44\u6E90\u7BA1\u7406\u3001\u8F93\u5165\u8054\u60F3\u7B49\u529F\u80FD\u3002</span>
+        <span>${deploymentNotice}\u6B64\u914D\u7F6E\u540C\u65F6\u5F71\u54CD\u8D44\u6E90\u7BA1\u7406\u3001\u8F93\u5165\u8054\u60F3\u7B49\u529F\u80FD\u3002</span>
       </div>
 
       <div class="config-card">
@@ -8875,7 +8880,7 @@ ${MEM_TAG_CLOSE2}`;
     const openviewLoginBtn = bodyElement.querySelector("#cfg-openview-login-btn");
     function normalizeBaseUrl2(url) {
       const trimmed = (url || "").trim();
-      if (!trimmed) return "http://127.0.0.1:8010";
+      if (!trimmed) return DEFAULT_ECHOMEM_BASE_URL;
       return trimmed.replace(/\/$/, "");
     }
     function normalizeOpenViewUrl(url) {
