@@ -9,7 +9,7 @@
         enabled: true,
         record: false,
         detection: {
-          hostnames: ["localhost", "127.0.0.1", "echo-agent.online", "higo.world", "<ip>"],
+          hostnames: ["localhost", "127.0.0.1", "echo-agent.online", "www.echo-agent.online", "higo.world", "<ip>"],
           pathnamePrefixes: ["/home"],
           titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
           domFeatures: {
