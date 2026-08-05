@@ -18,7 +18,7 @@
 
 ### 4. Skill 管理
 - **我的 Skill**：查看和管理已上传/使用过的 Skill；点击卡片可将 `/Skill目录名` 写入聊天输入框，通过独立「详情」按钮查看完整内容、版本历史与版本回退
-- **上传 Skill**：上传 `.md` / `.txt` 格式 SKILL.md 文件，自动解析 frontmatter 并保存到 EchoMem 后端
+- **上传 Skill**：上传 `.md` / `.txt` 格式的单文件 SKILL.md（最大 10 MB），或上传包含 `SKILL.md` 及 scripts、assets、templates、references 等目录的完整 `.zip` Skill Package（最大 50 MB）
 - **安装管理**：管理已安装的 Skill，支持删除
 
 ### 5. 效能
@@ -178,7 +178,7 @@ EchoMEM-WEB-EXTENSION/
 1. 打开 overlay 后选择「Skill 管理」进入首页
 2. 点击「我的 Skill」查看已上传 Skill 列表；点击卡片会把 `/Skill目录名` 写入当前聊天输入框，但不会自动发送
 3. 点击卡片内的「详情」按钮进入独立详情页并加载版本历史；历史正文按需加载，非当前版本可确认后恢复为当前版本
-4. 点击「上传 Skill」上传符合 SKILL.md 格式的 `.md` / `.txt` 文件
+4. 点击「上传 Skill」上传符合 SKILL.md 格式的 `.md` / `.txt` 单文件，或包含 `SKILL.md` 的完整 `.zip` Skill Package
 5. 点击「安装管理」查看已安装 Skill 并执行删除；该页面不提供版本操作
 6. 详情页左上角「← 返回」先回到 Skill 列表；列表页再次返回可回到 Skill 管理首页
 7. 右上角「×」按钮关闭整个面板

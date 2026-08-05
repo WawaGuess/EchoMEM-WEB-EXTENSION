@@ -1304,7 +1304,12 @@
   }
   function readEditableText(control) {
     if (isTextControl(control)) return String(control.value ?? "");
-    if (isContentEditableControl(control)) return String(control.textContent ?? "");
+    if (isContentEditableControl(control)) {
+      if (typeof control.innerText === "string") {
+        return control.innerText.replace(/\r\n?/g, "\n");
+      }
+      return String(control.textContent ?? "");
+    }
     return "";
   }
   function setTextControlValue(control, value) {

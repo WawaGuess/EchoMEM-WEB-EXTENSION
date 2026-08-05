@@ -13,7 +13,15 @@ export function isContentEditableControl(control) {
 
 export function readEditableText(control) {
   if (isTextControl(control)) return String(control.value ?? '');
-  if (isContentEditableControl(control)) return String(control.textContent ?? '');
+  if (isContentEditableControl(control)) {
+    // innerText preserves the visual line boundaries produced by block elements
+    // and <br> nodes in contenteditable editors. Keep textContent as a fallback
+    // for lightweight DOM shims and environments that do not implement it.
+    if (typeof control.innerText === 'string') {
+      return control.innerText.replace(/\r\n?/g, '\n');
+    }
+    return String(control.textContent ?? '');
+  }
   return '';
 }
 

@@ -70,6 +70,17 @@ test('contenteditable controls can be read and replaced without using value', ()
   assert.equal(wasFocused(), true);
 });
 
+test('contenteditable controls preserve visual line breaks when read', () => {
+  const { control } = createBaseControl({
+    tagName: 'DIV',
+    isContentEditable: true,
+    innerText: '第一行\r\n第二行\n第三行',
+    textContent: '第一行第二行第三行',
+  });
+
+  assert.equal(readEditableText(control), '第一行\n第二行\n第三行');
+});
+
 test('insertEditableText appends to contenteditable when no DOM Range is available', () => {
   const { control, events } = createBaseControl({
     tagName: 'DIV',
