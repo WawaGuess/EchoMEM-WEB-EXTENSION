@@ -225,7 +225,7 @@ function bindContainerEvents(container, inputElement) {
       }
     });
     if (!selected.length) return;
-    composeAndInsert(currentInputElement, currentInputElement.value || '', selected);
+    commitSelectedSuggestions(currentInputElement, selected);
     hideSuggestions();
   });
 }
@@ -326,7 +326,7 @@ function stripMemoryBlock(userText) {
  * @param {Array<{key: string, item: Object}>} selected — 带 key 的选中条目
  */
 function composeAndInsert(textarea, userText, selected) {
-  if (!textarea) return;
+  if (!textarea) return false;
 
   const basePart = stripMemoryBlock(userText);
 
@@ -339,13 +339,21 @@ function composeAndInsert(textarea, userText, selected) {
   }
 
   const bodies = Array.from(committedItems.values());
-  if (!bodies.length) return;
+  if (!bodies.length) return false;
 
   const lines = bodies.map((b, i) => `${i + 1}. ${b}`);
   const prefix = basePart ? `${basePart}\n\n` : '';
   const next = `${prefix}${MEM_TAG_OPEN}\n${lines.join('\n')}\n${MEM_TAG_CLOSE}`;
 
-  setEditableText(textarea, next, { cursor: next.length });
+  return setEditableText(textarea, next, { cursor: next.length });
+}
+
+/**
+ * 读取当前可编辑控件并提交选中的记忆。点击确认和键盘确认共用此入口，
+ * 避免 contenteditable 控件因不存在 value 属性而丢失用户原有输入。
+ */
+export function commitSelectedSuggestions(inputElement, selected) {
+  return composeAndInsert(inputElement, readEditableText(inputElement), selected);
 }
 
 /**
@@ -412,7 +420,7 @@ export function bindKeyboardNavigation(textarea) {
               selected.push({ key, item: c });
             }
           });
-          composeAndInsert(textarea, readEditableText(textarea), selected);
+          commitSelectedSuggestions(textarea, selected);
           hideSuggestions();
         }
         break;

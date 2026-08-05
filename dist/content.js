@@ -8153,7 +8153,7 @@ ${block}` : block;
         }
       });
       if (!selected.length) return;
-      composeAndInsert(currentInputElement, currentInputElement.value || "", selected);
+      commitSelectedSuggestions(currentInputElement, selected);
       hideSuggestions();
     });
   }
@@ -8213,7 +8213,7 @@ ${block}` : block;
     return text.replace(regex, "").replace(/\s+$/, "");
   }
   function composeAndInsert(textarea, userText, selected) {
-    if (!textarea) return;
+    if (!textarea) return false;
     const basePart = stripMemoryBlock2(userText);
     for (const { key, item } of selected) {
       if (committedItems.has(key)) continue;
@@ -8222,7 +8222,7 @@ ${block}` : block;
       committedItems.set(key, body);
     }
     const bodies = Array.from(committedItems.values());
-    if (!bodies.length) return;
+    if (!bodies.length) return false;
     const lines = bodies.map((b, i) => `${i + 1}. ${b}`);
     const prefix = basePart ? `${basePart}
 
@@ -8230,7 +8230,10 @@ ${block}` : block;
     const next = `${prefix}${MEM_TAG_OPEN2}
 ${lines.join("\n")}
 ${MEM_TAG_CLOSE2}`;
-    setEditableText(textarea, next, { cursor: next.length });
+    return setEditableText(textarea, next, { cursor: next.length });
+  }
+  function commitSelectedSuggestions(inputElement, selected) {
+    return composeAndInsert(inputElement, readEditableText(inputElement), selected);
   }
   function hideSuggestions() {
     const container = document.getElementById("echomem-suggestions");
@@ -8276,7 +8279,7 @@ ${MEM_TAG_CLOSE2}`;
                 selected.push({ key, item: c });
               }
             });
-            composeAndInsert(textarea, readEditableText(textarea), selected);
+            commitSelectedSuggestions(textarea, selected);
             hideSuggestions();
           }
           break;
