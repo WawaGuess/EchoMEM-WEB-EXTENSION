@@ -10,6 +10,8 @@ const DEFAULT_CONFIG = {
   debug: true,
 };
 
+const DEFAULT_SKILL_PACKAGE_TIMEOUT_MS = 120000;
+
 function log(prefix, ...args) {
   console.log(`EchoMem client [${prefix}]`, ...args);
 }
@@ -63,7 +65,7 @@ class EchoMemClient {
   async _fetchJson(url, options = {}) {
     const response = await fetchViaBackground(url, {
       ...options,
-      timeout: this.cfg.timeoutMs,
+      timeout: options.timeout ?? this.cfg.timeoutMs,
     });
 
     const data = response.data ?? response.text;
@@ -307,6 +309,9 @@ class EchoMemClient {
 
   async addSkillPackage(options = {}) {
     if (!options.packageBase64) throw new Error('packageBase64 is required');
+    const timeout = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+      ? options.timeoutMs
+      : Math.max(this.cfg.timeoutMs, DEFAULT_SKILL_PACKAGE_TIMEOUT_MS);
     const body = {
       package_base64: options.packageBase64,
       filename: options.filename,
@@ -328,6 +333,7 @@ class EchoMemClient {
       method: 'POST',
       headers: this._buildHeaders(true),
       body: JSON.stringify(body),
+      timeout,
     });
 
     if (this.cfg.debug) {
