@@ -29,7 +29,7 @@
         "title": "打开 EchoMem"
       },
       "input": {
-        "selector": "textarea[id^='_r_']"
+        "selector": "textarea[id^='_r_'], [contenteditable='true'][role='textbox']"
       },
       "messages": {
         "messageContainers": [

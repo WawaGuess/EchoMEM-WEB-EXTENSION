@@ -32,6 +32,36 @@ test('listSkillVersions encodes the name and sends authenticated GET', async () 
   assert.deepEqual(requests[0].headers, { 'X-Auth-Key': 'test-key' });
 });
 
+test('addSkillPackage sends the complete ZIP payload to EchoMem', async () => {
+  const requests = [];
+  installChromeResponse({
+    success: true,
+    data: { status: 'ok', result: { name: 'package-skill', uri: 'echo://skills/package-skill' } },
+  }, requests);
+
+  const client = createClient({ baseUrl: 'http://127.0.0.1:8010', authKey: 'test-key', debug: false });
+  const result = await client.addSkillPackage({
+    packageBase64: 'UEsDBAoAAAAA',
+    filename: 'package-skill.zip',
+  });
+
+  assert.equal(result.name, 'package-skill');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].method, 'POST');
+  assert.equal(requests[0].url, 'http://127.0.0.1:8010/api/skills/package');
+  assert.deepEqual(requests[0].headers, {
+    'X-Auth-Key': 'test-key',
+    'Content-Type': 'application/json',
+  });
+  assert.equal(requests[0].body, JSON.stringify({
+    package_base64: 'UEsDBAoAAAAA',
+    filename: 'package-skill.zip',
+  }));
+
+  await assert.rejects(() => client.addSkillPackage({ filename: 'empty.zip' }), /packageBase64 is required/);
+  assert.equal(requests.length, 1);
+});
+
 test('readSkillVersion encodes the name and validates the version before sending a request', async () => {
   const requests = [];
   installChromeResponse({ success: true, data: { text: 'content' } }, requests);

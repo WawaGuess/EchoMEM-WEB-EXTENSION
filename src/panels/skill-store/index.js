@@ -22,6 +22,11 @@ import {
   getVersionSourceLabel,
   normalizeSkillVersionHistory,
 } from './version-history.js';
+import {
+  arrayBufferToBase64,
+  normalizeSkillUploadName,
+  validateSkillUploadFile,
+} from './upload.js';
 
 const SKILL_ROOT_URI = 'echo://skills';
 
@@ -1229,12 +1234,13 @@ export function getSkillUploadContent() {
       <div id="claw-skill-dropzone" class="claw-skill-dropzone" aria-label="选择或拖放 Skill 文件">
         <span class="claw-skill-upload-icon">${getSkillIcon('upload', 25)}</span>
         <p class="claw-skill-dropzone-title">点击选择或拖拽文件到这里</p>
-        <p class="claw-skill-dropzone-copy">内容需符合 SKILL.md 格式，单个文件不超过 10MB。</p>
+        <p class="claw-skill-dropzone-copy">支持 SKILL.md 单文件和完整 Skill Package；单文件不超过 10 MB，ZIP 不超过 50 MB。</p>
         <div class="claw-skill-format-row" aria-hidden="true">
           <span class="claw-skill-format-chip">.MD</span>
           <span class="claw-skill-format-chip">.TXT</span>
+          <span class="claw-skill-format-chip">.ZIP</span>
         </div>
-        <input type="file" id="claw-skill-file-input" accept=".md,.txt" style="display: none;" />
+        <input type="file" id="claw-skill-file-input" accept=".md,.txt,.zip" style="display: none;" />
       </div>
 
       <!-- 状态提示 -->
@@ -1245,7 +1251,9 @@ export function getSkillUploadContent() {
         <p class="claw-skill-guide-title"><span>${getSkillIcon('clipboard', 16)}</span>上传须知</p>
         <ul class="claw-skill-guide-list">
           <li>SKILL.md 必须以 <code>---</code> 开头</li>
-          <li>Skill 名称优先取 frontmatter 中的 <code>name</code>；未填写时取文件名（去掉 <code>.md</code> / <code>.txt</code>）</li>
+          <li>ZIP Package 必须包含 <code>SKILL.md</code>，可附带 scripts、assets、templates、references 等目录</li>
+          <li>ZIP 中禁止隐藏目录、<code>.git</code>、<code>.skill_evolution</code>、路径穿越和可执行文件；最终由 EchoMem 服务端校验</li>
+          <li>Skill 名称优先取 frontmatter 中的 <code>name</code>；单文件未填写时取文件名（去掉扩展名）</li>
           <li>Skill 名称仅支持字母、数字、下划线、短横线（正则 <code>^[\\w-]+$</code>）</li>
           <li>如存在同名 Skill，将直接覆盖</li>
           <li>前端校验仅供参考，最终格式以服务端解析为准</li>
@@ -1298,23 +1306,11 @@ export async function initSkillUploadPanel(bodyElement) {
   }
 
   function normalizeSkillName(name, fileName) {
-    let raw = '';
-    if (typeof name === 'string' && name.trim()) {
-      raw = name.trim();
-    } else {
-      raw = fileName.replace(/\.(md|txt)$/i, '');
-    }
-    raw = raw.replace(/\.(md|txt)$/i, '').trim();
-    return raw;
+    return normalizeSkillUploadName(name, fileName);
   }
 
   async function validateFile(file) {
-    const MAX_SIZE = 10 * 1024 * 1024;
-    if (file.size > MAX_SIZE) {
-      throw new Error('文件过大，请压缩附件后重试');
-    }
-
-    const ext = file.name.split('.').pop().toLowerCase();
+    const { extension: ext } = validateSkillUploadFile(file);
     if (ext === 'md' || ext === 'txt') {
       const text = await file.text();
       if (!text.trim().startsWith('---')) {
@@ -1326,8 +1322,7 @@ export async function initSkillUploadPanel(bodyElement) {
         throw new Error('frontmatter 中必须包含 name 字段');
       }
     }
-
-    return true;
+    return ext;
   }
 
   async function executeUpload(file, skillName, skillText) {
@@ -1358,6 +1353,25 @@ export async function initSkillUploadPanel(bodyElement) {
     }
   }
 
+  async function executePackageUpload(file) {
+    showStatus('正在上传 Skill Package...', 'info');
+
+    try {
+      const config = await getEchoMemConfig();
+      const client = createClient(config);
+      const packageBase64 = arrayBufferToBase64(await file.arrayBuffer());
+      const skillResult = await client.addSkillPackage({
+        packageBase64,
+        filename: file.name,
+      });
+
+      skillCache = null;
+      showStatus(`Skill Package「${skillResult.name || file.name}」上传成功`, 'success');
+    } catch (err) {
+      showStatus(`上传失败：${formatError(err)}`, 'error');
+    }
+  }
+
   async function doUpload(file) {
     showStatus('正在校验文件...', 'info');
 
@@ -1378,12 +1392,12 @@ export async function initSkillUploadPanel(bodyElement) {
         const { frontmatter } = parseSkillMd(skillText);
         skillName = normalizeSkillName(frontmatter.name, file.name);
       } catch { /* ignore */ }
-    } else {
-      showStatus('当前版本仅支持 .md / .txt 格式 Skill', 'error');
-      return;
+    } else if (ext === 'zip') {
+      // Package names are resolved from the contained SKILL.md by EchoMem.
+      skillName = file.name;
     }
 
-    if (!skillText) {
+    if (ext !== 'zip' && !skillText) {
       showStatus('无法读取 Skill 内容', 'error');
       return;
     }
@@ -1396,7 +1410,9 @@ export async function initSkillUploadPanel(bodyElement) {
         <div>
           <span class="claw-skill-dialog-icon">${getSkillIcon('upload', 23)}</span>
           <p class="claw-skill-dialog-title">确认上传 Skill</p>
-          <p class="claw-skill-dialog-copy">如存在同名 Skill「<strong>${safeName}</strong>」，将直接覆盖。</p>
+          <p class="claw-skill-dialog-copy">${ext === 'zip'
+            ? 'EchoMem 将读取包内 SKILL.md；如存在同名 Skill，将直接覆盖。'
+            : `如存在同名 Skill「<strong>${safeName}</strong>」，将直接覆盖。`}</p>
         </div>
         <div class="claw-skill-dialog-actions">
           <button type="button" id="claw-skill-confirm-cancel" class="claw-skill-dialog-button">取消</button>
@@ -1424,7 +1440,11 @@ export async function initSkillUploadPanel(bodyElement) {
 
       okBtn?.addEventListener('click', () => {
         closeOverlayPanel();
-        executeUpload(file, skillName, skillText);
+        if (ext === 'zip') {
+          executePackageUpload(file);
+        } else {
+          executeUpload(file, skillName, skillText);
+        }
       });
     }, 50);
   }

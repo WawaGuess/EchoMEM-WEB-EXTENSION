@@ -6,6 +6,7 @@
 //   4. 每次重渲染（新一轮搜索结果）清空已勾选状态
 
 import { escapeHtml } from '../../utils/text-processor.js';
+import { readEditableText, setEditableText } from '../../core/editable-control.js';
 
 // 记忆段标签
 const MEM_TAG_OPEN = '<relevant-memories>';
@@ -344,15 +345,7 @@ function composeAndInsert(textarea, userText, selected) {
   const prefix = basePart ? `${basePart}\n\n` : '';
   const next = `${prefix}${MEM_TAG_OPEN}\n${lines.join('\n')}\n${MEM_TAG_CLOSE}`;
 
-  textarea.value = next;
-  try {
-    textarea.selectionStart = textarea.selectionEnd = next.length;
-  } catch (_) {
-    // 某些受控组件可能不允许直接设置 selection，忽略即可
-  }
-  // 触发 input 事件，让受控组件感知变更
-  textarea.dispatchEvent(new Event('input', { bubbles: true }));
-  textarea.focus();
+  setEditableText(textarea, next, { cursor: next.length });
 }
 
 /**
@@ -419,7 +412,7 @@ export function bindKeyboardNavigation(textarea) {
               selected.push({ key, item: c });
             }
           });
-          composeAndInsert(textarea, textarea.value || '', selected);
+          composeAndInsert(textarea, readEditableText(textarea), selected);
           hideSuggestions();
         }
         break;

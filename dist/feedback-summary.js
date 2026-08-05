@@ -252,6 +252,33 @@
       }
       return result;
     }
+    async addSkillPackage(options = {}) {
+      if (!options.packageBase64) throw new Error("packageBase64 is required");
+      const body = {
+        package_base64: options.packageBase64,
+        filename: options.filename,
+        name: options.name,
+        description: options.description,
+        tags: options.tags,
+        allowed_tools: options.allowedTools,
+        metadata: options.metadata
+      };
+      Object.keys(body).forEach((key) => {
+        if (body[key] === void 0) delete body[key];
+      });
+      if (this.cfg.debug) {
+        log("addSkillPackage request", options.filename, JSON.stringify({ ...body, package_base64: void 0 }));
+      }
+      const result = await this._fetchJson(`${this.cfg.baseUrl}/api/skills/package`, {
+        method: "POST",
+        headers: this._buildHeaders(true),
+        body: JSON.stringify(body)
+      });
+      if (this.cfg.debug) {
+        log("addSkillPackage response", `name=${result == null ? void 0 : result.name}`, `uri=${result == null ? void 0 : result.uri}`);
+      }
+      return result;
+    }
     async deleteSkill(name) {
       if (!name) throw new Error("name is required");
       const url = `${this.cfg.baseUrl}/api/skills/${encodeURIComponent(name)}`;
