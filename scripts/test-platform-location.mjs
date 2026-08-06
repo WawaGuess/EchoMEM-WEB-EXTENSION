@@ -14,7 +14,11 @@ assert(higoDetection, 'HIGO detection config must exist');
 
 function matchesHigoLocation(urlString) {
   const url = new URL(urlString);
-  return matchesAllowedHostname(url.hostname, higoDetection.hostnames)
+  const allowedHostnames = [
+    ...(higoDetection.trustedHostnames || []),
+    ...(higoDetection.fallbackHostnames || []),
+  ];
+  return matchesAllowedHostname(url.hostname, allowedHostnames)
     && matchesPathnamePrefixes(url.pathname, higoDetection.pathnamePrefixes);
 }
 
@@ -47,4 +51,11 @@ for (const url of rejectedUrls) {
   assert.equal(matchesHigoLocation(url), false, `expected HIGO location rejection: ${url}`);
 }
 
-console.log('HIGO platform location checks passed');
+assert.deepEqual(
+  higoDetection.trustedHostnames,
+  ['echo-agent.online', 'www.echo-agent.online', 'higo.world']
+);
+assert.deepEqual(higoDetection.fallbackHostnames, ['localhost', '127.0.0.1', '<ip>']);
+assert(higoDetection.fallbackIdentity, 'HIGO fallback identity config must exist');
+
+console.log('HIGO platform trusted and fallback location checks passed');

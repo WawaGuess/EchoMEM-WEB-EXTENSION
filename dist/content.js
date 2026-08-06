@@ -9,20 +9,32 @@
         enabled: true,
         record: false,
         detection: {
-          hostnames: ["localhost", "127.0.0.1", "echo-agent.online", "www.echo-agent.online", "higo.world", "<ip>"],
+          trustedHostnames: ["echo-agent.online", "www.echo-agent.online", "higo.world"],
+          fallbackHostnames: ["localhost", "127.0.0.1", "<ip>"],
           pathnamePrefixes: ["/home"],
-          titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
-          domFeatures: {
-            required: [".MuiDrawer-root", ".MuiPaper-root"],
-            optional: ["textarea[id^='_r_']", "[data-testid='ArrowUpwardIcon']", ".MuiDrawer-anchorRight"]
-          },
-          contentKeywords: ["higo", "HIGO", "Higo2", "echo", "Echo"]
+          fallbackIdentity: {
+            titleOrContentKeywords: ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
+            optionalDomFeatures: [
+              "[data-testid='WorkspacesOutlinedIcon']",
+              "[data-testid='MenuOpenIcon']",
+              "textarea[id^='_r_']",
+              "[data-testid='ArrowUpwardIcon']"
+            ]
+          }
         },
         headerLauncher: {
+          containerAnchorSelectors: [
+            "[data-testid='MenuOpenIcon']",
+            ".MuiTypography-h6"
+          ],
           anchorSelectors: [
+            "[data-testid='ShareOutlinedIcon']",
             "[data-testid='ShareIcon']",
             "[data-testid='ChevronRightIcon']"
           ],
+          minHeaderWidth: 320,
+          maxHeaderHeight: 96,
+          controlGap: 4,
           preferredXRatio: 0.75,
           minXRatio: 0.18,
           maxXRatio: 0.94,
@@ -275,98 +287,165 @@
     });
   }
 
-  // src/core/detection.js
-  function getCurrentPlatform() {
-    return getPlatform();
-  }
-  function setCurrentPlatform(platform) {
-    setPlatform(platform);
-  }
+  // src/core/detection-matcher.mjs
   function getSelector(feature) {
     if (typeof feature === "string") return feature;
     if (feature && typeof feature === "object") return feature.selector;
     return null;
   }
-  function detectPlatformMultiLayer(detection) {
+  function matchesAnyDomFeature(documentObject, features) {
+    return (features || []).some((feature) => {
+      const selector = getSelector(feature);
+      return selector && documentObject.querySelector(selector) !== null;
+    });
+  }
+  function matchesTitleOrContent(documentObject, keywords) {
+    var _a;
+    const title = documentObject.title || "";
+    const bodyText = ((_a = documentObject.body) == null ? void 0 : _a.innerText) || "";
+    const pageIdentity = `${title}
+${bodyText}`.toLowerCase();
+    return (keywords || []).some(
+      (keyword) => pageIdentity.includes(String(keyword).toLowerCase())
+    );
+  }
+  function logFailure(logger, message) {
+    var _a;
+    (_a = logger.log) == null ? void 0 : _a.call(logger, `Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - ${message}`);
+  }
+  function matchesConfiguredHostname(hostname, allowedHostnames) {
+    return Array.isArray(allowedHostnames) && allowedHostnames.length > 0 && matchesAllowedHostname(hostname, allowedHostnames);
+  }
+  function detectPlatformMultiLayer(detection, overrides = {}) {
+    var _a;
+    const windowObject = overrides.windowObject || window;
+    const documentObject = overrides.documentObject || document;
+    const logger = overrides.logger || console;
     const logs = [];
-    if (detection.hostnames) {
-      const hostMatch = matchesAllowedHostname(window.location.hostname, detection.hostnames);
+    let hostnameTrust = null;
+    if (detection.trustedHostnames || detection.fallbackHostnames) {
+      const trustedMatch = matchesConfiguredHostname(
+        windowObject.location.hostname,
+        detection.trustedHostnames
+      );
+      const fallbackMatch = !trustedMatch && matchesConfiguredHostname(
+        windowObject.location.hostname,
+        detection.fallbackHostnames
+      );
+      if (!trustedMatch && !fallbackMatch) {
+        logFailure(logger, "\u4E3B\u673A\u4E0D\u5339\u914D");
+        return false;
+      }
+      hostnameTrust = trustedMatch ? "trusted" : "fallback";
+      logs.push(trustedMatch ? "\u2713 \u53EF\u4FE1\u4E3B\u673A\u5339\u914D" : "\u2713 \u56DE\u9000\u4E3B\u673A\u5339\u914D");
+    } else if (detection.hostnames) {
+      const hostMatch = matchesAllowedHostname(
+        windowObject.location.hostname,
+        detection.hostnames
+      );
       if (!hostMatch) {
-        console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u4E3B\u673A\u4E0D\u5339\u914D");
+        logFailure(logger, "\u4E3B\u673A\u4E0D\u5339\u914D");
         return false;
       }
       logs.push("\u2713 \u4E3B\u673A\u5339\u914D");
     }
     if (detection.pathnamePrefixes) {
-      const pathMatch = matchesPathnamePrefixes(window.location.pathname, detection.pathnamePrefixes);
+      const pathMatch = matchesPathnamePrefixes(
+        windowObject.location.pathname,
+        detection.pathnamePrefixes
+      );
       if (!pathMatch) {
-        console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u8DEF\u5F84\u4E0D\u5339\u914D");
+        logFailure(logger, "\u8DEF\u5F84\u4E0D\u5339\u914D");
         return false;
       }
       logs.push("\u2713 \u8DEF\u5F84\u5339\u914D");
     }
     if (detection.urlPatterns) {
       const urlMatch = detection.urlPatterns.some(
-        (pattern) => window.location.href.includes(pattern)
+        (pattern) => windowObject.location.href.includes(pattern)
       );
       if (!urlMatch) {
-        console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - URL\u4E0D\u5339\u914D");
+        logFailure(logger, "URL\u4E0D\u5339\u914D");
         return false;
       }
       logs.push("\u2713 URL\u5339\u914D");
     }
+    if (hostnameTrust === "fallback") {
+      if (!detection.fallbackIdentity) {
+        logFailure(logger, "\u56DE\u9000\u4E3B\u673A\u7F3A\u5C11\u8EAB\u4EFD\u6821\u9A8C\u914D\u7F6E");
+        return false;
+      }
+      const { titleOrContentKeywords, optionalDomFeatures } = detection.fallbackIdentity;
+      if (!(titleOrContentKeywords == null ? void 0 : titleOrContentKeywords.length) || !(optionalDomFeatures == null ? void 0 : optionalDomFeatures.length)) {
+        logFailure(logger, "\u56DE\u9000\u4E3B\u673A\u8EAB\u4EFD\u6821\u9A8C\u914D\u7F6E\u4E0D\u5B8C\u6574");
+        return false;
+      }
+      if (!matchesTitleOrContent(documentObject, titleOrContentKeywords)) {
+        logFailure(logger, "\u56DE\u9000\u4E3B\u673A\u7F3A\u5C11\u5E73\u53F0\u54C1\u724C\u6807\u8BC6");
+        return false;
+      }
+      logs.push("\u2713 \u56DE\u9000\u4E3B\u673A\u54C1\u724C\u6807\u8BC6\u5339\u914D");
+      if (!matchesAnyDomFeature(documentObject, optionalDomFeatures)) {
+        logFailure(logger, "\u56DE\u9000\u4E3B\u673A\u65E0\u8BED\u4E49DOM\u7279\u5F81\u5339\u914D");
+        return false;
+      }
+      logs.push("\u2713 \u56DE\u9000\u4E3B\u673A\u8BED\u4E49DOM\u7279\u5F81\u5339\u914D");
+    }
     if (detection.titleKeywords) {
       const titleMatch = detection.titleKeywords.some(
-        (keyword) => document.title.includes(keyword)
+        (keyword) => documentObject.title.includes(keyword)
       );
       if (!titleMatch) {
-        console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u6807\u9898\u5173\u952E\u5B57\u4E0D\u5339\u914D");
+        logFailure(logger, "\u6807\u9898\u5173\u952E\u5B57\u4E0D\u5339\u914D");
         return false;
       }
       logs.push("\u2713 \u6807\u9898\u5173\u952E\u5B57\u5339\u914D");
     }
     if (detection.domFeatures) {
       const { required, optional } = detection.domFeatures;
-      if (required && required.length > 0) {
+      if (required == null ? void 0 : required.length) {
         for (const feature of required) {
           const selector = getSelector(feature);
           if (!selector) continue;
-          const exists = document.querySelector(selector) !== null;
-          if (!exists) {
-            const desc = typeof feature === "object" ? feature.description : selector;
-            console.log(`Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u7F3A\u5C11\u5FC5\u8981DOM: ${desc}`);
+          if (documentObject.querySelector(selector) === null) {
+            const description = typeof feature === "object" ? feature.description : selector;
+            logFailure(logger, `\u7F3A\u5C11\u5FC5\u8981DOM: ${description}`);
             return false;
           }
         }
         logs.push("\u2713 \u5FC5\u8981DOM\u5143\u7D20\u5168\u90E8\u5B58\u5728");
       }
-      if (optional && optional.length > 0) {
-        const optionalMatch = optional.some((feature) => {
-          const selector = getSelector(feature);
-          return selector && document.querySelector(selector) !== null;
-        });
-        if (!optionalMatch) {
-          console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u65E0\u53EF\u9009DOM\u7279\u5F81\u5339\u914D");
-          return false;
-        }
+      if ((optional == null ? void 0 : optional.length) && !matchesAnyDomFeature(documentObject, optional)) {
+        logFailure(logger, "\u65E0\u53EF\u9009DOM\u7279\u5F81\u5339\u914D");
+        return false;
+      }
+      if (optional == null ? void 0 : optional.length) {
         logs.push("\u2713 \u53EF\u9009DOM\u7279\u5F81\u5339\u914D");
       }
     }
-    if (detection.contentKeywords && document.body) {
-      const bodyText = document.body.innerText || "";
+    if (detection.contentKeywords && documentObject.body) {
+      const bodyText = documentObject.body.innerText || "";
       if (bodyText.length > 0) {
         const contentMatch = detection.contentKeywords.some(
           (keyword) => bodyText.toLowerCase().includes(keyword.toLowerCase())
         );
         if (!contentMatch) {
-          console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u9875\u9762\u5185\u5BB9\u5173\u952E\u5B57\u4E0D\u5339\u914D");
+          logFailure(logger, "\u9875\u9762\u5185\u5BB9\u5173\u952E\u5B57\u4E0D\u5339\u914D");
           return false;
         }
         logs.push("\u2713 \u9875\u9762\u5185\u5BB9\u5173\u952E\u5B57\u5339\u914D");
       }
     }
-    console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u5168\u90E8\u901A\u8FC7:", logs.join(" | "));
+    (_a = logger.log) == null ? void 0 : _a.call(logger, "Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u5168\u90E8\u901A\u8FC7:", logs.join(" | "));
     return true;
+  }
+
+  // src/core/detection.js
+  function getCurrentPlatform() {
+    return getPlatform();
+  }
+  function setCurrentPlatform(platform) {
+    setPlatform(platform);
   }
   function detectPlatform() {
     for (const [key, config] of Object.entries(platformRegistry)) {
@@ -380,6 +459,135 @@
       }
     }
     return null;
+  }
+
+  // src/core/header-launcher.js
+  function isVisibleNearTop(rect, maxTop) {
+    return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < maxTop;
+  }
+  function isInteractiveElement(element) {
+    var _a;
+    return Boolean((_a = element == null ? void 0 : element.matches) == null ? void 0 : _a.call(
+      element,
+      'button, [role="button"], a[href], input, select, textarea'
+    ));
+  }
+  function findHeaderRow(element, config, environment) {
+    var _a;
+    const { documentObject, windowObject, getStyle } = environment;
+    const maxTop = config.maxTop ?? 120;
+    const maxHeaderHeight = config.maxHeaderHeight ?? 96;
+    const minHeaderWidth = Math.min(
+      config.minHeaderWidth ?? 320,
+      Math.max(windowObject.innerWidth, 1) * 0.6
+    );
+    const minHeaderChildren = config.minHeaderChildren ?? 3;
+    let current = ((_a = element.closest) == null ? void 0 : _a.call(element, 'button, [role="button"]')) || element;
+    while ((current == null ? void 0 : current.parentElement) && current.parentElement !== documentObject.body && current.parentElement !== documentObject.documentElement) {
+      const container = current.parentElement;
+      const rect = container.getBoundingClientRect();
+      const display = getStyle(container).display;
+      const isHeaderLayout = display === "flex" || display === "inline-flex" || display === "grid";
+      if (isHeaderLayout && isVisibleNearTop(rect, maxTop) && rect.width >= minHeaderWidth && rect.height <= maxHeaderHeight && container.children.length >= minHeaderChildren) {
+        const rightRegion = container.lastElementChild;
+        const reference = isInteractiveElement(rightRegion) ? container : rightRegion;
+        return {
+          container,
+          reference,
+          controlRoot: rightRegion,
+          placement: "overlay-before-reference",
+          controlGap: config.controlGap ?? 4,
+          rect
+        };
+      }
+      current = container;
+    }
+    return null;
+  }
+  function findConfiguredHeaderMount(config, environment) {
+    const selectors = config.containerAnchorSelectors || [];
+    const candidates = [];
+    selectors.forEach((selector, selectorIndex) => {
+      environment.documentObject.querySelectorAll(selector).forEach((element) => {
+        const mount = findHeaderRow(element, config, environment);
+        if (!mount) return;
+        candidates.push({
+          ...mount,
+          score: selectorIndex * 1e3 + Math.max(mount.rect.top, 0) * 10 - mount.rect.width / Math.max(environment.windowObject.innerWidth, 1)
+        });
+      });
+    });
+    candidates.sort((left, right) => left.score - right.score);
+    return candidates[0] || null;
+  }
+  function findLegacyAnchorMount(config, environment) {
+    const selectors = config.anchorSelectors || [];
+    const preferredXRatio = config.preferredXRatio ?? 0.75;
+    const minXRatio = config.minXRatio ?? 0.18;
+    const maxXRatio = config.maxXRatio ?? 0.94;
+    const maxTop = config.maxTop ?? 120;
+    const candidates = [];
+    selectors.forEach((selector, selectorIndex) => {
+      environment.documentObject.querySelectorAll(selector).forEach((icon) => {
+        const anchor = icon.closest('button, [role="button"]') || icon.parentElement;
+        if (!(anchor == null ? void 0 : anchor.parentNode)) return;
+        const rect = anchor.getBoundingClientRect();
+        const centerXRatio = (rect.left + rect.width / 2) / Math.max(environment.windowObject.innerWidth, 1);
+        const isVisible = isVisibleNearTop(rect, maxTop) && centerXRatio >= minXRatio && centerXRatio <= maxXRatio;
+        if (!isVisible) return;
+        candidates.push({
+          container: anchor.parentNode,
+          reference: anchor,
+          placement: "flow-before-reference",
+          score: selectorIndex * 1e3 + Math.abs(centerXRatio - preferredXRatio) * 100 + Math.max(rect.top, 0) / 100
+        });
+      });
+    });
+    candidates.sort((left, right) => left.score - right.score);
+    return candidates[0] || null;
+  }
+  function findHeaderLauncherMount(config, overrides = {}) {
+    const documentObject = overrides.documentObject || document;
+    const windowObject = overrides.windowObject || window;
+    const getStyle = overrides.getStyle || getComputedStyle;
+    const environment = { documentObject, windowObject, getStyle };
+    return findConfiguredHeaderMount(config, environment) || findLegacyAnchorMount(config, environment);
+  }
+  function placeHeaderLauncher(launcher, mount, overrides = {}) {
+    var _a;
+    const getStyle = overrides.getStyle || getComputedStyle;
+    const reference = mount == null ? void 0 : mount.reference;
+    if ((mount == null ? void 0 : mount.placement) === "overlay-before-reference" && (reference == null ? void 0 : reference.insertBefore) && reference.classList) {
+      if (getStyle(reference).position === "static") {
+        reference.classList.add("claw-echomem-header-launcher-anchor");
+      }
+      launcher.classList.add("claw-echomem-header-launcher--anchored");
+      const referenceRect = reference.getBoundingClientRect();
+      const controlRoot = mount.controlRoot || reference;
+      const controls = [
+        ...isInteractiveElement(controlRoot) ? [controlRoot] : [],
+        ...Array.from(((_a = controlRoot.querySelectorAll) == null ? void 0 : _a.call(controlRoot, 'button, [role="button"]')) || [])
+      ];
+      const firstControl = controls.find((control) => {
+        if (control === launcher) return false;
+        const rect = control.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      const rightOffset = firstControl ? Math.max(
+        referenceRect.right - firstControl.getBoundingClientRect().left + mount.controlGap,
+        0
+      ) : 0;
+      launcher.style.setProperty("--echomem-header-launcher-right", `${rightOffset}px`);
+      if (launcher.parentNode !== reference || reference.firstElementChild !== launcher) {
+        reference.insertBefore(launcher, reference.firstElementChild || null);
+      }
+      return;
+    }
+    launcher.classList.remove("claw-echomem-header-launcher--anchored");
+    const isAlreadyPlaced = launcher.parentNode === mount.container && (reference ? launcher.nextElementSibling === reference : launcher === mount.container.lastElementChild);
+    if (!isAlreadyPlaced) {
+      mount.container.insertBefore(launcher, reference || null);
+    }
   }
 
   // src/core/panel-host.js
@@ -9320,37 +9528,16 @@ ${MEM_TAG_CLOSE2}`;
     event.stopPropagation();
     ensureEchoMemOverlayOpen();
   }
-  function findHeaderAnchor(headerLauncherConfig) {
-    var _a;
-    const selectors = headerLauncherConfig.anchorSelectors || [];
-    const preferredXRatio = headerLauncherConfig.preferredXRatio ?? 0.75;
-    const minXRatio = headerLauncherConfig.minXRatio ?? 0.18;
-    const maxXRatio = headerLauncherConfig.maxXRatio ?? 0.94;
-    const maxTop = headerLauncherConfig.maxTop ?? 120;
-    const candidates = [];
-    selectors.forEach((selector, selectorIndex) => {
-      document.querySelectorAll(selector).forEach((icon) => {
-        const anchor = icon.closest('button, [role="button"]') || icon.parentElement;
-        if (!anchor) return;
-        const rect = anchor.getBoundingClientRect();
-        const centerXRatio = (rect.left + rect.width / 2) / Math.max(window.innerWidth, 1);
-        const isVisible = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < maxTop && centerXRatio >= minXRatio && centerXRatio <= maxXRatio;
-        if (!isVisible) return;
-        candidates.push({
-          anchor,
-          score: selectorIndex * 1e3 + Math.abs(centerXRatio - preferredXRatio) * 100 + Math.max(rect.top, 0) / 100
-        });
-      });
-    });
-    candidates.sort((left, right) => left.score - right.score);
-    return ((_a = candidates[0]) == null ? void 0 : _a.anchor) || null;
-  }
   function addHeaderLauncher(config) {
     const headerLauncherConfig = config.headerLauncher;
     if (!headerLauncherConfig) return;
-    if (document.querySelector(".claw-echomem-header-launcher")) return;
-    const anchor = findHeaderAnchor(headerLauncherConfig);
-    if (!(anchor == null ? void 0 : anchor.parentNode)) return;
+    const mount = findHeaderLauncherMount(headerLauncherConfig);
+    if (!(mount == null ? void 0 : mount.container)) return;
+    const existingLauncher = document.querySelector(".claw-echomem-header-launcher");
+    if (existingLauncher) {
+      placeHeaderLauncher(existingLauncher, mount);
+      return;
+    }
     const launcher = document.createElement("button");
     launcher.type = "button";
     launcher.className = "claw-echomem-header-launcher";
@@ -9364,7 +9551,7 @@ ${MEM_TAG_CLOSE2}`;
     logo.alt = "";
     launcher.appendChild(logo);
     launcher.addEventListener("click", openLauncher);
-    anchor.parentNode.insertBefore(launcher, anchor);
+    placeHeaderLauncher(launcher, mount);
     console.log(`Claw Extension: EchoMem header launcher added for ${config.name}`);
   }
   function removeLegacyInputLauncher() {

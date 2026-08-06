@@ -7,20 +7,32 @@
       "enabled": true,
       "record": false,
       "detection": {
-        "hostnames": ["localhost", "127.0.0.1", "echo-agent.online", "www.echo-agent.online", "higo.world", "<ip>"],
+        "trustedHostnames": ["echo-agent.online", "www.echo-agent.online", "higo.world"],
+        "fallbackHostnames": ["localhost", "127.0.0.1", "<ip>"],
         "pathnamePrefixes": ["/home"],
-        "titleKeywords": ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
-        "domFeatures": {
-          "required": [".MuiDrawer-root", ".MuiPaper-root"],
-          "optional": ["textarea[id^='_r_']", "[data-testid='ArrowUpwardIcon']", ".MuiDrawer-anchorRight"]
-        },
-        "contentKeywords": ["higo", "HIGO", "Higo2", "echo", "Echo"]
+        "fallbackIdentity": {
+          "titleOrContentKeywords": ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
+          "optionalDomFeatures": [
+            "[data-testid='WorkspacesOutlinedIcon']",
+            "[data-testid='MenuOpenIcon']",
+            "textarea[id^='_r_']",
+            "[data-testid='ArrowUpwardIcon']"
+          ]
+        }
       },
       "headerLauncher": {
+        "containerAnchorSelectors": [
+          "[data-testid='MenuOpenIcon']",
+          ".MuiTypography-h6"
+        ],
         "anchorSelectors": [
+          "[data-testid='ShareOutlinedIcon']",
           "[data-testid='ShareIcon']",
           "[data-testid='ChevronRightIcon']"
         ],
+        "minHeaderWidth": 320,
+        "maxHeaderHeight": 96,
+        "controlGap": 4,
         "preferredXRatio": 0.75,
         "minXRatio": 0.18,
         "maxXRatio": 0.94,

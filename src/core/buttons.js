@@ -1,6 +1,7 @@
 // 按钮注入逻辑
 
 import { detectPlatform, getCurrentPlatform, setCurrentPlatform } from './detection.js';
+import { findHeaderLauncherMount, placeHeaderLauncher } from './header-launcher.js';
 import { ensureEchoMemOverlayOpen } from './router.js';
 
 function openLauncher(event) {
@@ -9,50 +10,18 @@ function openLauncher(event) {
   ensureEchoMemOverlayOpen();
 }
 
-function findHeaderAnchor(headerLauncherConfig) {
-  const selectors = headerLauncherConfig.anchorSelectors || [];
-  const preferredXRatio = headerLauncherConfig.preferredXRatio ?? 0.75;
-  const minXRatio = headerLauncherConfig.minXRatio ?? 0.18;
-  const maxXRatio = headerLauncherConfig.maxXRatio ?? 0.94;
-  const maxTop = headerLauncherConfig.maxTop ?? 120;
-  const candidates = [];
-
-  selectors.forEach((selector, selectorIndex) => {
-    document.querySelectorAll(selector).forEach((icon) => {
-      const anchor = icon.closest('button, [role="button"]') || icon.parentElement;
-      if (!anchor) return;
-
-      const rect = anchor.getBoundingClientRect();
-      const centerXRatio = (rect.left + rect.width / 2) / Math.max(window.innerWidth, 1);
-      const isVisible = rect.width > 0
-        && rect.height > 0
-        && rect.bottom > 0
-        && rect.top < maxTop
-        && centerXRatio >= minXRatio
-        && centerXRatio <= maxXRatio;
-
-      if (!isVisible) return;
-
-      candidates.push({
-        anchor,
-        score: selectorIndex * 1000
-          + Math.abs(centerXRatio - preferredXRatio) * 100
-          + Math.max(rect.top, 0) / 100,
-      });
-    });
-  });
-
-  candidates.sort((left, right) => left.score - right.score);
-  return candidates[0]?.anchor || null;
-}
-
 function addHeaderLauncher(config) {
   const headerLauncherConfig = config.headerLauncher;
   if (!headerLauncherConfig) return;
-  if (document.querySelector('.claw-echomem-header-launcher')) return;
 
-  const anchor = findHeaderAnchor(headerLauncherConfig);
-  if (!anchor?.parentNode) return;
+  const mount = findHeaderLauncherMount(headerLauncherConfig);
+  if (!mount?.container) return;
+
+  const existingLauncher = document.querySelector('.claw-echomem-header-launcher');
+  if (existingLauncher) {
+    placeHeaderLauncher(existingLauncher, mount);
+    return;
+  }
 
   const launcher = document.createElement('button');
   launcher.type = 'button';
@@ -69,7 +38,7 @@ function addHeaderLauncher(config) {
   launcher.appendChild(logo);
   launcher.addEventListener('click', openLauncher);
 
-  anchor.parentNode.insertBefore(launcher, anchor);
+  placeHeaderLauncher(launcher, mount);
   console.log(`Claw Extension: EchoMem header launcher added for ${config.name}`);
 }
 
