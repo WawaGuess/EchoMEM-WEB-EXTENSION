@@ -22,7 +22,8 @@
 - **安装管理**：管理已安装的 Skill，支持删除
 
 ### 5. 效能
-- 网页 overlay 保留现有平台相关展示逻辑
+- 所有支持平台展示 EchoMem 后端 Token 累计消耗
+- HIGO 保留会话统计卡片；当前 EchoAgent 未提供汇总数据时，以“— / 暂不可用”明确展示，不将缺失数据伪装成 `0`
 - 支持手动刷新和定时轮询
 
 ### 6. 后端连接配置
@@ -162,7 +163,7 @@ EchoMEM-WEB-EXTENSION/
 | `src/panels/association/` | 输入联想 | 输入联想开关和状态展示 |
 | `src/panels/feedback/` | 认知反馈 | Episode 情节记忆时间线 |
 | `src/panels/skill-store/` | Skill 管理 | Skill 列表、上传、安装管理 |
-| `src/panels/performance/` | 效能 | Token 消耗概览：会话级统计（HIGO）+ EchoMem 后端 Usage |
+| `src/panels/performance/` | 效能 | EchoMem 后端 Token 消耗，以及 HIGO 会话统计的可用性状态 |
 
 ## 使用说明
 
@@ -214,7 +215,7 @@ EchoMEM-WEB-EXTENSION/
 - **事件委托**：处理动态生成的元素点击事件
 - **平台适配器**：`src/adapters/` 提供配置驱动的 `BaseAdapter`，平台差异优先通过 `platforms.json` 声明；未注册平台自动回退到默认实现
 - **流式完成检测**：`src/streaming/` 注册多种检测策略（如 `button-svg-poll`、`text-stability`、`selector-state`），用于适配不同平台的流式输出
-- **后端客户端**：`src/services/echomem-client.js` 对接 EchoMem 后端，`episode-client.js` 获取 Episode 情节记忆数据，`openview-client.js` 拉取 HIGO Office 本地/OpenView 会话统计
+- **后端客户端**：`src/services/echomem-client.js` 对接 EchoMem 后端，`episode-client.js` 获取 Episode 情节记忆数据，`openview-client.js` 处理 HIGO Office 本地/OpenView 登录
 - **会话录制**：`src/core/session-recorder.js` 基于适配器抽象和流式检测，自动提取当前页面的聊天消息
 
 ## 开发调试

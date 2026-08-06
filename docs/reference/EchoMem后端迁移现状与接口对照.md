@@ -13,7 +13,7 @@
 |---|---|---|
 | 一期 | 核心记忆链路（健康检查、记忆召回、会话创建/消息/提交）迁移到 EchoMem | 已完成 |
 | 二期 | 资源管理、Skill 商店迁移到 EchoMem 服务接口 | 已完成 |
-| 三期 | 效能统计面板接入 EchoMem 后端 | 后端 Token 消耗（`GET /metrics`）已完成；用户会话统计已迁移至 OpenView agent |
+| 三期 | 效能统计面板接入 EchoMem 后端 | 后端 Token 消耗（`GET /metrics`）已完成；用户会话统计暂不可用并明确展示不可用状态 |
 
 ## 2. 可直接切换的接口（低改动）
 
@@ -51,7 +51,7 @@
 
 | 功能 | 原接口 | 需要 EchoMem 后端提供的能力 | 影响面板 |
 |---|---|---|---|
-| 用户会话 Token 汇总 | `GET /api/stats/summary`（原 Background 直接调用端口 8000） | 迁移到 OpenView agent：`GET /v1/stats/summary`；扩展登录 OpenView 后拉取 | 效能概览 |
+| 用户会话 Token 汇总 | 迁移前 Background 调用的本地 `GET /api/stats/summary` | EchoAgent 需要提供稳定的汇总接口与认证契约；`/v1/stats/summary` 目前只是候选路径，扩展未调用 | 效能概览 |
 | 通用文件系统写操作 | `POST /api/v1/fs/mkdir`、`DELETE /api/v1/fs?uri=` | 如需保留目录树写操作，需 EchoMem 暴露 fs 写接口；或提供资源/Skill 的 `list/update/delete` 服务接口替代前端目录管理 | 资源管理、Skill 商店 |
 
 ## 5. 需要 EchoMem 后端暴露的接口清单
@@ -68,7 +68,7 @@
    - 用途：如需保留前端目录树写操作能力
    - 风险：与 EchoMem 当前设计冲突，可能引入权限边界问题
 
-> 用户会话统计接口已通过 OpenView agent 的 `GET /v1/stats/summary` 解决，不再依赖 EchoMem 后端新增该能力。
+> 当前 `background.js` 对 `fetchStatsSummary` 明确返回“不支持”错误。效能页将会话数、轮次数和 Input/Output Tokens 展示为 `— / 暂不可用`，不会把缺失数据显示为 `0`。
 
 ## 6. 功能切换状态总览
 
@@ -84,7 +84,7 @@
 | Skill 列表 | — | 是 | — | 否 |
 | Skill 删除 | — | 是 | — | 否 |
 | 后端 Token 统计 | — | — | 是（通过 `GET /metrics`） | 否 |
-| 用户会话统计 | — | — | 是（通过 OpenView `/v1/stats/summary`） | 否 |
+| 用户会话统计 | — | — | 暂不可用；等待 EchoAgent 汇总接口 | 是（EchoAgent） |
 
 ## 7. 相关代码锚点
 

@@ -34,8 +34,8 @@ export function getEchoMemConfigContent() {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
           </span>
           <div>
-            <p>EchoAgent 统计服务</p>
-            <span>会话 Token 统计汇总</span>
+            <p>EchoAgent 连接</p>
+            <span>当前用于 HIGO 会话身份认证</span>
           </div>
         </div>
 

@@ -2850,8 +2850,125 @@ ${block}` : block;
     return `<div id="${wrapperId}" style="display:flex;flex-direction:column;width:100%;height:100%;min-height:400px;background:#05070a;"></div>`;
   }
 
-  // src/panels/performance/index.js
+  // src/panels/performance/view-state.js
   var FMT = (n) => n.toLocaleString("zh-CN");
+  var SESSION_STATS_UNSUPPORTED_ERROR = "\u5F53\u524D EchoAgent \u670D\u52A1\u6682\u4E0D\u652F\u6301\u4F1A\u8BDD\u7EDF\u8BA1\u6C47\u603B";
+  function getFailureMessage(result) {
+    var _a;
+    return (result == null ? void 0 : result.status) === "rejected" ? String(((_a = result.reason) == null ? void 0 : _a.message) || result.reason || "") : "";
+  }
+  function buildPerformanceState({ showSessionStats = true, statsResult, usageResult }) {
+    const hasSessionData = showSessionStats && (statsResult == null ? void 0 : statsResult.status) === "fulfilled" && statsResult.value;
+    const sessionStatus = !showSessionStats ? "hidden" : hasSessionData ? "available" : getFailureMessage(statsResult).includes(SESSION_STATS_UNSUPPORTED_ERROR) ? "unavailable" : "error";
+    const hasBackendData = (usageResult == null ? void 0 : usageResult.status) === "fulfilled" && Number.isFinite(usageResult.value);
+    const backendStatus = hasBackendData ? "available" : "error";
+    const stats = hasSessionData ? statsResult.value : {};
+    const sessionTokens = hasSessionData ? stats.totalTokens ?? 0 : null;
+    const backendTokens = hasBackendData ? usageResult.value : null;
+    return {
+      sessionStatus,
+      backendStatus,
+      totalSessions: hasSessionData ? stats.totalSessions ?? 0 : null,
+      totalTurns: hasSessionData ? stats.totalTurns ?? 0 : null,
+      totalInputTokens: hasSessionData ? stats.totalInputTokens ?? 0 : null,
+      totalOutputTokens: hasSessionData ? stats.totalOutputTokens ?? 0 : null,
+      sessionTokens,
+      backendTokens,
+      totalTokens: showSessionStats && hasSessionData && hasBackendData ? sessionTokens + backendTokens : null,
+      since: hasSessionData ? stats.since ?? null : null
+    };
+  }
+  function setMetricValue(element, value) {
+    if (!element) return;
+    element.textContent = Number.isFinite(value) ? FMT(value) : "\u2014";
+    element.style.color = Number.isFinite(value) ? "#1D1B20" : "#79747E";
+  }
+  function setMetricStatus(element, text, status = "neutral") {
+    if (!element) return;
+    element.textContent = text;
+    element.classList.toggle("perf-status-error", status === "error");
+  }
+  function updateSessionNotice(bodyElement, sessionStatus) {
+    const noticeEl = bodyElement == null ? void 0 : bodyElement.querySelector("#perf-session-notice");
+    if (!noticeEl) return;
+    if (sessionStatus === "available" || sessionStatus === "hidden") {
+      noticeEl.hidden = true;
+      return;
+    }
+    const titleEl = noticeEl.querySelector("#perf-session-notice-title");
+    const detailEl = noticeEl.querySelector("#perf-session-notice-detail");
+    const isUnavailable = sessionStatus === "unavailable";
+    noticeEl.hidden = false;
+    if (titleEl) titleEl.textContent = isUnavailable ? "\u4F1A\u8BDD\u7EDF\u8BA1\u6682\u4E0D\u53EF\u7528" : "\u4F1A\u8BDD\u7EDF\u8BA1\u83B7\u53D6\u5931\u8D25";
+    if (detailEl) {
+      detailEl.textContent = isUnavailable ? "EchoAgent \u5F53\u524D\u672A\u63D0\u4F9B\u4F1A\u8BDD\u6C47\u603B\u6570\u636E\u3002" : "\u8BF7\u7A0D\u540E\u91CD\u8BD5\uFF1BEchoMem \u540E\u7AEF\u6D88\u8017\u4ECD\u53EF\u5355\u72EC\u67E5\u770B\u3002";
+    }
+  }
+  function updatePerformanceDOM(bodyElement, data, showSessionStats = true) {
+    if (!bodyElement) return;
+    const totalEl = bodyElement.querySelector("#perf-total");
+    const totalStatusEl = bodyElement.querySelector("#perf-total-status");
+    const sessionsEl = bodyElement.querySelector("#perf-sessions");
+    const sessionsStatusEl = bodyElement.querySelector("#perf-sessions-status");
+    const turnsEl = bodyElement.querySelector("#perf-turns");
+    const turnsStatusEl = bodyElement.querySelector("#perf-turns-status");
+    const inputEl = bodyElement.querySelector("#perf-input");
+    const inputStatusEl = bodyElement.querySelector("#perf-input-status");
+    const outputEl = bodyElement.querySelector("#perf-output");
+    const outputStatusEl = bodyElement.querySelector("#perf-output-status");
+    const backendEl = bodyElement.querySelector("#perf-backend");
+    const backendStatusEl = bodyElement.querySelector("#perf-backend-status");
+    const descEl = bodyElement.querySelector("#perf-desc");
+    const sessionAvailable = data.sessionStatus === "available";
+    const backendAvailable = data.backendStatus === "available";
+    const sessionStatusText = data.sessionStatus === "unavailable" ? "\u6682\u4E0D\u53EF\u7528" : "\u83B7\u53D6\u5931\u8D25";
+    if (showSessionStats) {
+      setMetricValue(totalEl, data.totalTokens);
+      setMetricValue(sessionsEl, data.totalSessions);
+      setMetricValue(turnsEl, data.totalTurns);
+      setMetricValue(inputEl, data.totalInputTokens);
+      setMetricValue(outputEl, data.totalOutputTokens);
+      if (data.totalTokens !== null) {
+        setMetricStatus(totalStatusEl, "tokens");
+      } else if (!sessionAvailable) {
+        setMetricStatus(totalStatusEl, "\u7F3A\u5C11\u4F1A\u8BDD\u7EDF\u8BA1\uFF0C\u6682\u65E0\u6CD5\u8BA1\u7B97");
+      } else {
+        setMetricStatus(totalStatusEl, "\u7F3A\u5C11\u540E\u7AEF\u7EDF\u8BA1\uFF0C\u6682\u65E0\u6CD5\u8BA1\u7B97", "error");
+      }
+      const detailStatus = sessionAvailable ? "" : sessionStatusText;
+      const detailTone = data.sessionStatus === "error" ? "error" : "neutral";
+      setMetricStatus(sessionsStatusEl, detailStatus, detailTone);
+      setMetricStatus(turnsStatusEl, detailStatus, detailTone);
+      setMetricStatus(inputStatusEl, sessionAvailable ? "tokens" : detailStatus, detailTone);
+      setMetricStatus(outputStatusEl, sessionAvailable ? "tokens" : detailStatus, detailTone);
+      updateSessionNotice(bodyElement, data.sessionStatus);
+    }
+    setMetricValue(backendEl, data.backendTokens);
+    setMetricStatus(
+      backendStatusEl,
+      backendAvailable ? "tokens" : "\u83B7\u53D6\u5931\u8D25",
+      backendAvailable ? "neutral" : "error"
+    );
+    if (descEl) {
+      const sinceDate = data.since ? new Date(data.since) : null;
+      const sinceText = sinceDate && !Number.isNaN(sinceDate.getTime()) ? ` \u81EA ${sinceDate.toLocaleString("zh-CN")} \u8D77\u7EDF\u8BA1\u3002` : "";
+      if (showSessionStats && sessionAvailable && backendAvailable) {
+        descEl.textContent = `Token \u7EDF\u8BA1\uFF1A\u7D2F\u8BA1 ${FMT(data.totalSessions)} \u4E2A\u4F1A\u8BDD\uFF0C${FMT(data.totalTurns)} \u8F6E\u5BF9\u8BDD\uFF1B\u4F1A\u8BDD\u6D88\u8017 ${FMT(data.sessionTokens)} tokens\uFF0CEchoMem \u540E\u7AEF\u6D88\u8017 ${FMT(data.backendTokens)} tokens\uFF0C\u5408\u8BA1 ${FMT(data.totalTokens)} tokens\u3002${sinceText}`;
+      } else if (showSessionStats && !sessionAvailable) {
+        const sessionCopy = data.sessionStatus === "unavailable" ? "\u4F1A\u8BDD\u7EDF\u8BA1\u6682\u4E0D\u53EF\u7528\uFF0C\u65E0\u6CD5\u8BA1\u7B97\u5B8C\u6574\u603B\u91CF\u3002" : "\u4F1A\u8BDD\u7EDF\u8BA1\u83B7\u53D6\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002";
+        const backendCopy = backendAvailable ? `EchoMem \u540E\u7AEF\u6D88\u8017 ${FMT(data.backendTokens)} tokens\u3002` : "EchoMem \u540E\u7AEF\u6D88\u8017\u83B7\u53D6\u5931\u8D25\u3002";
+        descEl.textContent = `${backendCopy}${sessionCopy}`;
+      } else if (showSessionStats) {
+        descEl.textContent = `\u4F1A\u8BDD\u7EDF\u8BA1\u5DF2\u83B7\u53D6\uFF1BEchoMem \u540E\u7AEF\u6D88\u8017\u83B7\u53D6\u5931\u8D25\uFF0C\u6682\u65E0\u6CD5\u8BA1\u7B97\u5B8C\u6574\u603B\u91CF\u3002${sinceText}`;
+      } else if (backendAvailable) {
+        descEl.textContent = `Token \u7EDF\u8BA1\uFF1A\u5F53\u524D\u5E73\u53F0\u4EC5\u5C55\u793A EchoMem \u540E\u7AEF\u6D88\u8017\uFF0C\u5171 ${FMT(data.backendTokens)} tokens\u3002`;
+      } else {
+        descEl.textContent = "EchoMem \u540E\u7AEF\u6D88\u8017\u83B7\u53D6\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002";
+      }
+    }
+  }
+
+  // src/panels/performance/index.js
   function isHigoPlatform() {
     var _a;
     const platform = getCurrentPlatform();
@@ -2870,7 +2987,18 @@ ${block}` : block;
         </div>
         <div class="perf-label perf-hero-label">\u603B Token \u6D88\u8017</div>
         <div id="perf-total" class="perf-total-value">${skeletonValue("100px")}</div>
-        <div class="perf-unit perf-hero-unit">tokens</div>
+        <div id="perf-total-status" class="perf-unit perf-hero-unit" aria-live="polite">tokens</div>
+      </div>
+  ` : "";
+    const sessionNotice = showSessionStats ? `
+      <div id="perf-session-notice" class="perf-notice" role="status" hidden>
+        <span class="perf-notice-icon" aria-hidden="true">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+        </span>
+        <span>
+          <strong id="perf-session-notice-title" class="perf-notice-title"></strong>
+          <span id="perf-session-notice-detail" class="perf-notice-detail"></span>
+        </span>
       </div>
   ` : "";
     const sessionStatsSection = showSessionStats ? `
@@ -2879,10 +3007,12 @@ ${block}` : block;
         <div class="perf-metric-card">
           <p class="perf-label">\u4F1A\u8BDD\u6570</p>
           <p id="perf-sessions" class="perf-metric-value">${skeletonValue("60px")}</p>
+          <p id="perf-sessions-status" class="perf-unit perf-card-status" aria-live="polite"></p>
         </div>
         <div class="perf-metric-card">
           <p class="perf-label">\u8F6E\u6B21\u6570</p>
           <p id="perf-turns" class="perf-metric-value">${skeletonValue("60px")}</p>
+          <p id="perf-turns-status" class="perf-unit perf-card-status" aria-live="polite"></p>
         </div>
       </div>
 
@@ -2891,12 +3021,12 @@ ${block}` : block;
         <div class="perf-metric-card">
           <p class="perf-label">Input Tokens</p>
           <p id="perf-input" class="perf-metric-value">${skeletonValue("80px")}</p>
-          <p class="perf-unit">tokens</p>
+          <p id="perf-input-status" class="perf-unit perf-card-status" aria-live="polite">tokens</p>
         </div>
         <div class="perf-metric-card">
           <p class="perf-label">Output Tokens</p>
           <p id="perf-output" class="perf-metric-value">${skeletonValue("80px")}</p>
-          <p class="perf-unit">tokens</p>
+          <p id="perf-output-status" class="perf-unit perf-card-status" aria-live="polite">tokens</p>
         </div>
       </div>
   ` : "";
@@ -2999,6 +3129,35 @@ ${block}` : block;
         line-height: 1.4;
       }
       #perf-root .perf-hero-unit { color: #625B71; }
+      #perf-root .perf-card-status { font-size: 11px; }
+      #perf-root .perf-notice {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        padding: 12px 14px;
+        border: 1px solid #E7E0EC;
+        border-radius: 14px;
+        background: #F7F2FA;
+        color: #49454F;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      #perf-root .perf-notice[hidden] { display: none; }
+      #perf-root .perf-notice-icon {
+        display: inline-flex;
+        flex: 0 0 auto;
+        margin-top: 1px;
+        color: #6750A4;
+      }
+      #perf-root .perf-notice-title,
+      #perf-root .perf-notice-detail { display: block; }
+      #perf-root .perf-notice-title {
+        margin-bottom: 2px;
+        color: #49454F;
+        font-weight: 650;
+      }
+      #perf-root .perf-notice-detail { color: #79747E; }
+      #perf-root .perf-status-error { color: #B3261E; }
       #perf-root .perf-skeleton {
         display: inline-block;
         height: 20px;
@@ -3068,13 +3227,15 @@ ${block}` : block;
     <div id="perf-root">
       ${totalSection}
 
+      ${sessionNotice}
+
       ${sessionStatsSection}
 
       <!-- \u540E\u7AEF\u6D88\u8017 -->
       <div class="perf-metric-card perf-backend-card">
         <p class="perf-label">EchoMem \u540E\u7AEF\u6D88\u8017</p>
         <p id="perf-backend" class="perf-metric-value">${skeletonValue("80px")}</p>
-        <p class="perf-unit">tokens</p>
+        <p id="perf-backend-status" class="perf-unit perf-card-status" aria-live="polite">tokens</p>
       </div>
 
       <!-- \u8BF4\u660E -->
@@ -3119,54 +3280,6 @@ ${block}` : block;
     const result = await client2.fetchUsage();
     return ((_a = result.total) == null ? void 0 : _a.total_tokens) ?? 0;
   }
-  function updatePerformanceDOM(bodyElement, data, showSessionStats = true) {
-    if (!bodyElement) return;
-    const totalEl = bodyElement.querySelector("#perf-total");
-    const sessionsEl = bodyElement.querySelector("#perf-sessions");
-    const turnsEl = bodyElement.querySelector("#perf-turns");
-    const inputEl = bodyElement.querySelector("#perf-input");
-    const outputEl = bodyElement.querySelector("#perf-output");
-    const backendEl = bodyElement.querySelector("#perf-backend");
-    const descEl = bodyElement.querySelector("#perf-desc");
-    const sessionTokens = data.totalTokens ?? 0;
-    const backendTokens = data.backendTokens ?? 0;
-    const totalTokens = sessionTokens + backendTokens;
-    if (showSessionStats) {
-      if (totalEl) totalEl.textContent = FMT(totalTokens);
-      if (sessionsEl) sessionsEl.textContent = FMT(data.totalSessions ?? 0);
-      if (turnsEl) turnsEl.textContent = FMT(data.totalTurns ?? 0);
-      if (inputEl) inputEl.textContent = FMT(data.totalInputTokens ?? 0);
-      if (outputEl) outputEl.textContent = FMT(data.totalOutputTokens ?? 0);
-    }
-    if (backendEl) {
-      if (data.backendTokens !== void 0 && data.backendTokens !== null) {
-        backendEl.textContent = FMT(data.backendTokens);
-        backendEl.style.color = "#1D1B20";
-      } else {
-        backendEl.textContent = "--";
-        backendEl.style.color = "#79747E";
-      }
-    }
-    if (descEl) {
-      const sinceText = data.since ? `\u81EA ${new Date(data.since).toLocaleString("zh-CN")} \u8D77\u7EDF\u8BA1` : "\u7EDF\u8BA1\u8303\u56F4\uFF1A\u5168\u90E8\u5386\u53F2\u4F1A\u8BDD";
-      if (showSessionStats) {
-        descEl.innerHTML = `
-        <span style="color: #6750A4; font-weight: 600;">Token \u7EDF\u8BA1\uFF1A</span>
-        \u7D2F\u8BA1 ${FMT(data.totalSessions ?? 0)} \u4E2A\u4F1A\u8BDD\uFF0C${FMT(data.totalTurns ?? 0)} \u8F6E\u5BF9\u8BDD\uFF1B
-        \u4F1A\u8BDD\u6D88\u8017 <strong style="color: #1D1B20;">${FMT(sessionTokens)}</strong> tokens\uFF0C
-        EchoMem \u540E\u7AEF\u6D88\u8017 <strong style="color: #1D1B20;">${FMT(backendTokens)}</strong> tokens\uFF0C
-        \u5408\u8BA1 <strong style="color: #1D1B20;">${FMT(totalTokens)}</strong> tokens\u3002
-        <br><span style="color: #79747E;">${sinceText}</span>
-      `;
-      } else {
-        descEl.innerHTML = `
-        <span style="color: #6750A4; font-weight: 600;">Token \u7EDF\u8BA1\uFF1A</span>
-        \u5F53\u524D\u5E73\u53F0\u4EC5\u5C55\u793A EchoMem \u540E\u7AEF Token \u6D88\u8017\u3002
-        <br><span style="color: #79747E;">\u4F1A\u8BDD\u7EA7 Token \u7EDF\u8BA1\u4EC5\u5728 HIGO \u5E73\u53F0\u53EF\u7528</span>
-      `;
-      }
-    }
-  }
   function initPerformancePanel(bodyElement, options = {}) {
     let pollTimer = null;
     let destroyed = false;
@@ -3182,17 +3295,7 @@ ${block}` : block;
         const results = await Promise.allSettled(promises);
         const statsResult = showSessionStats ? results[0] : { status: "fulfilled", value: null };
         const usageResult = showSessionStats ? results[1] : results[0];
-        const data = statsResult.status === "fulfilled" && statsResult.value ? statsResult.value : {
-          totalSessions: 0,
-          totalTurns: 0,
-          totalInputTokens: 0,
-          totalOutputTokens: 0,
-          totalTokens: 0,
-          since: null
-        };
-        if (usageResult.status === "fulfilled") {
-          data.backendTokens = usageResult.value;
-        }
+        const data = buildPerformanceState({ showSessionStats, statsResult, usageResult });
         if (!destroyed) updatePerformanceDOM(bodyElement, data, showSessionStats);
         if (statsResult.status === "rejected") {
           console.warn("EchoMem: session stats fetch failed", statsResult.reason);
@@ -8639,8 +8742,8 @@ ${MEM_TAG_CLOSE2}`;
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
           </span>
           <div>
-            <p>EchoAgent \u7EDF\u8BA1\u670D\u52A1</p>
-            <span>\u4F1A\u8BDD Token \u7EDF\u8BA1\u6C47\u603B</span>
+            <p>EchoAgent \u8FDE\u63A5</p>
+            <span>\u5F53\u524D\u7528\u4E8E HIGO \u4F1A\u8BDD\u8EAB\u4EFD\u8BA4\u8BC1</span>
           </div>
         </div>
 

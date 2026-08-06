@@ -12,8 +12,7 @@
 import { getEchoMemConfig } from '../../services/config.js';
 import { createClient } from '../../services/echomem-client.js';
 import { getCurrentPlatform } from '../../core/detection.js';
-
-const FMT = (n) => n.toLocaleString('zh-CN');
+import { buildPerformanceState, updatePerformanceDOM } from './view-state.js';
 
 function isHigoPlatform() {
   const platform = getCurrentPlatform();
@@ -36,7 +35,19 @@ export function getPerformanceContent() {
         </div>
         <div class="perf-label perf-hero-label">总 Token 消耗</div>
         <div id="perf-total" class="perf-total-value">${skeletonValue('100px')}</div>
-        <div class="perf-unit perf-hero-unit">tokens</div>
+        <div id="perf-total-status" class="perf-unit perf-hero-unit" aria-live="polite">tokens</div>
+      </div>
+  ` : '';
+
+  const sessionNotice = showSessionStats ? `
+      <div id="perf-session-notice" class="perf-notice" role="status" hidden>
+        <span class="perf-notice-icon" aria-hidden="true">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+        </span>
+        <span>
+          <strong id="perf-session-notice-title" class="perf-notice-title"></strong>
+          <span id="perf-session-notice-detail" class="perf-notice-detail"></span>
+        </span>
       </div>
   ` : '';
 
@@ -46,10 +57,12 @@ export function getPerformanceContent() {
         <div class="perf-metric-card">
           <p class="perf-label">会话数</p>
           <p id="perf-sessions" class="perf-metric-value">${skeletonValue('60px')}</p>
+          <p id="perf-sessions-status" class="perf-unit perf-card-status" aria-live="polite"></p>
         </div>
         <div class="perf-metric-card">
           <p class="perf-label">轮次数</p>
           <p id="perf-turns" class="perf-metric-value">${skeletonValue('60px')}</p>
+          <p id="perf-turns-status" class="perf-unit perf-card-status" aria-live="polite"></p>
         </div>
       </div>
 
@@ -58,12 +71,12 @@ export function getPerformanceContent() {
         <div class="perf-metric-card">
           <p class="perf-label">Input Tokens</p>
           <p id="perf-input" class="perf-metric-value">${skeletonValue('80px')}</p>
-          <p class="perf-unit">tokens</p>
+          <p id="perf-input-status" class="perf-unit perf-card-status" aria-live="polite">tokens</p>
         </div>
         <div class="perf-metric-card">
           <p class="perf-label">Output Tokens</p>
           <p id="perf-output" class="perf-metric-value">${skeletonValue('80px')}</p>
-          <p class="perf-unit">tokens</p>
+          <p id="perf-output-status" class="perf-unit perf-card-status" aria-live="polite">tokens</p>
         </div>
       </div>
   ` : '';
@@ -167,6 +180,35 @@ export function getPerformanceContent() {
         line-height: 1.4;
       }
       #perf-root .perf-hero-unit { color: #625B71; }
+      #perf-root .perf-card-status { font-size: 11px; }
+      #perf-root .perf-notice {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        padding: 12px 14px;
+        border: 1px solid #E7E0EC;
+        border-radius: 14px;
+        background: #F7F2FA;
+        color: #49454F;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      #perf-root .perf-notice[hidden] { display: none; }
+      #perf-root .perf-notice-icon {
+        display: inline-flex;
+        flex: 0 0 auto;
+        margin-top: 1px;
+        color: #6750A4;
+      }
+      #perf-root .perf-notice-title,
+      #perf-root .perf-notice-detail { display: block; }
+      #perf-root .perf-notice-title {
+        margin-bottom: 2px;
+        color: #49454F;
+        font-weight: 650;
+      }
+      #perf-root .perf-notice-detail { color: #79747E; }
+      #perf-root .perf-status-error { color: #B3261E; }
       #perf-root .perf-skeleton {
         display: inline-block;
         height: 20px;
@@ -236,13 +278,15 @@ export function getPerformanceContent() {
     <div id="perf-root">
       ${totalSection}
 
+      ${sessionNotice}
+
       ${sessionStatsSection}
 
       <!-- 后端消耗 -->
       <div class="perf-metric-card perf-backend-card">
         <p class="perf-label">EchoMem 后端消耗</p>
         <p id="perf-backend" class="perf-metric-value">${skeletonValue('80px')}</p>
-        <p class="perf-unit">tokens</p>
+        <p id="perf-backend-status" class="perf-unit perf-card-status" aria-live="polite">tokens</p>
       </div>
 
       <!-- 说明 -->
@@ -300,62 +344,6 @@ async function fetchBackendUsageData() {
 
 // ── DOM 更新 ────────────────────────────────────────────────────────────
 
-function updatePerformanceDOM(bodyElement, data, showSessionStats = true) {
-  if (!bodyElement) return;
-
-  const totalEl    = bodyElement.querySelector('#perf-total');
-  const sessionsEl = bodyElement.querySelector('#perf-sessions');
-  const turnsEl    = bodyElement.querySelector('#perf-turns');
-  const inputEl    = bodyElement.querySelector('#perf-input');
-  const outputEl   = bodyElement.querySelector('#perf-output');
-  const backendEl  = bodyElement.querySelector('#perf-backend');
-  const descEl     = bodyElement.querySelector('#perf-desc');
-
-  const sessionTokens = data.totalTokens ?? 0;
-  const backendTokens = data.backendTokens ?? 0;
-  const totalTokens = sessionTokens + backendTokens;
-
-  if (showSessionStats) {
-    if (totalEl)    totalEl.textContent    = FMT(totalTokens);
-    if (sessionsEl) sessionsEl.textContent = FMT(data.totalSessions ?? 0);
-    if (turnsEl)    turnsEl.textContent    = FMT(data.totalTurns ?? 0);
-    if (inputEl)    inputEl.textContent    = FMT(data.totalInputTokens ?? 0);
-    if (outputEl)   outputEl.textContent   = FMT(data.totalOutputTokens ?? 0);
-  }
-
-  if (backendEl) {
-    if (data.backendTokens !== undefined && data.backendTokens !== null) {
-      backendEl.textContent = FMT(data.backendTokens);
-      backendEl.style.color = '#1D1B20';
-    } else {
-      backendEl.textContent = '--';
-      backendEl.style.color = '#79747E';
-    }
-  }
-
-  if (descEl) {
-    const sinceText = data.since
-      ? `自 ${new Date(data.since).toLocaleString('zh-CN')} 起统计`
-      : '统计范围：全部历史会话';
-    if (showSessionStats) {
-      descEl.innerHTML = `
-        <span style="color: #6750A4; font-weight: 600;">Token 统计：</span>
-        累计 ${FMT(data.totalSessions ?? 0)} 个会话，${FMT(data.totalTurns ?? 0)} 轮对话；
-        会话消耗 <strong style="color: #1D1B20;">${FMT(sessionTokens)}</strong> tokens，
-        EchoMem 后端消耗 <strong style="color: #1D1B20;">${FMT(backendTokens)}</strong> tokens，
-        合计 <strong style="color: #1D1B20;">${FMT(totalTokens)}</strong> tokens。
-        <br><span style="color: #79747E;">${sinceText}</span>
-      `;
-    } else {
-      descEl.innerHTML = `
-        <span style="color: #6750A4; font-weight: 600;">Token 统计：</span>
-        当前平台仅展示 EchoMem 后端 Token 消耗。
-        <br><span style="color: #79747E;">会话级 Token 统计仅在 HIGO 平台可用</span>
-      `;
-    }
-  }
-}
-
 // ── 面板初始化（含可选轮询） ────────────────────────────────────────────
 
 /**
@@ -383,20 +371,7 @@ export function initPerformancePanel(bodyElement, options = {}) {
       const statsResult = showSessionStats ? results[0] : { status: 'fulfilled', value: null };
       const usageResult = showSessionStats ? results[1] : results[0];
 
-      const data = statsResult.status === 'fulfilled' && statsResult.value
-        ? statsResult.value
-        : {
-            totalSessions: 0,
-            totalTurns: 0,
-            totalInputTokens: 0,
-            totalOutputTokens: 0,
-            totalTokens: 0,
-            since: null,
-          };
-
-      if (usageResult.status === 'fulfilled') {
-        data.backendTokens = usageResult.value;
-      }
+      const data = buildPerformanceState({ showSessionStats, statsResult, usageResult });
 
       if (!destroyed) updatePerformanceDOM(bodyElement, data, showSessionStats);
 

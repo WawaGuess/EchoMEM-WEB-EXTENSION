@@ -14,7 +14,7 @@ Implemented
 
 1. **双线适配成本**：同一套功能需要维护两套请求路径、认证头、返回解析逻辑。
 2. **能力错位**：EchoMem 后端在设计上不再暴露通用文件系统写接口（`mkdir`/`rm`），资源和 Skill 的生命周期通过独立服务接口管理；而 OpenViking 的 `fs` 写操作在 EchoMem 中没有直接对应。
-3. **统计接口悬空**：`background.js` 中 `fetchStatsSummary` 调用的 `http://127.0.0.1:8000/api/stats/summary` 既非 OpenViking 接口，也非 EchoMem 接口，来源不明确。
+3. **统计接口悬空**：迁移前 `background.js` 中 `fetchStatsSummary` 调用的本地 `/api/stats/summary` 既非 OpenViking 接口，也非 EchoMem 接口，来源不明确。
 4. **认证模型差异**：OpenViking 使用 `X-OpenViking-Agent` / `X-API-Key` / `X-OpenViking-Account` / `X-OpenViking-User` 组合；EchoMem 使用单一 `X-Auth-Key`，配置项需要精简。
 
 因此需要评估：当前 OpenViking 接口哪些可以迁移到 EchoMem 后端，哪些需要改造或新增后端能力。
@@ -27,7 +27,7 @@ Implemented
 
 - **能直接映射的接口优先迁移**：会话、消息、提交、召回、只读 fs 查询等语义一致的接口，通过调整路径和字段完成替换。
 - **不再依赖通用 fs 写操作**：资源上传、Skill 上传、删除改走 EchoMem 的 `/api/resources` 和 `/api/skills` 服务接口；前端不再维护目录树，改为以资源 ID / Skill 名为核心进行操作。
-- **缺失能力明确列出**：`/api/stats/summary`、内容 abstract/overview 等 EchoMem 尚未暴露的能力，作为后端新增需求单独跟进；后端 Token 消耗统计已通过解析现有 `GET /metrics` 端点实现，**用户会话 Token 汇总后续迁移到 OpenView agent 后端（ADR-006）**。
+- **缺失能力明确列出**：`/api/stats/summary`、内容 abstract/overview 等 EchoMem 尚未暴露的能力，作为后端新增需求单独跟进；后端 Token 消耗统计已通过解析现有 `GET /metrics` 端点实现，用户会话 Token 汇总仍等待 EchoAgent 提供稳定接口（历史候选方案已归档至 `docs/legacy/006-用户会话Token统计方案.md`）。
 - **认证统一为 X-Auth-Key**：配置面板从多字段认证简化为单一 auth key，默认后端地址改为 `http://127.0.0.1:8010`。
 - **迁移分阶段完成**：一期（核心记忆链路）、二期（资源/Skill 管理）已实施；三期（效能统计）中后端 Token 消耗已接入，用户会话统计待后续完成。
 
@@ -58,7 +58,7 @@ Implemented
 | `GET /api/v1/content/overview` | **无对应接口** | 移除或改为调用 `GET /fs/read?uri=` 读取完整内容后前端提取摘要 |
 | `GET /api/v1/content/abstract` | **无对应接口** | 移除轮询逻辑，资源提交后由后端异步处理，前端不再轮询 abstract |
 | `GET /api/v1/usage` | **无对应接口** | 改为解析 EchoMem 现有 `GET /metrics` Prometheus 指标，汇总 router + engine 的 LLM input/output tokens |
-| `GET http://127.0.0.1:8000/api/stats/summary` | **非 EchoMem 接口** | 已迁移到 OpenView agent 后端 `GET /v1/stats/summary`（见 ADR-006） |
+| 迁移前本地 `GET /api/stats/summary` | **非 EchoMem 接口** | 当前暂不可用；OpenView `/v1/stats/summary` 仅为历史候选方案，扩展未调用（见 `docs/legacy/006-用户会话Token统计方案.md`） |
 
 ## 前端改造范围
 
@@ -68,7 +68,7 @@ Implemented
    - 封装 EchoMem 接口，返回结构与原 client 尽量保持一致，减少面板层改动
 
 2. **改造 `src/services/config.js`**
-   - 默认 `baseUrl` 从 `http://127.0.0.1:1933` 改为 `http://127.0.0.1:8000`
+   - 默认 `baseUrl` 从 OpenViking 地址迁移为 EchoMem 配置；当前发行包地址由构建环境注入，不固定到本地端口
    - 配置项从 `agentId/apiKey/accountId/userId/authEnabled` 简化为 `baseUrl/authKey`
 
 3. **改造 `src/panels/resource/import.js`**
@@ -90,14 +90,14 @@ Implemented
 
 6. **改造 `src/panels/performance/index.js` 与 `background.js`**
    - `fetchBackendUsageData` 改为调用 `EchoMemClient.fetchUsage()`，内部解析 `GET /metrics` 获取后端 Token 消耗
-   - `fetchStatsSummary` 代理模式暂时保留，目标地址仍为端口 8000 的原统计接口，待 EchoMem 后端提供对应能力后再迁移
+   - `fetchStatsSummary` 当前不再代理旧统计接口，而是明确返回“不支持”错误；待 EchoAgent 提供稳定的汇总接口与认证契约后再接入
 
 ## 后端需新增能力
 
 - 如需保留内容摘要展示，可考虑 `GET /fs/read` 已满足读取，abstract 提取可放在前端或新增 `/resources/{id}/abstract`
 
 > 后端 Token 消耗统计已通过 `GET /metrics` 实现，无需新增专用 usage 接口。
-> 用户会话统计接口已通过 OpenView agent 的 `GET /v1/stats/summary` 解决，详见 ADR-006。
+> 用户会话统计当前暂不可用；效能页明确展示 `— / 暂不可用`，历史迁移方案见 `docs/legacy/006-用户会话Token统计方案.md`。
 
 ## 备选方案
 
@@ -112,7 +112,7 @@ Implemented
 1. `src/services/openviking-client.js` 将被 `echomem-client.js` 替代。
 2. 配置存储格式变化，旧版 `openvikingConfig` 需要兼容或引导用户重新配置。
 3. 资源管理和 Skill 商店的交互模型从“目录树操作”变为“资源/Skill 服务操作”。
-4. 效能概览的后端 Token 统计通过解析 `GET /metrics` 实现，不再依赖后端新增 usage 接口；用户会话统计已迁移到 OpenView agent 后端 `GET /v1/stats/summary`（ADR-006）。
+4. 效能概览的后端 Token 统计通过解析 `GET /metrics` 实现，不再依赖后端新增 usage 接口；用户会话统计等待 EchoAgent 稳定汇总接口，当前展示不可用状态（历史方案已归档至 `docs/legacy/006-用户会话Token统计方案.md`）。
 5. 文档同步更新：`docs/reference/外部接口清单.md` 需替换为 EchoMem 接口说明。
 
 ## 相关代码
