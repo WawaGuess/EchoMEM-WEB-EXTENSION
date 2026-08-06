@@ -30,8 +30,8 @@
 ## 发布到 GitHub Releases
 
 1. 在 `main`（或发布分支）上完成代码合并
-2. 打标签：`git tag v1.0.0`
-3. 推标签：`git push origin v1.0.0`
+2. 确认 `manifest.json`、`package.json`、`package-lock.json` 使用相同的 `X.Y.Z` 版本
+3. 在待发布提交上创建并推送 `vX.Y.Z` 标签；标签版本必须与 `manifest.json` 一致，且不得复用已有标签
 4. GitHub Actions 从 `ECHOMEM_PUBLIC_BASE_URL`、`ECHOMEM_INTRANET_BASE_URL` Secrets 注入地址，自动构建两个发行包并创建 Release
 5. 用户在仓库右侧 **Releases** 页面按网络环境下载 `EchoMem-Extension-Public.zip` 或 `EchoMem-Extension-Intranet.zip`
 

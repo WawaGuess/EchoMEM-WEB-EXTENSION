@@ -23,6 +23,8 @@ const manifestScriptFiles = [...new Set(
 )];
 const requiredFiles = [
   'background.js',
+  'popup.html',
+  'popup.js',
   ...manifestScriptFiles,
   'assets/echomem-lockup.png',
   'assets/echomem-symbol.png',
@@ -43,6 +45,22 @@ assert(
 for (const relativePath of requiredFiles) {
   assert(fs.existsSync(path.join(root, relativePath)), `required extension file is missing: ${relativePath}`);
 }
+
+const popupHtml = read('popup.html');
+const popupScript = read('popup.js');
+const popupVersionTargets = popupHtml.match(/data-extension-version/g) || [];
+assert(
+  popupVersionTargets.length === 2,
+  'popup must expose both version labels through data-extension-version'
+);
+assert(
+  !/v\d+\.\d+\.\d+(?:\.\d+)?/.test(popupHtml),
+  'popup version labels must not hardcode a release version'
+);
+assert(
+  popupScript.includes('chrome.runtime.getManifest().version'),
+  'popup version labels must derive from manifest.version'
+);
 
 if (profileId) {
   const profile = resolveDeploymentProfile(profileId);
