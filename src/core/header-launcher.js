@@ -5,6 +5,12 @@ function isVisibleNearTop(rect, maxTop) {
     && rect.top < maxTop;
 }
 
+function isInteractiveElement(element) {
+  return Boolean(element?.matches?.(
+    'button, [role="button"], a[href], input, select, textarea'
+  ));
+}
+
 function findHeaderRow(element, config, environment) {
   const { documentObject, windowObject, getStyle } = environment;
   const maxTop = config.maxTop ?? 120;
@@ -31,9 +37,12 @@ function findHeaderRow(element, config, environment) {
       && rect.width >= minHeaderWidth
       && rect.height <= maxHeaderHeight
       && container.children.length >= minHeaderChildren) {
+      const rightRegion = container.lastElementChild;
+      const reference = isInteractiveElement(rightRegion) ? container : rightRegion;
       return {
         container,
-        reference: container.lastElementChild,
+        reference,
+        controlRoot: rightRegion,
         placement: 'overlay-before-reference',
         controlGap: config.controlGap ?? 4,
         rect,
@@ -127,9 +136,12 @@ export function placeHeaderLauncher(launcher, mount, overrides = {}) {
     }
     launcher.classList.add('claw-echomem-header-launcher--anchored');
     const referenceRect = reference.getBoundingClientRect();
-    const firstControl = Array.from(
-      reference.querySelectorAll?.('button, [role="button"]') || []
-    ).find((control) => {
+    const controlRoot = mount.controlRoot || reference;
+    const controls = [
+      ...(isInteractiveElement(controlRoot) ? [controlRoot] : []),
+      ...Array.from(controlRoot.querySelectorAll?.('button, [role="button"]') || []),
+    ];
+    const firstControl = controls.find((control) => {
       if (control === launcher) return false;
       const rect = control.getBoundingClientRect();
       return rect.width > 0 && rect.height > 0;

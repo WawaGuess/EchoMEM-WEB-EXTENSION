@@ -9,10 +9,12 @@
         enabled: true,
         record: false,
         detection: {
-          hostnames: ["localhost", "127.0.0.1", "echo-agent.online", "www.echo-agent.online", "higo.world", "<ip>"],
+          trustedHostnames: ["echo-agent.online", "www.echo-agent.online", "higo.world"],
+          fallbackHostnames: ["localhost", "127.0.0.1", "<ip>"],
           pathnamePrefixes: ["/home"],
-          domFeatures: {
-            optional: [
+          fallbackIdentity: {
+            titleOrContentKeywords: ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
+            optionalDomFeatures: [
               "[data-testid='WorkspacesOutlinedIcon']",
               "[data-testid='MenuOpenIcon']",
               "textarea[id^='_r_']",
@@ -285,98 +287,165 @@
     });
   }
 
-  // src/core/detection.js
-  function getCurrentPlatform() {
-    return getPlatform();
-  }
-  function setCurrentPlatform(platform) {
-    setPlatform(platform);
-  }
+  // src/core/detection-matcher.mjs
   function getSelector(feature) {
     if (typeof feature === "string") return feature;
     if (feature && typeof feature === "object") return feature.selector;
     return null;
   }
-  function detectPlatformMultiLayer(detection) {
+  function matchesAnyDomFeature(documentObject, features) {
+    return (features || []).some((feature) => {
+      const selector = getSelector(feature);
+      return selector && documentObject.querySelector(selector) !== null;
+    });
+  }
+  function matchesTitleOrContent(documentObject, keywords) {
+    var _a;
+    const title = documentObject.title || "";
+    const bodyText = ((_a = documentObject.body) == null ? void 0 : _a.innerText) || "";
+    const pageIdentity = `${title}
+${bodyText}`.toLowerCase();
+    return (keywords || []).some(
+      (keyword) => pageIdentity.includes(String(keyword).toLowerCase())
+    );
+  }
+  function logFailure(logger, message) {
+    var _a;
+    (_a = logger.log) == null ? void 0 : _a.call(logger, `Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - ${message}`);
+  }
+  function matchesConfiguredHostname(hostname, allowedHostnames) {
+    return Array.isArray(allowedHostnames) && allowedHostnames.length > 0 && matchesAllowedHostname(hostname, allowedHostnames);
+  }
+  function detectPlatformMultiLayer(detection, overrides = {}) {
+    var _a;
+    const windowObject = overrides.windowObject || window;
+    const documentObject = overrides.documentObject || document;
+    const logger = overrides.logger || console;
     const logs = [];
-    if (detection.hostnames) {
-      const hostMatch = matchesAllowedHostname(window.location.hostname, detection.hostnames);
+    let hostnameTrust = null;
+    if (detection.trustedHostnames || detection.fallbackHostnames) {
+      const trustedMatch = matchesConfiguredHostname(
+        windowObject.location.hostname,
+        detection.trustedHostnames
+      );
+      const fallbackMatch = !trustedMatch && matchesConfiguredHostname(
+        windowObject.location.hostname,
+        detection.fallbackHostnames
+      );
+      if (!trustedMatch && !fallbackMatch) {
+        logFailure(logger, "\u4E3B\u673A\u4E0D\u5339\u914D");
+        return false;
+      }
+      hostnameTrust = trustedMatch ? "trusted" : "fallback";
+      logs.push(trustedMatch ? "\u2713 \u53EF\u4FE1\u4E3B\u673A\u5339\u914D" : "\u2713 \u56DE\u9000\u4E3B\u673A\u5339\u914D");
+    } else if (detection.hostnames) {
+      const hostMatch = matchesAllowedHostname(
+        windowObject.location.hostname,
+        detection.hostnames
+      );
       if (!hostMatch) {
-        console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u4E3B\u673A\u4E0D\u5339\u914D");
+        logFailure(logger, "\u4E3B\u673A\u4E0D\u5339\u914D");
         return false;
       }
       logs.push("\u2713 \u4E3B\u673A\u5339\u914D");
     }
     if (detection.pathnamePrefixes) {
-      const pathMatch = matchesPathnamePrefixes(window.location.pathname, detection.pathnamePrefixes);
+      const pathMatch = matchesPathnamePrefixes(
+        windowObject.location.pathname,
+        detection.pathnamePrefixes
+      );
       if (!pathMatch) {
-        console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u8DEF\u5F84\u4E0D\u5339\u914D");
+        logFailure(logger, "\u8DEF\u5F84\u4E0D\u5339\u914D");
         return false;
       }
       logs.push("\u2713 \u8DEF\u5F84\u5339\u914D");
     }
     if (detection.urlPatterns) {
       const urlMatch = detection.urlPatterns.some(
-        (pattern) => window.location.href.includes(pattern)
+        (pattern) => windowObject.location.href.includes(pattern)
       );
       if (!urlMatch) {
-        console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - URL\u4E0D\u5339\u914D");
+        logFailure(logger, "URL\u4E0D\u5339\u914D");
         return false;
       }
       logs.push("\u2713 URL\u5339\u914D");
     }
+    if (hostnameTrust === "fallback") {
+      if (!detection.fallbackIdentity) {
+        logFailure(logger, "\u56DE\u9000\u4E3B\u673A\u7F3A\u5C11\u8EAB\u4EFD\u6821\u9A8C\u914D\u7F6E");
+        return false;
+      }
+      const { titleOrContentKeywords, optionalDomFeatures } = detection.fallbackIdentity;
+      if (!(titleOrContentKeywords == null ? void 0 : titleOrContentKeywords.length) || !(optionalDomFeatures == null ? void 0 : optionalDomFeatures.length)) {
+        logFailure(logger, "\u56DE\u9000\u4E3B\u673A\u8EAB\u4EFD\u6821\u9A8C\u914D\u7F6E\u4E0D\u5B8C\u6574");
+        return false;
+      }
+      if (!matchesTitleOrContent(documentObject, titleOrContentKeywords)) {
+        logFailure(logger, "\u56DE\u9000\u4E3B\u673A\u7F3A\u5C11\u5E73\u53F0\u54C1\u724C\u6807\u8BC6");
+        return false;
+      }
+      logs.push("\u2713 \u56DE\u9000\u4E3B\u673A\u54C1\u724C\u6807\u8BC6\u5339\u914D");
+      if (!matchesAnyDomFeature(documentObject, optionalDomFeatures)) {
+        logFailure(logger, "\u56DE\u9000\u4E3B\u673A\u65E0\u8BED\u4E49DOM\u7279\u5F81\u5339\u914D");
+        return false;
+      }
+      logs.push("\u2713 \u56DE\u9000\u4E3B\u673A\u8BED\u4E49DOM\u7279\u5F81\u5339\u914D");
+    }
     if (detection.titleKeywords) {
       const titleMatch = detection.titleKeywords.some(
-        (keyword) => document.title.includes(keyword)
+        (keyword) => documentObject.title.includes(keyword)
       );
       if (!titleMatch) {
-        console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u6807\u9898\u5173\u952E\u5B57\u4E0D\u5339\u914D");
+        logFailure(logger, "\u6807\u9898\u5173\u952E\u5B57\u4E0D\u5339\u914D");
         return false;
       }
       logs.push("\u2713 \u6807\u9898\u5173\u952E\u5B57\u5339\u914D");
     }
     if (detection.domFeatures) {
       const { required, optional } = detection.domFeatures;
-      if (required && required.length > 0) {
+      if (required == null ? void 0 : required.length) {
         for (const feature of required) {
           const selector = getSelector(feature);
           if (!selector) continue;
-          const exists = document.querySelector(selector) !== null;
-          if (!exists) {
-            const desc = typeof feature === "object" ? feature.description : selector;
-            console.log(`Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u7F3A\u5C11\u5FC5\u8981DOM: ${desc}`);
+          if (documentObject.querySelector(selector) === null) {
+            const description = typeof feature === "object" ? feature.description : selector;
+            logFailure(logger, `\u7F3A\u5C11\u5FC5\u8981DOM: ${description}`);
             return false;
           }
         }
         logs.push("\u2713 \u5FC5\u8981DOM\u5143\u7D20\u5168\u90E8\u5B58\u5728");
       }
-      if (optional && optional.length > 0) {
-        const optionalMatch = optional.some((feature) => {
-          const selector = getSelector(feature);
-          return selector && document.querySelector(selector) !== null;
-        });
-        if (!optionalMatch) {
-          console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u65E0\u53EF\u9009DOM\u7279\u5F81\u5339\u914D");
-          return false;
-        }
+      if ((optional == null ? void 0 : optional.length) && !matchesAnyDomFeature(documentObject, optional)) {
+        logFailure(logger, "\u65E0\u53EF\u9009DOM\u7279\u5F81\u5339\u914D");
+        return false;
+      }
+      if (optional == null ? void 0 : optional.length) {
         logs.push("\u2713 \u53EF\u9009DOM\u7279\u5F81\u5339\u914D");
       }
     }
-    if (detection.contentKeywords && document.body) {
-      const bodyText = document.body.innerText || "";
+    if (detection.contentKeywords && documentObject.body) {
+      const bodyText = documentObject.body.innerText || "";
       if (bodyText.length > 0) {
         const contentMatch = detection.contentKeywords.some(
           (keyword) => bodyText.toLowerCase().includes(keyword.toLowerCase())
         );
         if (!contentMatch) {
-          console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u672A\u901A\u8FC7 - \u9875\u9762\u5185\u5BB9\u5173\u952E\u5B57\u4E0D\u5339\u914D");
+          logFailure(logger, "\u9875\u9762\u5185\u5BB9\u5173\u952E\u5B57\u4E0D\u5339\u914D");
           return false;
         }
         logs.push("\u2713 \u9875\u9762\u5185\u5BB9\u5173\u952E\u5B57\u5339\u914D");
       }
     }
-    console.log("Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u5168\u90E8\u901A\u8FC7:", logs.join(" | "));
+    (_a = logger.log) == null ? void 0 : _a.call(logger, "Claw Extension: \u5E73\u53F0\u68C0\u6D4B\u5168\u90E8\u901A\u8FC7:", logs.join(" | "));
     return true;
+  }
+
+  // src/core/detection.js
+  function getCurrentPlatform() {
+    return getPlatform();
+  }
+  function setCurrentPlatform(platform) {
+    setPlatform(platform);
   }
   function detectPlatform() {
     for (const [key, config] of Object.entries(platformRegistry)) {
@@ -396,6 +465,13 @@
   function isVisibleNearTop(rect, maxTop) {
     return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < maxTop;
   }
+  function isInteractiveElement(element) {
+    var _a;
+    return Boolean((_a = element == null ? void 0 : element.matches) == null ? void 0 : _a.call(
+      element,
+      'button, [role="button"], a[href], input, select, textarea'
+    ));
+  }
   function findHeaderRow(element, config, environment) {
     var _a;
     const { documentObject, windowObject, getStyle } = environment;
@@ -413,9 +489,12 @@
       const display = getStyle(container).display;
       const isHeaderLayout = display === "flex" || display === "inline-flex" || display === "grid";
       if (isHeaderLayout && isVisibleNearTop(rect, maxTop) && rect.width >= minHeaderWidth && rect.height <= maxHeaderHeight && container.children.length >= minHeaderChildren) {
+        const rightRegion = container.lastElementChild;
+        const reference = isInteractiveElement(rightRegion) ? container : rightRegion;
         return {
           container,
-          reference: container.lastElementChild,
+          reference,
+          controlRoot: rightRegion,
           placement: "overlay-before-reference",
           controlGap: config.controlGap ?? 4,
           rect
@@ -484,9 +563,12 @@
       }
       launcher.classList.add("claw-echomem-header-launcher--anchored");
       const referenceRect = reference.getBoundingClientRect();
-      const firstControl = Array.from(
-        ((_a = reference.querySelectorAll) == null ? void 0 : _a.call(reference, 'button, [role="button"]')) || []
-      ).find((control) => {
+      const controlRoot = mount.controlRoot || reference;
+      const controls = [
+        ...isInteractiveElement(controlRoot) ? [controlRoot] : [],
+        ...Array.from(((_a = controlRoot.querySelectorAll) == null ? void 0 : _a.call(controlRoot, 'button, [role="button"]')) || [])
+      ];
+      const firstControl = controls.find((control) => {
         if (control === launcher) return false;
         const rect = control.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0;

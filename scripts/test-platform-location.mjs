@@ -12,24 +12,13 @@ const higoDetection = platformData.platforms.find((platform) => platform.id === 
 
 assert(higoDetection, 'HIGO detection config must exist');
 
-function getFeatureSelector(feature) {
-  return typeof feature === 'string' ? feature : feature?.selector;
-}
-
-function matchesConfiguredDom(domFeatures, presentSelectors) {
-  const requiredMatch = (domFeatures.required || []).every((feature) =>
-    presentSelectors.has(getFeatureSelector(feature))
-  );
-  const optional = domFeatures.optional || [];
-  const optionalMatch = optional.length === 0 || optional.some((feature) =>
-    presentSelectors.has(getFeatureSelector(feature))
-  );
-  return requiredMatch && optionalMatch;
-}
-
 function matchesHigoLocation(urlString) {
   const url = new URL(urlString);
-  return matchesAllowedHostname(url.hostname, higoDetection.hostnames)
+  const allowedHostnames = [
+    ...(higoDetection.trustedHostnames || []),
+    ...(higoDetection.fallbackHostnames || []),
+  ];
+  return matchesAllowedHostname(url.hostname, allowedHostnames)
     && matchesPathnamePrefixes(url.pathname, higoDetection.pathnamePrefixes);
 }
 
@@ -62,34 +51,11 @@ for (const url of rejectedUrls) {
   assert.equal(matchesHigoLocation(url), false, `expected HIGO location rejection: ${url}`);
 }
 
-const directWorkspaceDom = new Set([
-  "[data-testid='WorkspacesOutlinedIcon']",
-]);
-
-assert.equal(
-  matchesConfiguredDom(higoDetection.domFeatures, directWorkspaceDom),
-  true,
-  'expected the first direct /home/workspace render to satisfy HIGO DOM detection'
+assert.deepEqual(
+  higoDetection.trustedHostnames,
+  ['echo-agent.online', 'www.echo-agent.online', 'higo.world']
 );
+assert.deepEqual(higoDetection.fallbackHostnames, ['localhost', '127.0.0.1', '<ip>']);
+assert(higoDetection.fallbackIdentity, 'HIGO fallback identity config must exist');
 
-assert.equal(
-  matchesConfiguredDom(higoDetection.domFeatures, new Set([
-    '.MuiDrawer-root',
-    '.MuiPaper-root',
-  ])),
-  false,
-  'expected generic MUI containers alone not to identify HIGO'
-);
-
-assert.equal(
-  matchesConfiguredDom(higoDetection.domFeatures, new Set([
-    "[data-testid='MenuOpenIcon']",
-  ])),
-  true,
-  'expected the EchoAgent title bar marker to identify HIGO after initial render'
-);
-
-assert.equal('titleKeywords' in higoDetection, false, 'HIGO title must not be a hard gate');
-assert.equal('contentKeywords' in higoDetection, false, 'HIGO body text must not be a hard gate');
-
-console.log('HIGO platform location and semantic DOM checks passed');
+console.log('HIGO platform trusted and fallback location checks passed');

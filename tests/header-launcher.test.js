@@ -61,6 +61,11 @@ class FakeElement {
     return null;
   }
 
+  matches(selector) {
+    return this.role === 'button'
+      && (selector.includes('button') || selector.includes('[role="button"]'));
+  }
+
   getBoundingClientRect() {
     return this.rect;
   }
@@ -243,4 +248,36 @@ test('keeps the legacy action-anchor fallback when no title bar marker exists', 
 
   placeHeaderLauncher(launcher, mount, { getStyle: () => ({ position: 'static' }) });
   assert.equal(actionGroup.insertBeforeCalls, 1);
+});
+
+test('mounts beside an interactive trailing control instead of nesting inside it', () => {
+  const titleBar = new FakeElement('title-bar', rect(223, 0, 1825, 64), 'flex');
+  const leftButton = new FakeElement('left-button', rect(239, 12, 40, 40), 'inline-flex', 'button');
+  const menuIcon = new FakeElement('menu-icon', rect(247, 20, 24, 24));
+  const title = new FakeElement('title', rect(279, 0, 1713, 64));
+  const rightButton = new FakeElement(
+    'right-button',
+    rect(1992, 12, 40, 40),
+    'inline-flex',
+    'button'
+  );
+  leftButton.append(menuIcon);
+  titleBar.append(leftButton, title, rightButton);
+
+  const selectorMap = new Map([
+    ['[data-testid="MenuOpenIcon"]', [menuIcon]],
+    ['.MuiTypography-h6', []],
+    ['[data-testid="ShareOutlinedIcon"]', []],
+    ['[data-testid="ChevronRightIcon"]', []],
+  ]);
+
+  const mount = findHeaderLauncherMount(config, createEnvironment(selectorMap));
+  const launcher = new FakeElement('launcher', rect(0, 0, 104, 36), 'inline-flex', 'button');
+  placeHeaderLauncher(launcher, mount, { getStyle: () => ({ position: 'static' }) });
+
+  assert.equal(mount.reference, titleBar);
+  assert.equal(mount.controlRoot, rightButton);
+  assert.equal(launcher.parentNode, titleBar);
+  assert.equal(rightButton.children.includes(launcher), false);
+  assert.equal(launcher.styleValues.get('--echomem-header-launcher-right'), '60px');
 });

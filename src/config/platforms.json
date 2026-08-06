@@ -7,10 +7,12 @@
       "enabled": true,
       "record": false,
       "detection": {
-        "hostnames": ["localhost", "127.0.0.1", "echo-agent.online", "www.echo-agent.online", "higo.world", "<ip>"],
+        "trustedHostnames": ["echo-agent.online", "www.echo-agent.online", "higo.world"],
+        "fallbackHostnames": ["localhost", "127.0.0.1", "<ip>"],
         "pathnamePrefixes": ["/home"],
-        "domFeatures": {
-          "optional": [
+        "fallbackIdentity": {
+          "titleOrContentKeywords": ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
+          "optionalDomFeatures": [
             "[data-testid='WorkspacesOutlinedIcon']",
             "[data-testid='MenuOpenIcon']",
             "textarea[id^='_r_']",
