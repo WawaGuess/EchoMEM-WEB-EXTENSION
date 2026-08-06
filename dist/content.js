@@ -11,18 +11,28 @@
         detection: {
           hostnames: ["localhost", "127.0.0.1", "echo-agent.online", "www.echo-agent.online", "higo.world", "<ip>"],
           pathnamePrefixes: ["/home"],
-          titleKeywords: ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
           domFeatures: {
-            required: [".MuiDrawer-root", ".MuiPaper-root"],
-            optional: ["textarea[id^='_r_']", "[data-testid='ArrowUpwardIcon']", ".MuiDrawer-anchorRight"]
-          },
-          contentKeywords: ["higo", "HIGO", "Higo2", "echo", "Echo"]
+            optional: [
+              "[data-testid='WorkspacesOutlinedIcon']",
+              "[data-testid='MenuOpenIcon']",
+              "textarea[id^='_r_']",
+              "[data-testid='ArrowUpwardIcon']"
+            ]
+          }
         },
         headerLauncher: {
+          containerAnchorSelectors: [
+            "[data-testid='MenuOpenIcon']",
+            ".MuiTypography-h6"
+          ],
           anchorSelectors: [
+            "[data-testid='ShareOutlinedIcon']",
             "[data-testid='ShareIcon']",
             "[data-testid='ChevronRightIcon']"
           ],
+          minHeaderWidth: 320,
+          maxHeaderHeight: 96,
+          controlGap: 4,
           preferredXRatio: 0.75,
           minXRatio: 0.18,
           maxXRatio: 0.94,
@@ -380,6 +390,122 @@
       }
     }
     return null;
+  }
+
+  // src/core/header-launcher.js
+  function isVisibleNearTop(rect, maxTop) {
+    return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < maxTop;
+  }
+  function findHeaderRow(element, config, environment) {
+    var _a;
+    const { documentObject, windowObject, getStyle } = environment;
+    const maxTop = config.maxTop ?? 120;
+    const maxHeaderHeight = config.maxHeaderHeight ?? 96;
+    const minHeaderWidth = Math.min(
+      config.minHeaderWidth ?? 320,
+      Math.max(windowObject.innerWidth, 1) * 0.6
+    );
+    const minHeaderChildren = config.minHeaderChildren ?? 3;
+    let current = ((_a = element.closest) == null ? void 0 : _a.call(element, 'button, [role="button"]')) || element;
+    while ((current == null ? void 0 : current.parentElement) && current.parentElement !== documentObject.body && current.parentElement !== documentObject.documentElement) {
+      const container = current.parentElement;
+      const rect = container.getBoundingClientRect();
+      const display = getStyle(container).display;
+      const isHeaderLayout = display === "flex" || display === "inline-flex" || display === "grid";
+      if (isHeaderLayout && isVisibleNearTop(rect, maxTop) && rect.width >= minHeaderWidth && rect.height <= maxHeaderHeight && container.children.length >= minHeaderChildren) {
+        return {
+          container,
+          reference: container.lastElementChild,
+          placement: "overlay-before-reference",
+          controlGap: config.controlGap ?? 4,
+          rect
+        };
+      }
+      current = container;
+    }
+    return null;
+  }
+  function findConfiguredHeaderMount(config, environment) {
+    const selectors = config.containerAnchorSelectors || [];
+    const candidates = [];
+    selectors.forEach((selector, selectorIndex) => {
+      environment.documentObject.querySelectorAll(selector).forEach((element) => {
+        const mount = findHeaderRow(element, config, environment);
+        if (!mount) return;
+        candidates.push({
+          ...mount,
+          score: selectorIndex * 1e3 + Math.max(mount.rect.top, 0) * 10 - mount.rect.width / Math.max(environment.windowObject.innerWidth, 1)
+        });
+      });
+    });
+    candidates.sort((left, right) => left.score - right.score);
+    return candidates[0] || null;
+  }
+  function findLegacyAnchorMount(config, environment) {
+    const selectors = config.anchorSelectors || [];
+    const preferredXRatio = config.preferredXRatio ?? 0.75;
+    const minXRatio = config.minXRatio ?? 0.18;
+    const maxXRatio = config.maxXRatio ?? 0.94;
+    const maxTop = config.maxTop ?? 120;
+    const candidates = [];
+    selectors.forEach((selector, selectorIndex) => {
+      environment.documentObject.querySelectorAll(selector).forEach((icon) => {
+        const anchor = icon.closest('button, [role="button"]') || icon.parentElement;
+        if (!(anchor == null ? void 0 : anchor.parentNode)) return;
+        const rect = anchor.getBoundingClientRect();
+        const centerXRatio = (rect.left + rect.width / 2) / Math.max(environment.windowObject.innerWidth, 1);
+        const isVisible = isVisibleNearTop(rect, maxTop) && centerXRatio >= minXRatio && centerXRatio <= maxXRatio;
+        if (!isVisible) return;
+        candidates.push({
+          container: anchor.parentNode,
+          reference: anchor,
+          placement: "flow-before-reference",
+          score: selectorIndex * 1e3 + Math.abs(centerXRatio - preferredXRatio) * 100 + Math.max(rect.top, 0) / 100
+        });
+      });
+    });
+    candidates.sort((left, right) => left.score - right.score);
+    return candidates[0] || null;
+  }
+  function findHeaderLauncherMount(config, overrides = {}) {
+    const documentObject = overrides.documentObject || document;
+    const windowObject = overrides.windowObject || window;
+    const getStyle = overrides.getStyle || getComputedStyle;
+    const environment = { documentObject, windowObject, getStyle };
+    return findConfiguredHeaderMount(config, environment) || findLegacyAnchorMount(config, environment);
+  }
+  function placeHeaderLauncher(launcher, mount, overrides = {}) {
+    var _a;
+    const getStyle = overrides.getStyle || getComputedStyle;
+    const reference = mount == null ? void 0 : mount.reference;
+    if ((mount == null ? void 0 : mount.placement) === "overlay-before-reference" && (reference == null ? void 0 : reference.insertBefore) && reference.classList) {
+      if (getStyle(reference).position === "static") {
+        reference.classList.add("claw-echomem-header-launcher-anchor");
+      }
+      launcher.classList.add("claw-echomem-header-launcher--anchored");
+      const referenceRect = reference.getBoundingClientRect();
+      const firstControl = Array.from(
+        ((_a = reference.querySelectorAll) == null ? void 0 : _a.call(reference, 'button, [role="button"]')) || []
+      ).find((control) => {
+        if (control === launcher) return false;
+        const rect = control.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      const rightOffset = firstControl ? Math.max(
+        referenceRect.right - firstControl.getBoundingClientRect().left + mount.controlGap,
+        0
+      ) : 0;
+      launcher.style.setProperty("--echomem-header-launcher-right", `${rightOffset}px`);
+      if (launcher.parentNode !== reference || reference.firstElementChild !== launcher) {
+        reference.insertBefore(launcher, reference.firstElementChild || null);
+      }
+      return;
+    }
+    launcher.classList.remove("claw-echomem-header-launcher--anchored");
+    const isAlreadyPlaced = launcher.parentNode === mount.container && (reference ? launcher.nextElementSibling === reference : launcher === mount.container.lastElementChild);
+    if (!isAlreadyPlaced) {
+      mount.container.insertBefore(launcher, reference || null);
+    }
   }
 
   // src/core/panel-host.js
@@ -9320,37 +9446,16 @@ ${MEM_TAG_CLOSE2}`;
     event.stopPropagation();
     ensureEchoMemOverlayOpen();
   }
-  function findHeaderAnchor(headerLauncherConfig) {
-    var _a;
-    const selectors = headerLauncherConfig.anchorSelectors || [];
-    const preferredXRatio = headerLauncherConfig.preferredXRatio ?? 0.75;
-    const minXRatio = headerLauncherConfig.minXRatio ?? 0.18;
-    const maxXRatio = headerLauncherConfig.maxXRatio ?? 0.94;
-    const maxTop = headerLauncherConfig.maxTop ?? 120;
-    const candidates = [];
-    selectors.forEach((selector, selectorIndex) => {
-      document.querySelectorAll(selector).forEach((icon) => {
-        const anchor = icon.closest('button, [role="button"]') || icon.parentElement;
-        if (!anchor) return;
-        const rect = anchor.getBoundingClientRect();
-        const centerXRatio = (rect.left + rect.width / 2) / Math.max(window.innerWidth, 1);
-        const isVisible = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < maxTop && centerXRatio >= minXRatio && centerXRatio <= maxXRatio;
-        if (!isVisible) return;
-        candidates.push({
-          anchor,
-          score: selectorIndex * 1e3 + Math.abs(centerXRatio - preferredXRatio) * 100 + Math.max(rect.top, 0) / 100
-        });
-      });
-    });
-    candidates.sort((left, right) => left.score - right.score);
-    return ((_a = candidates[0]) == null ? void 0 : _a.anchor) || null;
-  }
   function addHeaderLauncher(config) {
     const headerLauncherConfig = config.headerLauncher;
     if (!headerLauncherConfig) return;
-    if (document.querySelector(".claw-echomem-header-launcher")) return;
-    const anchor = findHeaderAnchor(headerLauncherConfig);
-    if (!(anchor == null ? void 0 : anchor.parentNode)) return;
+    const mount = findHeaderLauncherMount(headerLauncherConfig);
+    if (!(mount == null ? void 0 : mount.container)) return;
+    const existingLauncher = document.querySelector(".claw-echomem-header-launcher");
+    if (existingLauncher) {
+      placeHeaderLauncher(existingLauncher, mount);
+      return;
+    }
     const launcher = document.createElement("button");
     launcher.type = "button";
     launcher.className = "claw-echomem-header-launcher";
@@ -9364,7 +9469,7 @@ ${MEM_TAG_CLOSE2}`;
     logo.alt = "";
     launcher.appendChild(logo);
     launcher.addEventListener("click", openLauncher);
-    anchor.parentNode.insertBefore(launcher, anchor);
+    placeHeaderLauncher(launcher, mount);
     console.log(`Claw Extension: EchoMem header launcher added for ${config.name}`);
   }
   function removeLegacyInputLauncher() {

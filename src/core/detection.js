@@ -25,7 +25,7 @@ function getSelector(feature) {
   return null;
 }
 
-// 多层平台检测函数（4层全部满足才判定为目标页面）
+// 多层平台检测函数（只执行已配置的检测层，全部满足才判定为目标页面）
 export function detectPlatformMultiLayer(detection) {
   const logs = [];
 

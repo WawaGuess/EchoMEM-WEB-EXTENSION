@@ -53,6 +53,23 @@
   outline-offset: 2px !important;
 }
 
+.claw-echomem-header-launcher-anchor {
+  position: relative !important;
+}
+
+.claw-echomem-header-launcher--anchored {
+  position: absolute !important;
+  top: 50% !important;
+  right: var(--echomem-header-launcher-right, 0) !important;
+  z-index: 1 !important;
+  margin: 0 !important;
+  transform: translateY(-50%) !important;
+}
+
+.claw-echomem-header-launcher--anchored:active {
+  transform: translateY(-50%) translateY(1px) !important;
+}
+
 .claw-echomem-header-logo {
   display: block !important;
   width: 90px !important;
