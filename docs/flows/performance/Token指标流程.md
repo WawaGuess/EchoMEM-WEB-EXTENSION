@@ -1,235 +1,126 @@
 # 效能面板 Token 指标流程
 
-> 相关代码：`src/panels/performance/index.js`, `src/core/router.js`, `background.js`
+> 相关代码：`src/panels/performance/index.js`、`src/panels/performance/view-state.js`、`src/core/router.js`、`background.js`
 
-## 概述
+## 当前能力
 
-效能面板展示两类 Token 数据：
+效能面板保留两类 Token 数据的展示位置，但当前只有 EchoMem 后端统计具备真实数据链路：
 
-1. **用户会话 Token 统计**（OpenView）：仅在华大九天（HIGO）平台展示，包含总 Token、会话数、轮次数、Input/Output Tokens。
-2. **EchoMem 后端 Token 消耗**（`GET /metrics`）：在所有支持平台展示。
+1. **EchoMem 后端 Token 消耗**：所有支持平台均通过 `GET /metrics` 获取。
+2. **HIGO 会话统计**：保留总 Token、会话数、轮次数、Input/Output Tokens 卡片；当前 EchoAgent 未提供面板需要的汇总能力，因此展示为不可用状态，而不是伪造的 `0`。
 
-数据通过骨架屏 + 异步加载 + 轮询刷新三段式流程提供流畅体验。
+DeepSeek 等非 HIGO 平台不渲染会话统计卡片，只展示 EchoMem 后端 Token 消耗。
 
-## 界面布局
+## 展示状态
 
-面板宽度沿用平台配置 `320px`，内部采用纵向多段式布局。以下 1-3 区仅在 HIGO 平台显示，DeepSeek 等其它平台隐藏：
+数值与状态必须区分以下情况：
 
-### 1. 核心指标区（全宽大卡片）
+| 状态 | 数值区 | 辅助文案 | 颜色 |
+|---|---|---|---|
+| 加载中 | 骨架屏 | 正在加载 | 中性 |
+| 成功返回零 | `0` | `tokens` 或空 | 正常 |
+| 服务暂不支持 | `—` | 暂不可用 | 中性 |
+| 请求失败 | `—` | 获取失败 | 错误色 |
 
-- 蓝色渐变背景（`#eff6ff → #dbeafe`），视觉突出
-- 标题："总 Token 消耗"
-- 数值：32px 大字号，blue-700 色
-- 计算方式：**会话 Token 消耗总量 + EchoMem 后端 Token 消耗量**
-- **仅在 HIGO 平台显示**
+`0` 只能来自成功响应。不可用、请求失败或缺失数据不得降级为 `0`。
 
-### 2. 会话统计区（双列网格）
+### HIGO 会话统计不可用
 
-- 2 列等宽卡片，gap 10px
-- 左卡："会话数" + 数值
-- 右卡："轮次数" + 数值
-- **仅在 HIGO 平台显示**
+会话统计请求返回当前已知的“不支持”错误时：
 
-### 3. Input / Output 拆分区（双列网格）
+- 顶部“总 Token 消耗”显示 `—`，辅助文案为“缺少会话统计，暂无法计算”；
+- 会话数、轮次数、Input Tokens、Output Tokens 均显示 `—`；
+- 四张卡片的辅助文案显示“暂不可用”；
+- 会话统计区域上方展示中性提示框：
+  - 标题：“会话统计暂不可用”；
+  - 详情：“EchoAgent 当前未提供会话汇总数据。”；
+- 已成功获取的 EchoMem 后端 Token 仍单独展示；
+- 不显示虚构的统计起始时间。
 
-- 左卡："Input Tokens" + 数值
-- 右卡："Output Tokens" + 数值
-- **仅在 HIGO 平台显示**
+### 临时请求失败
 
-### 4. 后端消耗区
+未知网络或接口错误与“不支持”状态分开处理：
 
-- "EchoMem 后端消耗" + 数值（来自 `EchoMemClient.fetchUsage()`，实际请求 `GET /metrics`）+ "tokens"
-- **所有平台均显示**
-
-### 5. 说明文字区
-
-- HIGO 平台：累计统计说明，含 `since` 时间
-- 其它平台：提示"当前平台仅展示 EchoMem 后端 Token 消耗"
-- 加载失败显示红色错误提示
-
-## 加载流程（三段式）
-
-```
-用户点击"效能"菜单
-    │
-    ▼
-① 先调用 getPerformanceContent() 渲染骨架屏 HTML
-    │     - 数值区域显示灰色脉冲占位条
-    │     - 说明区域显示"正在加载数据…"
-    │
-    ▼
-② openCustomPanel() 打开面板（用户立刻看到 loading 状态）
-    │
-    ▼
-③ initPerformancePanel(bodyElement, { pollInterval: 5000 })
-    │     - 立即执行 fetchPerformanceData() 获取数据
-    │     - 成功后调用 updatePerformanceDOM() 填充真实数值
-    │     - 同时启动 setInterval 轮询（5s）
-    │     - 绑定"刷新"按钮支持手动刷新
-    │
-    ▼
-④ 用户持续浏览面板，数据每 5 秒静默刷新，也可手动点击刷新
-    │
-    ▼
-⑤ 用户点击返回/关闭 → cleanupPerformancePanel() 停止轮询
-```
-
-## 关键模块
-
-| 模块 | 路径 | 职责 |
-|------|------|------|
-| `getPerformanceContent` | `src/panels/performance/index.js` | 返回带骨架屏的 HTML 字符串 |
-| `fetchPerformanceData` | `src/panels/performance/index.js` | 异步获取 Token 数据 |
-| `updatePerformanceDOM` | `src/panels/performance/index.js` | 纯 DOM 更新函数 |
-| `initPerformancePanel` | `src/panels/performance/index.js` | 首次加载 + 轮询 |
-| `navigateToEchoMemPanel` | `src/core/router.js` | 路由层集成 |
-| `cleanupPerformancePanel` | `src/core/router.js` | 面板关闭时清理轮询 |
+- 对应数值显示 `—`；
+- 辅助文案显示“获取失败”；
+- 会话统计提示框说明“请稍后重试”；
+- 手动刷新和五秒轮询继续提供重试机会。
 
 ## 数据获取
 
-### 主统计（用户会话 Token）
+### EchoMem 后端消耗
 
-**仅当检测到 HIGO 平台时请求。** 通过 background script 代理请求绕过页面域 CORS 限制，目标改为 OpenView agent 后端（默认 `http://127.0.0.1:31020`）。扩展在配置面板登录 OpenView 后，`chrome.storage.local` 会保存 `openviewAuth`（含 `accessToken`、`refreshToken`、`baseUrl`），background script 读取后调用 `GET /v1/stats/summary`：
+`fetchBackendUsageData()` 使用 `EchoMemClient.fetchUsage()` 请求：
 
-```js
-export async function fetchPerformanceData() {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ action: 'fetchStatsSummary' }, (response) => {
-      // ... 处理 response
-      resolve({
-        totalSessions: data.total_sessions ?? 0,
-        totalTurns: data.total_turns ?? 0,
-        totalInputTokens: data.total_input_tokens ?? 0,
-        totalOutputTokens: data.total_output_tokens ?? 0,
-        totalTokens: data.total_tokens ?? 0,
-        since: data.since,
-      });
-    });
-  });
-}
+```text
+GET {echomemConfig.baseUrl}/metrics
 ```
 
-若 accessToken 过期返回 401，background script 会使用 `refreshToken` 调用 `POST /v1/auth/refresh` 刷新，再重试一次；刷新失败则清除本地 auth 并要求重新登录。
-
-> 补充说明：`background.js` 同时监听 `openViewRequest` 消息，用于代理内容脚本对 OpenView 的登录、刷新、stats 请求。`src/services/openview-client.js` 在 Service Worker 内部会直接 `fetch`，避免 Service Worker 无法接收自己发出的 `chrome.runtime.sendMessage` 消息。
-
-```js
-if (request.action === 'fetchStatsSummary') {
-  // 1. 读取 chrome.storage.local 中的 openviewAuth
-  // 2. 调用 OpenView GET /v1/stats/summary，带 Authorization: Bearer <accessToken>
-  // 3. 若 401，使用 refreshToken 调用 POST /v1/auth/refresh，重试一次
-  // 4. 返回 { success: true, data } 或 { success: false, error }
-}
-```
-
-### 后端消耗统计（EchoMem /metrics）
-
-三期已接入真实数据。`EchoMemClient.fetchUsage()` 调用后端 `GET /metrics`，解析 Prometheus text 格式，汇总以下 4 个 counter：
+客户端解析 Prometheus 文本并汇总以下 counter 的全部 label series：
 
 - `echomem_router_llm_input_tokens_total`
 - `echomem_router_llm_output_tokens_total`
 - `echomem_engine_llm_input_tokens_total`
 - `echomem_engine_llm_output_tokens_total`
 
+该值表示当前 EchoMem 后端实例暴露的累计 LLM Token 计数，不是当前页面会话的 Token 数。
+
+### HIGO 会话统计
+
+HIGO 页面仍会发送：
+
 ```js
-async function fetchBackendUsageData() {
-  const config = await getEchoMemConfig();
-  const client = createClient(config);
-  const result = await client.fetchUsage();
-  return result.total?.total_tokens ?? 0;
+chrome.runtime.sendMessage({ action: 'fetchStatsSummary' })
+```
+
+当前 `background.js` 明确返回：
+
+```js
+{
+  success: false,
+  error: '当前 EchoAgent 服务暂不支持会话统计汇总'
 }
 ```
 
-统计口径：EchoMem 后端所有 LLM 调用的 input + output token 总量。`/metrics` 端点无需认证，background script 代理会同时返回 JSON `data` 与原始 `text`，解析器从 `text` 中提取指标。
+Service Worker 不会继续请求旧的 `/v1/stats/summary`。当 EchoAgent 将来提供稳定的汇总接口后，可以恢复 `fetchStatsSummary` 的真实代理逻辑；现有视图状态模型已经保留成功数据的展示路径。
 
-## 数据结构
+## 状态转换
+
+`Promise.allSettled()` 允许会话统计和后端统计独立成功或失败。结果由 `buildPerformanceState()` 统一转换：
 
 ```ts
-interface PerformanceData {
-  totalSessions: number;      // 累计会话数
-  totalTurns: number;         // 累计对话轮次
-  totalInputTokens: number;   // 累计 Input Tokens
-  totalOutputTokens: number;  // 累计 Output Tokens
-  totalTokens: number;        // 会话 Token 消耗总量
-  since: string | null;       // 统计起始时间
-  backendTokens?: number;     // EchoMem 后端 Token 消耗量（来自 GET /metrics）
+interface PerformanceState {
+  sessionStatus: 'available' | 'unavailable' | 'error' | 'hidden';
+  backendStatus: 'available' | 'error';
+  totalSessions: number | null;
+  totalTurns: number | null;
+  totalInputTokens: number | null;
+  totalOutputTokens: number | null;
+  sessionTokens: number | null;
+  backendTokens: number | null;
+  totalTokens: number | null;
+  since: string | null;
 }
 ```
 
-总 Token 消耗展示值 = `totalTokens + backendTokens`。
+顶部总量只有在 HIGO 会话统计和 EchoMem 后端统计都可用时才计算：
 
-| 字段 | 状态 | 说明 |
-|------|------|------|
-| `backendTokens` | 三期已实现 | EchoMem 后端 Token 消耗量，汇总 router + engine 的 LLM input/output tokens |
-| `totalTokens` | 三期已实现 | 会话级 Token 消耗总量，来自 OpenView `/v1/stats/summary` |
-| 顶部"总 Token 消耗" | 三期已实现 | 展示值 = `totalTokens + backendTokens` |
-
-## 生命周期管理
-
-- `perfPanelCleanup` 为模块级变量，持有当前效能面板的 `destroy` 函数
-- 以下场景自动调用 `cleanupPerformancePanel()`：
-  - 用户点击效能面板的"返回"按钮
-  - 用户切换到其他 EchoMem 面板
-  - 用户关闭整个 EchoMem 面板
-
-## 调用链
-
-```
-用户点击"效能"菜单
-    │
-    ▼
-navigateToEchoMemPanel('performance')
-    │
-    ├── cleanupPerformancePanel()
-    │
-    ├── openCustomPanel(title, getPerformanceContent())
-    │
-    ├── getPanelBodyElement()
-    │
-    └── perfPanelCleanup = initPerformancePanel(body, { pollInterval: 30000 })
-            │
-            ├── refresh()
-            │       ├── fetchPerformanceData()  ── 失败时回退为全 0，不阻断后续更新
-            │       │       └── chrome.runtime.sendMessage({ action: 'fetchStatsSummary' })
-            │       │               └── background.js
-            │       │                       ├── 读取 openviewAuth (baseUrl/accessToken/refreshToken)
-            │       │                       ├── fetch GET /v1/stats/summary (Authorization: Bearer ...)
-            │       │                       ├── 401 时 POST /v1/auth/refresh 并重试
-            │       │                       └── 返回 { success, data }
-            │       └── fetchBackendUsageData()
-            │               ├── getEchoMemConfig()
-            │               ├── createClient(config)
-            │               └── client.fetchUsage()
-            │                       ├── client.fetchMetrics() → GET /metrics
-            │                       └── _sumTokenCounters() → 4 个 LLM token counter 求和
-            │
-            ├── updatePerformanceDOM(body, data)
-            │       └── 修改 #perf-total / #perf-sessions / #perf-turns / #perf-input / #perf-output / #perf-backend / #perf-desc
-            │
-            ├── 绑定 #perf-refresh-btn 点击事件 → refresh()
-            │
-            └── setInterval(refresh, 5000)
-
-用户点击"返回"
-    │
-    ▼
-openEchoMemHomePanel()
-    │
-    ├── cleanupPerformancePanel()  // clearInterval + 置空
-    │
-    └── openCustomPanel('EchoMem', getEchoMemHomeContent())
+```text
+totalTokens = sessionTokens + backendTokens
 ```
 
-## 错误处理
+任一组成部分不可用时，`totalTokens` 为 `null`，视图显示 `—`，避免把部分数据冒充完整总量。
 
-- **接口异常**：`try/catch` 捕获后，在说明文字区显示"数据加载失败，请稍后重试"
-- **部分接口失败**：`fetchPerformanceData`（会话统计）失败时回退为全 0，不阻塞 `fetchBackendUsageData`（后端消耗）的展示；反之亦然。失败原因单独打印到 console.warn。
-- **DOM 已销毁**：轮询回调中检查 `destroyed` 标志，防止面板关闭后仍操作 DOM
+## 页面生命周期
 
-## 关键实现决策
+1. `getPerformanceContent()` 先渲染骨架屏。
+2. `initPerformancePanel()` 立即并行加载当前平台需要的数据。
+3. `updatePerformanceDOM()` 按状态填充数值、辅助文案和提示框。
+4. 路由层每五秒轮询一次，也支持手动刷新。
+5. 用户返回、切换面板或关闭 overlay 时，`cleanupPerformancePanel()` 停止轮询。
 
-1. **骨架屏用内联 `<style>` 而非外部 CSS**：保证动画定义一定存在，避免面板切换时 CSS 被卸载
-2. **不传入数据到 `getPerformanceContent()`**：保持生成和更新职责分离
-3. **`destroyed` 标志**：防止 `await` 异步间隙中面板被关闭后仍操作 DOM
-4. **轮询间隔 5 秒**：模型回复完成后 token_usage 记录会尽快反映到面板；同时提供手动刷新按钮兜底
-5. **`/metrics` 纯文本响应处理**：`background.js` 的 `echoMemRequest` 同时返回 JSON `data` 与原始 `text`，`echomem-client.js` 从 `text` 解析 Prometheus 指标，避免引入额外依赖
+## 验证边界
+
+- `tests/performance-panel.test.js` 覆盖不可用状态不降级为零、真实零值保留、非 HIGO 隐藏和请求失败状态。
+- `npm run check` 验证生成 bundle、JavaScript 语法和扩展结构。
+- 自动检查不替代 HIGO/DeepSeek 浏览器交互和真实 EchoMem `/metrics` 集成验证。

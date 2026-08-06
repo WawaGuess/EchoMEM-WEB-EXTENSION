@@ -97,7 +97,7 @@ EchoMEM-WEB-EXTENSION/
 ### 后端服务客户端
 - `src/services/echomem-client.js`：EchoMem 后端客户端，提供资源/Skill/Usage 等接口调用
 - `src/services/episode-client.js`：Episode 数据客户端（原 graph-client.js 已归档）
-- `src/services/openview-client.js`：HIGO Office 本地/OpenView 会话 Token 统计客户端
+- `src/services/openview-client.js`：HIGO Office 本地/OpenView 登录客户端；当前不提供会话统计汇总
 - 跨域请求统一通过 Background Service Worker 代理转发
 
 ### 公网版与内网版
@@ -114,7 +114,7 @@ EchoMEM-WEB-EXTENSION/
 3. 用户点击浏览器工具栏图标时，Background 向活动标签页发送打开 overlay 的消息；HIGO 标题栏组合标复用相同的内容脚本路由
 4. 内容脚本确认平台已识别后打开右侧浮层面板
 5. 菜单项打开对应功能面板，支持返回导航到首页
-6. 会话录制器（`src/core/session-recorder.js`）基于适配器抽象和流式检测，自动提取当前页面的聊天消息，供认知反馈和效能面板使用
+6. 会话录制器（`src/core/session-recorder.js`）基于适配器抽象和流式检测，自动提取当前页面的聊天消息，供认知反馈使用
 
 ## 常见开发任务
 
@@ -144,7 +144,7 @@ EchoMEM-WEB-EXTENSION/
 - **输入联想**：可开关的输入联想功能
 - **认知反馈**：Episode 情节记忆时间线（原 Three.js 3D 认知知识图谱已关闭）
 - **Skill 商店**：Skill 列表（「我的 Skill」卡片点击写入 `/dirName`，独立详情入口承载版本历史）、上传 Skill、安装管理
-- **效能概览**：Token 消耗概览，支持 HIGO 平台会话级统计与 EchoMem 后端 Usage 统计
+- **效能概览**：展示 EchoMem 后端 Token 累计消耗；HIGO 会话汇总暂不可用时明确展示不可用状态，不以零值代替缺失数据
 
 功能面板源码模块位于 `src/panels/`，每个主要 EchoMem 入口一个目录：
 `echomem/`、`resource/`、`association/`、`feedback/`、`skill-store/`、`performance/`。

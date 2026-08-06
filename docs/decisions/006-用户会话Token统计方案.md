@@ -2,11 +2,13 @@
 
 ## 状态
 
-Implemented
+Superseded
 
 ## 备注
 
-本方案已实施完成。OpenView 后端新增 `token_usage` 表与 `StatsModule`，`AiService` 在 LLM 调用时记录真实 token 消耗；EchoMem 扩展新增 OpenView 配置与认证客户端，配置面板支持登录，`background.js` 的 `fetchStatsSummary` 改为调用 OpenView `/v1/stats/summary`。相关流程文档与接口清单已同步更新。
+本 ADR 保留早期将会话统计迁移到 OpenView `/v1/stats/summary` 的历史方案。当前 checkout 不再实现该调用：`background.js` 对 `fetchStatsSummary` 返回“不支持”错误，`openview-client.js` 只保存当前登录会话身份，效能页把会话统计展示为 `— / 暂不可用`。当前行为以 `docs/flows/performance/Token指标流程.md` 为准。
+
+以下内容作为历史决策背景保留，不代表当前运行时契约。
 
 ## 背景
 
