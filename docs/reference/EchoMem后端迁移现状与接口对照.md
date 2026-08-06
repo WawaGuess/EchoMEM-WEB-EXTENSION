@@ -51,7 +51,7 @@
 
 | 功能 | 原接口 | 需要 EchoMem 后端提供的能力 | 影响面板 |
 |---|---|---|---|
-| 用户会话 Token 汇总 | `GET /api/stats/summary`（原 Background 直接调用端口 8000） | EchoAgent 需要提供稳定的汇总接口与认证契约；`/v1/stats/summary` 目前只是候选路径，扩展未调用 | 效能概览 |
+| 用户会话 Token 汇总 | 迁移前 Background 调用的本地 `GET /api/stats/summary` | EchoAgent 需要提供稳定的汇总接口与认证契约；`/v1/stats/summary` 目前只是候选路径，扩展未调用 | 效能概览 |
 | 通用文件系统写操作 | `POST /api/v1/fs/mkdir`、`DELETE /api/v1/fs?uri=` | 如需保留目录树写操作，需 EchoMem 暴露 fs 写接口；或提供资源/Skill 的 `list/update/delete` 服务接口替代前端目录管理 | 资源管理、Skill 商店 |
 
 ## 5. 需要 EchoMem 后端暴露的接口清单
