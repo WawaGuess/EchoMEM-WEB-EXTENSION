@@ -32,6 +32,11 @@ test('trusted HIGO hosts pass immediately before the title bar DOM renders', () 
   assert.equal(detectHigo({
     url: 'https://echo-agent.online/home/workspace',
   }), true);
+
+  assert.equal(detectHigo({
+    url: 'https://echo.cn-north-5.myhuaweicloud.com/home',
+    title: 'Echo Agent',
+  }), true);
 });
 
 test('fallback hosts require both a brand signal and one semantic DOM feature', () => {
@@ -45,6 +50,12 @@ test('fallback hosts require both a brand signal and one semantic DOM feature', 
     url: 'http://192.168.1.100:31010/home/session',
     bodyText: 'HIGO Office',
     presentSelectors: ["[data-testid='ArrowUpwardIcon']"],
+  }), true);
+
+  assert.equal(detectHigo({
+    url: 'http://10.0.0.8/home/workspace',
+    title: 'Echo Agent',
+    presentSelectors: ["[data-testid='MenuOpenIcon']"],
   }), true);
 });
 

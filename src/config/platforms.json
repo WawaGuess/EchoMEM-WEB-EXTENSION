@@ -7,11 +7,23 @@
       "enabled": true,
       "record": false,
       "detection": {
-        "trustedHostnames": ["echo-agent.online", "www.echo-agent.online", "higo.world"],
+        "trustedHostnames": [
+          "echo-agent.online",
+          "www.echo-agent.online",
+          "higo.world",
+          "echo.cn-north-5.myhuaweicloud.com"
+        ],
         "fallbackHostnames": ["localhost", "127.0.0.1", "<ip>"],
         "pathnamePrefixes": ["/home"],
         "fallbackIdentity": {
-          "titleOrContentKeywords": ["Higo", "HIGO", "Higo2", "Higo Office", "Echo"],
+          "titleOrContentKeywords": [
+            "Higo",
+            "HIGO",
+            "Higo2",
+            "Higo Office",
+            "Echo Agent",
+            "Echo"
+          ],
           "optionalDomFeatures": [
             "[data-testid='WorkspacesOutlinedIcon']",
             "[data-testid='MenuOpenIcon']",

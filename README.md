@@ -175,7 +175,7 @@ EchoMEM-WEB-EXTENSION/
 ### 支持的平台
 
 #### HIGO Office
-1. 访问 HIGO Office 页面（`http://localhost:31010`）
+1. 访问 HIGO Office 页面（公网标题为 `Echo`，内网标题为 `Echo Agent`）
 2. 顶部标题栏会出现 EchoMem 组合标入口；未进入会话时也可使用
 3. 聊天框附近不再注入 EchoMem 按钮
 4. 点击标题栏组合标或浏览器工具栏图标都会打开原有右侧 overlay 功能导航
