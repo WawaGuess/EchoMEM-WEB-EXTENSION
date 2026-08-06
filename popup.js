@@ -4,6 +4,11 @@
 const AUTH_STORAGE_KEY = 'echomemConfig';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  const extensionVersion = chrome.runtime.getManifest().version;
+  document.querySelectorAll('[data-extension-version]').forEach((element) => {
+    element.textContent = `v${extensionVersion}`;
+  });
+
   const authInput = document.getElementById('authKey');
   const baseUrlInput = document.getElementById('baseUrl');
   const saveBtn = document.getElementById('saveConfig');
