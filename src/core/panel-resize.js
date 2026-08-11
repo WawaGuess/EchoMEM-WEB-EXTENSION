@@ -35,6 +35,17 @@ export function shouldHandleSidePanelWindowResize({ isConnected, display }) {
   return isConnected === true && display !== 'none';
 }
 
+export function getSidePanelWidthForViewport({
+  preferredWidth,
+  currentWidth,
+  viewportWidth,
+}) {
+  const targetWidth = Number.isFinite(preferredWidth)
+    ? preferredWidth
+    : currentWidth;
+  return clampSidePanelWidth(targetWidth, viewportWidth);
+}
+
 export function calculateSidePanelWidth({
   position,
   startWidth,

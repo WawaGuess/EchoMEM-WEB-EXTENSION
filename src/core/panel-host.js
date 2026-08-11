@@ -11,6 +11,7 @@ import {
   calculateSidePanelWidth,
   clampSidePanelWidth,
   getKeyboardSidePanelWidth,
+  getSidePanelWidthForViewport,
   getSidePanelWidthBounds,
   shouldHandleSidePanelWindowResize,
 } from './panel-resize.js';
@@ -283,14 +284,21 @@ function attachSideOverlayResize(overlay, position, configuredWidth) {
     setPanelWidth(nextWidth);
   };
 
-  const onWindowResize = () => {
+  const resizeToCurrentViewport = () => {
     if (!shouldHandleSidePanelWindowResize({
       isConnected: overlay.isConnected,
       display: overlay.style.display,
-    })) return;
+    })) return null;
 
-    applyWidth(overlay.getBoundingClientRect().width);
+    const nextWidth = getSidePanelWidthForViewport({
+      preferredWidth: dragState ? null : getPanelWidth(),
+      currentWidth: overlay.getBoundingClientRect().width,
+      viewportWidth: window.innerWidth,
+    });
+    return applyWidth(nextWidth);
   };
+
+  const onWindowResize = () => resizeToCurrentViewport();
 
   handle.addEventListener('pointerdown', onPointerDown);
   handle.addEventListener('pointermove', onPointerMove);
@@ -301,6 +309,7 @@ function attachSideOverlayResize(overlay, position, configuredWidth) {
   handle.addEventListener('dblclick', onDoubleClick);
   window.addEventListener('resize', onWindowResize);
   updateHandleValue(overlay.getBoundingClientRect().width);
+  overlay._resizeToCurrentViewport = resizeToCurrentViewport;
 
   overlay._resizeCleanup = () => {
     handle.removeEventListener('pointerdown', onPointerDown);
@@ -311,6 +320,7 @@ function attachSideOverlayResize(overlay, position, configuredWidth) {
     handle.removeEventListener('keydown', onKeyDown);
     handle.removeEventListener('dblclick', onDoubleClick);
     window.removeEventListener('resize', onWindowResize);
+    overlay._resizeToCurrentViewport = null;
     if (dragState) {
       if (handle.hasPointerCapture(dragState.pointerId)) {
         handle.releasePointerCapture(dragState.pointerId);
@@ -462,6 +472,9 @@ export function closeOverlayPanel() {
   // 1. 先恢复之前的 overlay（如果有）
   if (previousOverlay) {
     previousOverlay.style.display = '';
+    if (typeof previousOverlay._resizeToCurrentViewport === 'function') {
+      previousOverlay._resizeToCurrentViewport();
+    }
     currentOverlayPanel = previousOverlay;
     isCustomPanelOpen = true;
     setPanelOpen(true);

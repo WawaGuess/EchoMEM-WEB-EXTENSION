@@ -644,6 +644,14 @@ ${bodyText}`.toLowerCase();
   function shouldHandleSidePanelWindowResize({ isConnected, display }) {
     return isConnected === true && display !== "none";
   }
+  function getSidePanelWidthForViewport({
+    preferredWidth,
+    currentWidth,
+    viewportWidth
+  }) {
+    const targetWidth = Number.isFinite(preferredWidth) ? preferredWidth : currentWidth;
+    return clampSidePanelWidth(targetWidth, viewportWidth);
+  }
   function calculateSidePanelWidth({
     position,
     startWidth,
@@ -925,13 +933,19 @@ ${bodyText}`.toLowerCase();
       const nextWidth = applyWidth(defaultWidth);
       setPanelWidth(nextWidth);
     };
-    const onWindowResize = () => {
+    const resizeToCurrentViewport = () => {
       if (!shouldHandleSidePanelWindowResize({
         isConnected: overlay.isConnected,
         display: overlay.style.display
-      })) return;
-      applyWidth(overlay.getBoundingClientRect().width);
+      })) return null;
+      const nextWidth = getSidePanelWidthForViewport({
+        preferredWidth: dragState ? null : getPanelWidth(),
+        currentWidth: overlay.getBoundingClientRect().width,
+        viewportWidth: window.innerWidth
+      });
+      return applyWidth(nextWidth);
     };
+    const onWindowResize = () => resizeToCurrentViewport();
     handle.addEventListener("pointerdown", onPointerDown);
     handle.addEventListener("pointermove", onPointerMove);
     handle.addEventListener("pointerup", finishResize);
@@ -941,6 +955,7 @@ ${bodyText}`.toLowerCase();
     handle.addEventListener("dblclick", onDoubleClick);
     window.addEventListener("resize", onWindowResize);
     updateHandleValue(overlay.getBoundingClientRect().width);
+    overlay._resizeToCurrentViewport = resizeToCurrentViewport;
     overlay._resizeCleanup = () => {
       handle.removeEventListener("pointerdown", onPointerDown);
       handle.removeEventListener("pointermove", onPointerMove);
@@ -950,6 +965,7 @@ ${bodyText}`.toLowerCase();
       handle.removeEventListener("keydown", onKeyDown);
       handle.removeEventListener("dblclick", onDoubleClick);
       window.removeEventListener("resize", onWindowResize);
+      overlay._resizeToCurrentViewport = null;
       if (dragState) {
         if (handle.hasPointerCapture(dragState.pointerId)) {
           handle.releasePointerCapture(dragState.pointerId);
@@ -1076,6 +1092,9 @@ ${bodyText}`.toLowerCase();
     const previousOverlay = overlayToClose == null ? void 0 : overlayToClose._previousOverlay;
     if (previousOverlay) {
       previousOverlay.style.display = "";
+      if (typeof previousOverlay._resizeToCurrentViewport === "function") {
+        previousOverlay._resizeToCurrentViewport();
+      }
       currentOverlayPanel = previousOverlay;
       isCustomPanelOpen = true;
       setPanelOpen(true);

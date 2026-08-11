@@ -5,6 +5,7 @@ import {
   calculateSidePanelWidth,
   clampSidePanelWidth,
   getKeyboardSidePanelWidth,
+  getSidePanelWidthForViewport,
   getSidePanelWidthBounds,
   shouldHandleSidePanelWindowResize,
 } from '../src/core/panel-resize.js';
@@ -88,4 +89,22 @@ test('hidden side panels keep their width while a center overlay is open', () =>
     isConnected: true,
     display: '',
   }), true);
+});
+
+test('restored side panels clamp the preferred width to the current viewport', () => {
+  assert.equal(getSidePanelWidthForViewport({
+    preferredWidth: 840,
+    currentWidth: 500,
+    viewportWidth: 500,
+  }), 350);
+  assert.equal(getSidePanelWidthForViewport({
+    preferredWidth: 840,
+    currentWidth: 350,
+    viewportWidth: 1200,
+  }), 840);
+  assert.equal(getSidePanelWidthForViewport({
+    preferredWidth: null,
+    currentWidth: 500,
+    viewportWidth: 500,
+  }), 350);
 });
