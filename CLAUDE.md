@@ -138,7 +138,7 @@ EchoMEM-WEB-EXTENSION/
 ## 扩展功能
 
 当前已实现的功能：
-- **EchoMem 入口**：浏览器工具栏图标打开网页 overlay；HIGO Office 顶部标题栏提供“图形 + EchoMem”组合标入口，聊天输入框附近不再注入按钮
+- **EchoMem 入口**：浏览器工具栏图标打开可拖拽左边缘调整宽度的网页 overlay，宽度偏好保存到 `chrome.storage.local`；HIGO Office 顶部标题栏提供“图形 + EchoMem”组合标入口，聊天输入框附近不再注入按钮
 - **功能导航**：右侧 EchoMem 首页面板，包含 5 个功能入口
 - **资源管理**：上传区域和资源列表
 - **输入联想**：可开关的输入联想功能

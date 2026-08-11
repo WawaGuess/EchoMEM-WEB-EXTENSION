@@ -216,7 +216,8 @@
     },
     panel: {
       isOpen: false,
-      currentRoute: null
+      currentRoute: null,
+      width: null
     }
   };
   var state = { ...DEFAULT_STATE };
@@ -230,6 +231,10 @@
         state = {
           ...DEFAULT_STATE,
           ...saved,
+          panel: {
+            ...DEFAULT_STATE.panel,
+            ...saved.panel || {}
+          },
           platform: null
           // 平台需要每次重新检测，不持久化
         };
@@ -262,6 +267,14 @@
   }
   function setPanelOpen(isOpen) {
     state.panel.isOpen = isOpen;
+  }
+  function getPanelWidth() {
+    return Number.isFinite(state.panel.width) ? state.panel.width : null;
+  }
+  function setPanelWidth(width) {
+    if (!Number.isFinite(width)) return;
+    state.panel.width = Math.round(width);
+    persistState();
   }
   function setCurrentRoute(route) {
     state.panel.currentRoute = route;
@@ -602,6 +615,64 @@ ${bodyText}`.toLowerCase();
     }
   }
 
+  // src/core/panel-resize.js
+  var SIDE_PANEL_MIN_WIDTH_PX = 320;
+  var SIDE_PANEL_MAX_WIDTH_PX = 960;
+  var SIDE_PANEL_MAX_VIEWPORT_RATIO = 0.7;
+  var SIDE_PANEL_KEYBOARD_STEP_PX = 16;
+  function normalizeViewportWidth(viewportWidth) {
+    return Number.isFinite(viewportWidth) && viewportWidth > 0 ? viewportWidth : SIDE_PANEL_MIN_WIDTH_PX;
+  }
+  function getSidePanelWidthBounds(viewportWidth) {
+    const safeViewportWidth = normalizeViewportWidth(viewportWidth);
+    const minWidth = Math.min(SIDE_PANEL_MIN_WIDTH_PX, safeViewportWidth);
+    const responsiveMaxWidth = Math.floor(
+      safeViewportWidth * SIDE_PANEL_MAX_VIEWPORT_RATIO
+    );
+    const maxWidth = Math.max(
+      minWidth,
+      Math.min(SIDE_PANEL_MAX_WIDTH_PX, responsiveMaxWidth, safeViewportWidth)
+    );
+    return { minWidth, maxWidth };
+  }
+  function clampSidePanelWidth(width, viewportWidth) {
+    const { minWidth, maxWidth } = getSidePanelWidthBounds(viewportWidth);
+    const numericWidth = Number(width);
+    if (!Number.isFinite(numericWidth)) return minWidth;
+    return Math.min(maxWidth, Math.max(minWidth, numericWidth));
+  }
+  function calculateSidePanelWidth({
+    position,
+    startWidth,
+    startX,
+    currentX,
+    viewportWidth
+  }) {
+    const pointerDelta = position === "left" ? currentX - startX : startX - currentX;
+    return clampSidePanelWidth(startWidth + pointerDelta, viewportWidth);
+  }
+  function getKeyboardSidePanelWidth({
+    position,
+    currentWidth,
+    key,
+    shiftKey = false,
+    viewportWidth
+  }) {
+    const { minWidth, maxWidth } = getSidePanelWidthBounds(viewportWidth);
+    if (key === "Home") return minWidth;
+    if (key === "End") return maxWidth;
+    const step = SIDE_PANEL_KEYBOARD_STEP_PX * (shiftKey ? 2 : 1);
+    let delta = 0;
+    if (key === "ArrowLeft") {
+      delta = position === "left" ? -step : step;
+    } else if (key === "ArrowRight") {
+      delta = position === "left" ? step : -step;
+    } else {
+      return null;
+    }
+    return clampSidePanelWidth(currentWidth + delta, viewportWidth);
+  }
+
   // src/core/panel-host.js
   var isCustomPanelOpen = false;
   var currentOverlayPanel = null;
@@ -755,6 +826,132 @@ ${bodyText}`.toLowerCase();
       });
     }
   }
+  function removeOverlayElement(overlay) {
+    if (!overlay) return;
+    if (typeof overlay._resizeCleanup === "function") {
+      overlay._resizeCleanup();
+      overlay._resizeCleanup = null;
+    }
+    overlay.remove();
+  }
+  function attachSideOverlayResize(overlay, position, configuredWidth) {
+    if (position !== "right" && position !== "left") return;
+    const handle = document.createElement("div");
+    handle.className = "claw-overlay-resize-handle";
+    handle.tabIndex = 0;
+    handle.setAttribute("role", "separator");
+    handle.setAttribute("aria-label", "\u8C03\u6574 EchoMem \u9762\u677F\u5BBD\u5EA6");
+    handle.setAttribute("aria-orientation", "vertical");
+    handle.title = "\u62D6\u62FD\u8C03\u6574\u5BBD\u5EA6\uFF1B\u53CC\u51FB\u6062\u590D\u9ED8\u8BA4\u5BBD\u5EA6";
+    overlay.appendChild(handle);
+    let dragState = null;
+    let previousBodyCursor = "";
+    let previousBodyUserSelect = "";
+    const updateHandleValue = (width) => {
+      const { minWidth, maxWidth } = getSidePanelWidthBounds(window.innerWidth);
+      handle.setAttribute("aria-valuemin", String(Math.round(minWidth)));
+      handle.setAttribute("aria-valuemax", String(Math.round(maxWidth)));
+      handle.setAttribute("aria-valuenow", String(Math.round(width)));
+    };
+    const applyWidth = (width) => {
+      const nextWidth = clampSidePanelWidth(width, window.innerWidth);
+      overlay.style.width = `${Math.round(nextWidth)}px`;
+      updateHandleValue(nextWidth);
+      return nextWidth;
+    };
+    const restorePageInteraction = () => {
+      document.body.style.cursor = previousBodyCursor;
+      document.body.style.userSelect = previousBodyUserSelect;
+      overlay.classList.remove("claw-overlay-panel--resizing");
+    };
+    const finishResize = (event) => {
+      if (!dragState || event.pointerId !== dragState.pointerId) return;
+      dragState = null;
+      if (handle.hasPointerCapture(event.pointerId)) {
+        handle.releasePointerCapture(event.pointerId);
+      }
+      restorePageInteraction();
+      setPanelWidth(overlay.getBoundingClientRect().width);
+    };
+    const onPointerDown = (event) => {
+      if (event.button !== 0 || dragState) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = overlay.getBoundingClientRect();
+      dragState = {
+        pointerId: event.pointerId,
+        startWidth: rect.width,
+        startX: event.clientX
+      };
+      previousBodyCursor = document.body.style.cursor;
+      previousBodyUserSelect = document.body.style.userSelect;
+      document.body.style.cursor = "ew-resize";
+      document.body.style.userSelect = "none";
+      overlay.classList.add("claw-overlay-panel--resizing");
+      handle.setPointerCapture(event.pointerId);
+    };
+    const onPointerMove = (event) => {
+      if (!dragState || event.pointerId !== dragState.pointerId) return;
+      event.preventDefault();
+      applyWidth(calculateSidePanelWidth({
+        position,
+        startWidth: dragState.startWidth,
+        startX: dragState.startX,
+        currentX: event.clientX,
+        viewportWidth: window.innerWidth
+      }));
+    };
+    const onKeyDown = (event) => {
+      const currentWidth = overlay.getBoundingClientRect().width;
+      const nextWidth = getKeyboardSidePanelWidth({
+        position,
+        currentWidth,
+        key: event.key,
+        shiftKey: event.shiftKey,
+        viewportWidth: window.innerWidth
+      });
+      if (nextWidth === null) return;
+      event.preventDefault();
+      applyWidth(nextWidth);
+      setPanelWidth(nextWidth);
+    };
+    const onDoubleClick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const defaultWidth = Number.parseFloat(configuredWidth);
+      const nextWidth = applyWidth(defaultWidth);
+      setPanelWidth(nextWidth);
+    };
+    const onWindowResize = () => {
+      applyWidth(overlay.getBoundingClientRect().width);
+    };
+    handle.addEventListener("pointerdown", onPointerDown);
+    handle.addEventListener("pointermove", onPointerMove);
+    handle.addEventListener("pointerup", finishResize);
+    handle.addEventListener("pointercancel", finishResize);
+    handle.addEventListener("lostpointercapture", finishResize);
+    handle.addEventListener("keydown", onKeyDown);
+    handle.addEventListener("dblclick", onDoubleClick);
+    window.addEventListener("resize", onWindowResize);
+    updateHandleValue(overlay.getBoundingClientRect().width);
+    overlay._resizeCleanup = () => {
+      handle.removeEventListener("pointerdown", onPointerDown);
+      handle.removeEventListener("pointermove", onPointerMove);
+      handle.removeEventListener("pointerup", finishResize);
+      handle.removeEventListener("pointercancel", finishResize);
+      handle.removeEventListener("lostpointercapture", finishResize);
+      handle.removeEventListener("keydown", onKeyDown);
+      handle.removeEventListener("dblclick", onDoubleClick);
+      window.removeEventListener("resize", onWindowResize);
+      if (dragState) {
+        if (handle.hasPointerCapture(dragState.pointerId)) {
+          handle.releasePointerCapture(dragState.pointerId);
+        }
+        dragState = null;
+        restorePageInteraction();
+      }
+    };
+  }
   function openCustomPanel(title, contentHtml, options = {}) {
     const platform = getCurrentPlatform();
     if (!platform) return;
@@ -786,7 +983,7 @@ ${bodyText}`.toLowerCase();
   }
   function createOverlayPanel(panelHtml, overlayConfig) {
     if (currentOverlayPanel) {
-      currentOverlayPanel.remove();
+      removeOverlayElement(currentOverlayPanel);
       currentOverlayPanel = null;
     }
     document.querySelectorAll(".claw-overlay-backdrop").forEach((b) => b.remove());
@@ -812,6 +1009,9 @@ ${bodyText}`.toLowerCase();
     overlay.className = "claw-overlay-panel";
     const position = overlayConfig.position || "right";
     const width = overlayConfig.width || "400px";
+    const isSideOverlay = position === "right" || position === "left";
+    const savedWidth = isSideOverlay ? getPanelWidth() : null;
+    const initialWidth = savedWidth === null ? width : `${Math.round(clampSidePanelWidth(savedWidth, window.innerWidth))}px`;
     overlay.classList.add(`claw-overlay-panel--${position}`);
     let positionStyles = "";
     if (position === "right") {
@@ -819,7 +1019,7 @@ ${bodyText}`.toLowerCase();
       top: 0;
       right: 0;
       bottom: 0;
-      width: ${width};
+      width: ${initialWidth};
       transform: translateX(100%);
     `;
     } else if (position === "left") {
@@ -827,7 +1027,7 @@ ${bodyText}`.toLowerCase();
       top: 0;
       left: 0;
       bottom: 0;
-      width: ${width};
+      width: ${initialWidth};
       transform: translateX(-100%);
     `;
     } else if (position === "center") {
@@ -851,6 +1051,7 @@ ${bodyText}`.toLowerCase();
   `;
     overlay.innerHTML = panelHtml;
     document.body.appendChild(overlay);
+    attachSideOverlayResize(overlay, position, width);
     requestAnimationFrame(() => {
       if (backdrop) {
         backdrop.style.opacity = "1";
@@ -887,7 +1088,7 @@ ${bodyText}`.toLowerCase();
         overlayToClose.style.opacity = "0";
       }
       setTimeout(() => {
-        overlayToClose.remove();
+        removeOverlayElement(overlayToClose);
       }, 300);
     }
     document.querySelectorAll(".claw-overlay-backdrop").forEach((b) => {

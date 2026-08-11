@@ -1,0 +1,75 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  calculateSidePanelWidth,
+  clampSidePanelWidth,
+  getKeyboardSidePanelWidth,
+  getSidePanelWidthBounds,
+} from '../src/core/panel-resize.js';
+
+test('side panel width bounds keep the panel usable without covering the viewport', () => {
+  assert.deepEqual(getSidePanelWidthBounds(1200), {
+    minWidth: 320,
+    maxWidth: 840,
+  });
+  assert.deepEqual(getSidePanelWidthBounds(1920), {
+    minWidth: 320,
+    maxWidth: 960,
+  });
+  assert.deepEqual(getSidePanelWidthBounds(300), {
+    minWidth: 300,
+    maxWidth: 300,
+  });
+});
+
+test('dragging the inner edge resizes right and left panels in the expected direction', () => {
+  assert.equal(calculateSidePanelWidth({
+    position: 'right',
+    startWidth: 400,
+    startX: 800,
+    currentX: 600,
+    viewportWidth: 1200,
+  }), 600);
+  assert.equal(calculateSidePanelWidth({
+    position: 'left',
+    startWidth: 400,
+    startX: 400,
+    currentX: 600,
+    viewportWidth: 1200,
+  }), 600);
+});
+
+test('dragging and restored widths are clamped to the supported range', () => {
+  assert.equal(clampSidePanelWidth(120, 1200), 320);
+  assert.equal(clampSidePanelWidth(1200, 1200), 840);
+  assert.equal(clampSidePanelWidth(640, 1200), 640);
+});
+
+test('keyboard resizing follows the visual movement of the panel edge', () => {
+  assert.equal(getKeyboardSidePanelWidth({
+    position: 'right',
+    currentWidth: 400,
+    key: 'ArrowLeft',
+    viewportWidth: 1200,
+  }), 416);
+  assert.equal(getKeyboardSidePanelWidth({
+    position: 'left',
+    currentWidth: 400,
+    key: 'ArrowRight',
+    shiftKey: true,
+    viewportWidth: 1200,
+  }), 432);
+  assert.equal(getKeyboardSidePanelWidth({
+    position: 'right',
+    currentWidth: 400,
+    key: 'End',
+    viewportWidth: 1200,
+  }), 840);
+  assert.equal(getKeyboardSidePanelWidth({
+    position: 'right',
+    currentWidth: 400,
+    key: 'Enter',
+    viewportWidth: 1200,
+  }), null);
+});
