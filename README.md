@@ -1,6 +1,6 @@
 # EchoMem Web Extension
 
-一个 Chrome/Edge 浏览器扩展，通过网页 overlay 提供 EchoMem 功能，并在 HIGO Office 标题栏提供独立的“图形 + EchoMem”入口。
+一个 Chrome/Edge 浏览器扩展，通过可拖拽调整宽度的网页 overlay 提供 EchoMem 功能，并在 HIGO Office 标题栏提供独立的“图形 + EchoMem”入口。
 
 ## 功能介绍
 

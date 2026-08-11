@@ -8,7 +8,8 @@ const DEFAULT_STATE = {
   },
   panel: {
     isOpen: false,
-    currentRoute: null
+    currentRoute: null,
+    width: null
   }
 };
 
@@ -24,6 +25,10 @@ export async function initState() {
       state = {
         ...DEFAULT_STATE,
         ...saved,
+        panel: {
+          ...DEFAULT_STATE.panel,
+          ...(saved.panel || {})
+        },
         platform: null  // 平台需要每次重新检测，不持久化
       };
     }
@@ -65,6 +70,16 @@ export function toggleAssociationEnabled() {
 
 export function setPanelOpen(isOpen) {
   state.panel.isOpen = isOpen;
+}
+
+export function getPanelWidth() {
+  return Number.isFinite(state.panel.width) ? state.panel.width : null;
+}
+
+export function setPanelWidth(width) {
+  if (!Number.isFinite(width)) return;
+  state.panel.width = Math.round(width);
+  persistState();
 }
 
 export function isPanelOpenState() {
