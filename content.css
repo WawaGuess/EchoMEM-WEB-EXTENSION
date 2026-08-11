@@ -581,7 +581,6 @@
 .claw-overlay-panel .claw-echomem-home-intro p {
   position: relative;
   z-index: 1;
-  max-width: 270px;
   margin: 0;
   color: #3F3A43;
   font-size: 14px;
@@ -781,16 +780,14 @@
   padding-right: 108px !important;
 }
 
-@media (max-width: 480px) {
-  .claw-overlay-panel--right .claw-custom-panel-body,
-  .claw-overlay-panel--left .claw-custom-panel-body {
-    padding-right: 16px !important;
-    padding-left: 16px !important;
-  }
+.claw-overlay-panel--compact.claw-overlay-panel--right .claw-custom-panel-body,
+.claw-overlay-panel--compact.claw-overlay-panel--left .claw-custom-panel-body {
+  padding-right: 16px !important;
+  padding-left: 16px !important;
+}
 
-  .claw-overlay-panel .claw-panel-header {
-    padding: 0 16px !important;
-  }
+.claw-overlay-panel--compact .claw-panel-header {
+  padding: 0 16px !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

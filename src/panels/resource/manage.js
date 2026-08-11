@@ -150,10 +150,16 @@ export function getResourceManageContent() {
         font-size: 11px;
         line-height: 1.45;
       }
-      #claw-resource-manage-root .resource-manage-path {
-        display: inline-block;
+      #claw-resource-manage-root .resource-manage-current-dir {
+        display: flex;
+        flex: 1;
         min-width: 0;
-        max-width: 190px;
+        margin: 0;
+      }
+      #claw-resource-manage-root .resource-manage-path {
+        display: block;
+        flex: 1;
+        min-width: 0;
         overflow: hidden;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         text-overflow: ellipsis;
@@ -237,12 +243,9 @@ export function getResourceManageContent() {
         color: #B3261E !important;
       }
       #claw-resource-manage-root button:disabled { cursor: wait !important; opacity: 0.58 !important; }
-      @media (max-width: 360px) {
-        #claw-resource-manage-root .resource-manage-summary { align-items: flex-start; flex-direction: column; }
-        #claw-resource-manage-root .resource-manage-path { max-width: 180px; }
-        #claw-resource-manage-root .claw-resource-item { padding: 11px !important; border-radius: 14px !important; }
-        #claw-resource-manage-root .claw-resource-actions .claw-resource-btn-delete { margin-left: 0 !important; }
-      }
+      .claw-overlay-panel--narrow #claw-resource-manage-root .resource-manage-summary { align-items: flex-start; flex-direction: column; }
+      .claw-overlay-panel--narrow #claw-resource-manage-root .claw-resource-item { padding: 11px !important; border-radius: 14px !important; }
+      .claw-overlay-panel--narrow #claw-resource-manage-root .claw-resource-actions .claw-resource-btn-delete { margin-left: 0 !important; }
       @media (prefers-reduced-motion: reduce) {
         #claw-resource-manage-root .resource-manage-spinner { animation: none; }
         #claw-resource-manage-root .claw-resource-item,
@@ -446,7 +449,7 @@ export async function initManagePanel(bodyElement) {
     if (toolbarEl) toolbarEl.style.display = 'flex';
     contentEl.innerHTML = `
       <div class="resource-manage-summary">
-        <p style="margin: 0; min-width: 0;">当前目录：<span class="resource-manage-path">${dirUri}</span></p>
+        <p class="resource-manage-current-dir"><span>当前目录：</span><span class="resource-manage-path">${dirUri}</span></p>
         <p style="margin: 0; white-space: nowrap;">共 ${entries.length} 个资源</p>
       </div>
       <div class="resource-manage-list">

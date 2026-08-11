@@ -5,6 +5,7 @@ import {
   calculateSidePanelWidth,
   clampSidePanelWidth,
   getKeyboardSidePanelWidth,
+  getSidePanelResponsiveState,
   getSidePanelWidthForViewport,
   getSidePanelWidthBounds,
   shouldHandleSidePanelWindowResize,
@@ -46,6 +47,25 @@ test('dragging and restored widths are clamped to the supported range', () => {
   assert.equal(clampSidePanelWidth(120, 1200), 320);
   assert.equal(clampSidePanelWidth(1200, 1200), 840);
   assert.equal(clampSidePanelWidth(640, 1200), 640);
+});
+
+test('responsive side panel states follow the panel width instead of the viewport', () => {
+  assert.deepEqual(getSidePanelResponsiveState(360), {
+    isCompact: true,
+    isNarrow: true,
+  });
+  assert.deepEqual(getSidePanelResponsiveState(361), {
+    isCompact: true,
+    isNarrow: false,
+  });
+  assert.deepEqual(getSidePanelResponsiveState(480), {
+    isCompact: true,
+    isNarrow: false,
+  });
+  assert.deepEqual(getSidePanelResponsiveState(481), {
+    isCompact: false,
+    isNarrow: false,
+  });
 });
 
 test('keyboard resizing follows the visual movement of the panel edge', () => {

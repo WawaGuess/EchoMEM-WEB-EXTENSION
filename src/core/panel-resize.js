@@ -2,6 +2,8 @@ export const SIDE_PANEL_MIN_WIDTH_PX = 320;
 export const SIDE_PANEL_MAX_WIDTH_PX = 960;
 export const SIDE_PANEL_MAX_VIEWPORT_RATIO = 0.7;
 export const SIDE_PANEL_KEYBOARD_STEP_PX = 16;
+export const SIDE_PANEL_COMPACT_WIDTH_PX = 480;
+export const SIDE_PANEL_NARROW_WIDTH_PX = 360;
 
 function normalizeViewportWidth(viewportWidth) {
   return Number.isFinite(viewportWidth) && viewportWidth > 0
@@ -29,6 +31,18 @@ export function clampSidePanelWidth(width, viewportWidth) {
 
   if (!Number.isFinite(numericWidth)) return minWidth;
   return Math.min(maxWidth, Math.max(minWidth, numericWidth));
+}
+
+export function getSidePanelResponsiveState(width) {
+  const numericWidth = Number(width);
+  const safeWidth = Number.isFinite(numericWidth) && numericWidth > 0
+    ? numericWidth
+    : SIDE_PANEL_MIN_WIDTH_PX;
+
+  return {
+    isCompact: safeWidth <= SIDE_PANEL_COMPACT_WIDTH_PX,
+    isNarrow: safeWidth <= SIDE_PANEL_NARROW_WIDTH_PX,
+  };
 }
 
 export function shouldHandleSidePanelWindowResize({ isConnected, display }) {
