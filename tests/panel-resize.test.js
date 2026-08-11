@@ -6,6 +6,7 @@ import {
   clampSidePanelWidth,
   getKeyboardSidePanelWidth,
   getSidePanelWidthBounds,
+  shouldHandleSidePanelWindowResize,
 } from '../src/core/panel-resize.js';
 
 test('side panel width bounds keep the panel usable without covering the viewport', () => {
@@ -72,4 +73,19 @@ test('keyboard resizing follows the visual movement of the panel edge', () => {
     key: 'Enter',
     viewportWidth: 1200,
   }), null);
+});
+
+test('hidden side panels keep their width while a center overlay is open', () => {
+  assert.equal(shouldHandleSidePanelWindowResize({
+    isConnected: true,
+    display: 'none',
+  }), false);
+  assert.equal(shouldHandleSidePanelWindowResize({
+    isConnected: false,
+    display: '',
+  }), false);
+  assert.equal(shouldHandleSidePanelWindowResize({
+    isConnected: true,
+    display: '',
+  }), true);
 });

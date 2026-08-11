@@ -641,6 +641,9 @@ ${bodyText}`.toLowerCase();
     if (!Number.isFinite(numericWidth)) return minWidth;
     return Math.min(maxWidth, Math.max(minWidth, numericWidth));
   }
+  function shouldHandleSidePanelWindowResize({ isConnected, display }) {
+    return isConnected === true && display !== "none";
+  }
   function calculateSidePanelWidth({
     position,
     startWidth,
@@ -923,6 +926,10 @@ ${bodyText}`.toLowerCase();
       setPanelWidth(nextWidth);
     };
     const onWindowResize = () => {
+      if (!shouldHandleSidePanelWindowResize({
+        isConnected: overlay.isConnected,
+        display: overlay.style.display
+      })) return;
       applyWidth(overlay.getBoundingClientRect().width);
     };
     handle.addEventListener("pointerdown", onPointerDown);

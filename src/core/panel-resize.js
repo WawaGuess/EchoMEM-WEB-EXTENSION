@@ -31,6 +31,10 @@ export function clampSidePanelWidth(width, viewportWidth) {
   return Math.min(maxWidth, Math.max(minWidth, numericWidth));
 }
 
+export function shouldHandleSidePanelWindowResize({ isConnected, display }) {
+  return isConnected === true && display !== 'none';
+}
+
 export function calculateSidePanelWidth({
   position,
   startWidth,

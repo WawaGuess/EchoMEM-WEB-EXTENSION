@@ -12,6 +12,7 @@ import {
   clampSidePanelWidth,
   getKeyboardSidePanelWidth,
   getSidePanelWidthBounds,
+  shouldHandleSidePanelWindowResize,
 } from './panel-resize.js';
 
 let isCustomPanelOpen = false;
@@ -283,6 +284,11 @@ function attachSideOverlayResize(overlay, position, configuredWidth) {
   };
 
   const onWindowResize = () => {
+    if (!shouldHandleSidePanelWindowResize({
+      isConnected: overlay.isConnected,
+      display: overlay.style.display,
+    })) return;
+
     applyWidth(overlay.getBoundingClientRect().width);
   };
 
