@@ -8946,6 +8946,93 @@ ${MEM_TAG_CLOSE2}`;
     return document.querySelector(selector);
   }
 
+  // src/panels/echomem/config-feedback.js
+  var CONNECTION_TEST_FEEDBACK = {
+    testing: {
+      title: "\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5",
+      detail: "\u6B63\u5728\u68C0\u67E5\u670D\u52A1\u662F\u5426\u53EF\u7528\uFF0C\u8BF7\u7A0D\u5019\u3002"
+    },
+    success: {
+      title: "\u8FDE\u63A5\u6210\u529F",
+      detail: "\u670D\u52A1\u53EF\u7528\uFF0C\u5F53\u524D\u914D\u7F6E\u53EF\u4EE5\u6B63\u5E38\u8FDE\u63A5\u3002"
+    },
+    error: {
+      title: "\u8FDE\u63A5\u5931\u8D25",
+      detail: "\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E\u540E\u91CD\u8BD5\u3002"
+    },
+    dirty: {
+      title: "\u914D\u7F6E\u5DF2\u4FEE\u6539",
+      detail: "\u8BF7\u91CD\u65B0\u6D4B\u8BD5\u8FDE\u63A5\uFF0C\u4EE5\u786E\u8BA4\u5F53\u524D\u914D\u7F6E\u53EF\u7528\u3002"
+    }
+  };
+  function hasErrorStatus(error, statuses) {
+    const status = Number(error == null ? void 0 : error.status);
+    if (statuses.includes(status)) return true;
+    const message = String((error == null ? void 0 : error.message) || "");
+    return statuses.some((candidate) => message.includes(`HTTP ${candidate}`));
+  }
+  function getConnectionTestErrorFeedback(error) {
+    const message = String((error == null ? void 0 : error.message) || "");
+    if ((error == null ? void 0 : error.name) === "AbortError" || message.includes("aborted")) {
+      return {
+        title: "\u8FDE\u63A5\u8D85\u65F6",
+        detail: "\u670D\u52A1\u672A\u5728\u9884\u671F\u65F6\u95F4\u5185\u54CD\u5E94\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8FD0\u884C\u72B6\u6001\u3002"
+      };
+    }
+    if (hasErrorStatus(error, [401, 403])) {
+      return {
+        title: "\u8BA4\u8BC1\u5931\u8D25",
+        detail: "\u8BF7\u68C0\u67E5\u8BA4\u8BC1\u5BC6\u94A5\u662F\u5426\u6B63\u786E\uFF0C\u5E76\u786E\u8BA4\u5F53\u524D\u5BC6\u94A5\u4ECD\u7136\u6709\u6548\u3002"
+      };
+    }
+    if (message.includes("Failed to fetch") || message.includes("Could not establish connection")) {
+      return {
+        title: "\u65E0\u6CD5\u8FDE\u63A5\u5230\u670D\u52A1",
+        detail: "\u8BF7\u68C0\u67E5\u670D\u52A1\u662F\u5426\u5DF2\u542F\u52A8\uFF0C\u4EE5\u53CA\u5F53\u524D\u7F51\u7EDC\u80FD\u5426\u8BBF\u95EE\u8BE5\u5730\u5740\u3002"
+      };
+    }
+    return CONNECTION_TEST_FEEDBACK.error;
+  }
+  function updateConnectionTestFeedback(elements, state2, feedback = null) {
+    const {
+      statusElement,
+      titleElement,
+      detailElement,
+      testButton,
+      testButtonLabel
+    } = elements || {};
+    if (!statusElement || !titleElement || !detailElement || !testButton || !testButtonLabel) {
+      return;
+    }
+    if (state2 === "idle") {
+      statusElement.hidden = true;
+      statusElement.dataset.state = "idle";
+      statusElement.setAttribute("aria-live", "polite");
+      testButton.disabled = false;
+      testButton.removeAttribute("aria-busy");
+      testButton.removeAttribute("aria-describedby");
+      testButton.classList.remove("is-loading");
+      testButtonLabel.textContent = "\u6D4B\u8BD5\u8FDE\u63A5";
+      return;
+    }
+    const content = feedback || CONNECTION_TEST_FEEDBACK[state2] || CONNECTION_TEST_FEEDBACK.error;
+    const isTesting = state2 === "testing";
+    statusElement.hidden = false;
+    statusElement.dataset.state = state2;
+    statusElement.setAttribute("aria-live", state2 === "error" ? "assertive" : "polite");
+    titleElement.textContent = content.title;
+    detailElement.textContent = content.detail;
+    testButton.disabled = isTesting;
+    testButton.classList.toggle("is-loading", isTesting);
+    testButton.setAttribute("aria-describedby", statusElement.id);
+    testButtonLabel.textContent = isTesting ? "\u6B63\u5728\u8FDE\u63A5\u2026" : "\u6D4B\u8BD5\u8FDE\u63A5";
+    if (isTesting) {
+      testButton.setAttribute("aria-busy", "true");
+    } else {
+      testButton.removeAttribute("aria-busy");
+    }
+  }
+
   // src/panels/echomem/config.js
   function isHigoPlatform2() {
     var _a;
@@ -9132,6 +9219,83 @@ ${MEM_TAG_CLOSE2}`;
         outline: 3px solid rgba(103, 80, 164, 0.22);
         outline-offset: 2px;
       }
+      .echomem-config-root .config-button:disabled {
+        cursor: wait;
+        filter: none;
+        opacity: 0.72;
+        box-shadow: none;
+        transform: none;
+      }
+      .echomem-config-root .config-button.is-loading svg {
+        animation: config-status-spin 0.9s linear infinite;
+      }
+      .echomem-config-root .config-status {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-top: 12px;
+        padding: 11px 12px;
+        border: 1px solid #D0BCFF;
+        border-radius: 12px;
+        background: #F3EDF7;
+        color: #49454F;
+      }
+      .echomem-config-root .config-status[hidden] { display: none; }
+      .echomem-config-root .config-status[data-state="success"] {
+        border-color: #A8D5BA;
+        background: #ECF8F0;
+        color: #175C35;
+      }
+      .echomem-config-root .config-status[data-state="error"] {
+        border-color: #F2B8B5;
+        background: #FFF1F0;
+        color: #8C1D18;
+      }
+      .echomem-config-root .config-status[data-state="dirty"] {
+        border-color: #E8C66A;
+        background: #FFF8E1;
+        color: #664B00;
+      }
+      .echomem-config-root .config-status-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        margin-top: 1px;
+        flex: 0 0 auto;
+      }
+      .echomem-config-root .config-status-symbol { display: none; }
+      .echomem-config-root .config-status[data-state="testing"] .config-status-symbol-testing,
+      .echomem-config-root .config-status[data-state="success"] .config-status-symbol-success,
+      .echomem-config-root .config-status[data-state="error"] .config-status-symbol-error,
+      .echomem-config-root .config-status[data-state="dirty"] .config-status-symbol-dirty {
+        display: block;
+      }
+      .echomem-config-root .config-status[data-state="testing"] .config-status-symbol-testing {
+        animation: config-status-spin 0.9s linear infinite;
+      }
+      .echomem-config-root .config-status-copy {
+        min-width: 0;
+      }
+      .echomem-config-root .config-status-title {
+        display: block;
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.45;
+      }
+      .echomem-config-root .config-status-detail {
+        display: block;
+        margin-top: 2px;
+        color: inherit;
+        font-size: 11px;
+        line-height: 1.5;
+        opacity: 0.86;
+      }
+      @keyframes config-status-spin {
+        to { transform: rotate(360deg); }
+      }
       @media (max-width: 360px) {
         .echomem-config-root .config-card { padding: 14px; border-radius: 16px; }
         .echomem-config-root .config-actions { flex-direction: column; }
@@ -9140,6 +9304,10 @@ ${MEM_TAG_CLOSE2}`;
       @media (prefers-reduced-motion: reduce) {
         .echomem-config-root .config-input,
         .echomem-config-root .config-button { transition: none !important; }
+        .echomem-config-root .config-button.is-loading svg,
+        .echomem-config-root .config-status[data-state="testing"] .config-status-symbol-testing {
+          animation: none !important;
+        }
       }
     </style>
     <div class="echomem-config-root">
@@ -9177,12 +9345,25 @@ ${MEM_TAG_CLOSE2}`;
         <div class="config-actions">
           <button id="cfg-test-btn" class="config-button config-button-tonal" style="flex: 1;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66L20 14"/><path d="M20 8v6h-6"/></svg>
-            \u6D4B\u8BD5\u8FDE\u63A5
+            <span id="cfg-test-btn-label">\u6D4B\u8BD5\u8FDE\u63A5</span>
           </button>
           <button id="cfg-save-btn" class="config-button config-button-primary" style="flex: 1;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
             \u4FDD\u5B58\u914D\u7F6E
           </button>
+        </div>
+
+        <div id="cfg-test-status" class="config-status" data-state="idle" role="status" aria-live="polite" aria-atomic="true" hidden>
+          <span class="config-status-icon" aria-hidden="true">
+            <svg class="config-status-symbol config-status-symbol-testing" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"/></svg>
+            <svg class="config-status-symbol config-status-symbol-success" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+            <svg class="config-status-symbol config-status-symbol-error" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+            <svg class="config-status-symbol config-status-symbol-dirty" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v4M12 17h.01"/></svg>
+          </span>
+          <span class="config-status-copy">
+            <strong id="cfg-test-status-title" class="config-status-title"></strong>
+            <span id="cfg-test-status-detail" class="config-status-detail"></span>
+          </span>
         </div>
       </div>
 
@@ -9196,6 +9377,10 @@ ${MEM_TAG_CLOSE2}`;
     const authKeyInput = bodyElement.querySelector("#cfg-auth-key");
     const agentIdInput = bodyElement.querySelector("#cfg-agent-id");
     const testBtn = bodyElement.querySelector("#cfg-test-btn");
+    const testBtnLabel = bodyElement.querySelector("#cfg-test-btn-label");
+    const testStatus = bodyElement.querySelector("#cfg-test-status");
+    const testStatusTitle = bodyElement.querySelector("#cfg-test-status-title");
+    const testStatusDetail = bodyElement.querySelector("#cfg-test-status-detail");
     const saveBtn = bodyElement.querySelector("#cfg-save-btn");
     const openviewUrlInput = bodyElement.querySelector("#cfg-openview-url");
     const openviewUsernameInput = bodyElement.querySelector("#cfg-openview-username");
@@ -9212,6 +9397,23 @@ ${MEM_TAG_CLOSE2}`;
       return trimmed.replace(/\/$/, "");
     }
     const showOpenView = isHigoPlatform2();
+    let hasTestedConnection = false;
+    let connectionTestRevision = 0;
+    const connectionFeedbackElements = {
+      statusElement: testStatus,
+      titleElement: testStatusTitle,
+      detailElement: testStatusDetail,
+      testButton: testBtn,
+      testButtonLabel: testBtnLabel
+    };
+    function setConnectionTestState(state2, feedback = null) {
+      updateConnectionTestFeedback(connectionFeedbackElements, state2, feedback);
+    }
+    function invalidateConnectionTest() {
+      if (!hasTestedConnection) return;
+      connectionTestRevision += 1;
+      setConnectionTestState("dirty");
+    }
     try {
       const cfg = await getEchoMemConfig();
       if (baseUrlInput) baseUrlInput.value = cfg.baseUrl || "";
@@ -9230,10 +9432,16 @@ ${MEM_TAG_CLOSE2}`;
     } catch (err) {
       console.warn("EchoMem: failed to load config", err);
     }
+    [baseUrlInput, authKeyInput, agentIdInput].forEach((input) => {
+      input == null ? void 0 : input.addEventListener("input", invalidateConnectionTest);
+    });
     if (testBtn) {
       testBtn.addEventListener("click", async () => {
-        var _a, _b, _c, _d;
-        showFloatingToast("\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5...", "info", 0);
+        var _a, _b;
+        hasTestedConnection = true;
+        const revision = ++connectionTestRevision;
+        setConnectionTestState("testing");
+        const canApplyResult = () => revision === connectionTestRevision && bodyElement.isConnected !== false;
         try {
           const config = {
             baseUrl: normalizeBaseUrl2(baseUrlInput == null ? void 0 : baseUrlInput.value),
@@ -9242,19 +9450,18 @@ ${MEM_TAG_CLOSE2}`;
           };
           const client2 = createClient(config);
           const ok = await client2.healthCheck();
+          if (!canApplyResult()) return;
           if (ok) {
-            showFloatingToast("\u8FDE\u63A5\u6210\u529F", "success");
+            setConnectionTestState("success");
           } else {
-            showFloatingToast("\u8FDE\u63A5\u5931\u8D25\uFF1A\u540E\u7AEF\u8FD4\u56DE\u975E 200 \u72B6\u6001\u7801", "error");
+            setConnectionTestState("error", {
+              title: "\u8FDE\u63A5\u5931\u8D25",
+              detail: "\u670D\u52A1\u8FD4\u56DE\u4E86\u5F02\u5E38\u72B6\u6001\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u8FD0\u884C\u72B6\u6001\u540E\u91CD\u8BD5\u3002"
+            });
           }
         } catch (err) {
-          if (err.name === "AbortError" || ((_c = err.message) == null ? void 0 : _c.includes("aborted"))) {
-            showFloatingToast("\u8FDE\u63A5\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u662F\u5426\u6B63\u786E", "error");
-          } else if ((_d = err.message) == null ? void 0 : _d.includes("Failed to fetch")) {
-            showFloatingToast("\u65E0\u6CD5\u8FDE\u63A5\u5230\u540E\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u662F\u5426\u542F\u52A8", "error");
-          } else {
-            showFloatingToast(`\u8FDE\u63A5\u5931\u8D25: ${err.message}`, "error");
-          }
+          if (!canApplyResult()) return;
+          setConnectionTestState("error", getConnectionTestErrorFeedback(err));
         }
       });
     }
