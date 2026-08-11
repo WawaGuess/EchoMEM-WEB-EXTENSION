@@ -17,31 +17,16 @@ import {
 } from '../../config/deployment.js';
 import {
   getConfigSaveErrorFeedback,
+  getConfigStatusMarkup,
+  getConfigStatusStyles,
   getConnectionTestErrorFeedback,
   getEchoAgentLoginErrorFeedback,
   updateConfigActionFeedback,
-} from './config-feedback.js';
+} from '../config-feedback.js';
 
 function isHigoPlatform() {
   const platform = getCurrentPlatform();
   return platform?.config?.id === 'higo' || platform?.key === 'higo';
-}
-
-function getConfigStatusMarkup(idPrefix) {
-  return `
-    <div id="${idPrefix}-status" class="config-status" data-state="idle" role="status" aria-live="polite" aria-atomic="true" hidden>
-      <span class="config-status-icon" aria-hidden="true">
-        <svg class="config-status-symbol config-status-symbol-testing" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"/></svg>
-        <svg class="config-status-symbol config-status-symbol-success" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
-        <svg class="config-status-symbol config-status-symbol-error" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
-        <svg class="config-status-symbol config-status-symbol-dirty" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v4M12 17h.01"/></svg>
-      </span>
-      <span class="config-status-copy">
-        <strong id="${idPrefix}-status-title" class="config-status-title"></strong>
-        <span id="${idPrefix}-status-detail" class="config-status-detail"></span>
-      </span>
-    </div>
-  `;
 }
 
 export function getEchoMemConfigContent() {
@@ -239,73 +224,7 @@ export function getEchoMemConfigContent() {
       .echomem-config-root .config-button.is-loading svg {
         animation: config-status-spin 0.9s linear infinite;
       }
-      .echomem-config-root .config-status {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        margin-top: 12px;
-        padding: 11px 12px;
-        border: 1px solid #D0BCFF;
-        border-radius: 12px;
-        background: #F3EDF7;
-        color: #49454F;
-      }
-      .echomem-config-root .config-status[hidden] { display: none; }
-      .echomem-config-root .config-status[data-state="success"] {
-        border-color: #A8D5BA;
-        background: #ECF8F0;
-        color: #175C35;
-      }
-      .echomem-config-root .config-status[data-state="error"] {
-        border-color: #F2B8B5;
-        background: #FFF1F0;
-        color: #8C1D18;
-      }
-      .echomem-config-root .config-status[data-state="dirty"] {
-        border-color: #E8C66A;
-        background: #FFF8E1;
-        color: #664B00;
-      }
-      .echomem-config-root .config-status-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 20px;
-        height: 20px;
-        margin-top: 1px;
-        flex: 0 0 auto;
-      }
-      .echomem-config-root .config-status-symbol { display: none; }
-      .echomem-config-root .config-status[data-state="testing"] .config-status-symbol-testing,
-      .echomem-config-root .config-status[data-state="success"] .config-status-symbol-success,
-      .echomem-config-root .config-status[data-state="error"] .config-status-symbol-error,
-      .echomem-config-root .config-status[data-state="dirty"] .config-status-symbol-dirty {
-        display: block;
-      }
-      .echomem-config-root .config-status[data-state="testing"] .config-status-symbol-testing {
-        animation: config-status-spin 0.9s linear infinite;
-      }
-      .echomem-config-root .config-status-copy {
-        min-width: 0;
-      }
-      .echomem-config-root .config-status-title {
-        display: block;
-        margin: 0;
-        font-size: 12px;
-        font-weight: 600;
-        line-height: 1.45;
-      }
-      .echomem-config-root .config-status-detail {
-        display: block;
-        margin-top: 2px;
-        color: inherit;
-        font-size: 11px;
-        line-height: 1.5;
-        opacity: 0.86;
-      }
-      @keyframes config-status-spin {
-        to { transform: rotate(360deg); }
-      }
+      ${getConfigStatusStyles('.echomem-config-root')}
       @media (max-width: 360px) {
         .echomem-config-root .config-card { padding: 14px; border-radius: 16px; }
         .echomem-config-root .config-actions { flex-direction: column; }
@@ -314,8 +233,7 @@ export function getEchoMemConfigContent() {
       @media (prefers-reduced-motion: reduce) {
         .echomem-config-root .config-input,
         .echomem-config-root .config-button { transition: none !important; }
-        .echomem-config-root .config-button.is-loading svg,
-        .echomem-config-root .config-status[data-state="testing"] .config-status-symbol-testing {
+        .echomem-config-root .config-button.is-loading svg {
           animation: none !important;
         }
       }

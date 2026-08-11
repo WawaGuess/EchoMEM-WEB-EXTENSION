@@ -5,7 +5,12 @@ import {
   getCompletionConfig,
   setCompletionConfig,
 } from '../../services/config.js';
-import { showFloatingToast } from '../../services/toast.js';
+import {
+  getConfigSaveErrorFeedback,
+  getConfigStatusMarkup,
+  getConfigStatusStyles,
+  updateConfigActionFeedback,
+} from '../config-feedback.js';
 
 export function getInputAssociationContent() {
   const inputAssociationEnabled = getAssociationEnabled();
@@ -58,6 +63,13 @@ export function getInputAssociationContent() {
       .echomem-association .association-primary-button:hover {
         filter: brightness(0.97);
         box-shadow: 0 4px 12px rgba(103, 80, 164, 0.18);
+      }
+      .echomem-association .association-primary-button:disabled {
+        cursor: wait;
+        filter: none;
+        opacity: 0.72;
+        box-shadow: none;
+        transform: none;
       }
       .echomem-association button:active { transform: scale(0.985); }
       .echomem-association button:focus-visible,
@@ -172,6 +184,7 @@ export function getInputAssociationContent() {
         font-size: 12px;
         line-height: 1.6;
       }
+      ${getConfigStatusStyles('.echomem-association')}
       @media (max-width: 360px) {
         .echomem-association .association-action,
         .echomem-association .association-card,
@@ -251,7 +264,9 @@ export function getInputAssociationContent() {
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
-        ">保存配置</button>
+        "><span id="ov-save-config-label">保存配置</span></button>
+
+        ${getConfigStatusMarkup('ov-config')}
       </div>
 
       <div style="text-align: center;">
@@ -289,6 +304,44 @@ export function bindConfigUI() {
   // 切换配置显示
   const toggleLink = document.getElementById('echomem-toggle-config');
   const configDiv = document.getElementById('echomem-ov-config');
+  const thresholdInput = document.getElementById('completion-threshold');
+  const thresholdNumber = document.getElementById('completion-threshold-number');
+  const saveBtn = document.getElementById('ov-save-config');
+  const saveBtnLabel = document.getElementById('ov-save-config-label');
+  const saveStatus = document.getElementById('ov-config-status');
+  const saveStatusTitle = document.getElementById('ov-config-status-title');
+  const saveStatusDetail = document.getElementById('ov-config-status-detail');
+  let hasSaveFeedback = false;
+  let saveRevision = 0;
+
+  const saveFeedbackElements = {
+    statusElement: saveStatus,
+    titleElement: saveStatusTitle,
+    detailElement: saveStatusDetail,
+    actions: {
+      save: {
+        button: saveBtn,
+        labelElement: saveBtnLabel,
+        idleLabel: '保存配置',
+        busyLabel: '正在保存…',
+      },
+    },
+  };
+
+  function setSaveState(state, feedback = null) {
+    if (state !== 'idle') hasSaveFeedback = true;
+    updateConfigActionFeedback(saveFeedbackElements, state, feedback);
+  }
+
+  function invalidateSaveFeedback() {
+    saveRevision += 1;
+    if (!hasSaveFeedback) return;
+    setSaveState('dirty', {
+      title: '高级配置已修改',
+      detail: '请保存以应用新的短语过滤阈值。',
+    });
+  }
+
   if (toggleLink && configDiv && !toggleLink.dataset.bound) {
     toggleLink.dataset.bound = 'true';
     toggleLink.addEventListener('click', (e) => {
@@ -300,12 +353,11 @@ export function bindConfigUI() {
   }
 
   // 阈值滑块与数字输入框双向同步
-  const thresholdInput = document.getElementById('completion-threshold');
-  const thresholdNumber = document.getElementById('completion-threshold-number');
   if (thresholdInput && thresholdNumber && !thresholdInput.dataset.bound) {
     thresholdInput.dataset.bound = 'true';
     thresholdInput.addEventListener('input', () => {
       thresholdNumber.value = thresholdInput.value;
+      invalidateSaveFeedback();
     });
     thresholdNumber.addEventListener('input', () => {
       let val = parseFloat(thresholdNumber.value);
@@ -313,22 +365,33 @@ export function bindConfigUI() {
       if (val < 0.2) val = 0.2;
       if (val > 0.8) val = 0.8;
       thresholdInput.value = val;
+      invalidateSaveFeedback();
     });
   }
 
   // 保存配置
-  const saveBtn = document.getElementById('ov-save-config');
   if (saveBtn && !saveBtn.dataset.bound) {
     saveBtn.dataset.bound = 'true';
     saveBtn.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
+      const revision = ++saveRevision;
+      setSaveState('saving');
+
+      const canApplyResult = () => (
+        revision === saveRevision && saveBtn.isConnected !== false
+      );
       const phraseScoreThreshold = parseFloat(document.getElementById('completion-threshold')?.value || '0.2');
       try {
         await setCompletionConfig({ phraseScoreThreshold });
-        showFloatingToast('配置已保存', 'success');
+        if (!canApplyResult()) return;
+        setSaveState('saved', {
+          title: '高级配置已保存',
+          detail: '新的短语过滤阈值已生效。',
+        });
       } catch (err) {
-        showFloatingToast(`保存失败: ${err.message}`, 'error');
+        if (!canApplyResult()) return;
+        setSaveState('saveError', getConfigSaveErrorFeedback(err));
       }
     });
   }

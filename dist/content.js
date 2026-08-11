@@ -2725,60 +2725,270 @@ ${block}` : block;
     });
   }
 
-  // src/services/toast.js
-  function showFloatingToast(message, type = "success", duration = 2500) {
-    let toast = document.getElementById("echomem-floating-toast");
-    if (!toast) {
-      toast = document.createElement("div");
-      toast.id = "echomem-floating-toast";
-      toast.style.cssText = `
-      position: fixed;
-      left: 50%;
-      bottom: 40px;
-      transform: translateX(-50%) translateY(20px);
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      font-family: Roboto, 'Noto Sans SC', sans-serif;
-      color: #fff;
-      background: rgba(5, 7, 10, 0.88);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      z-index: 100000;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.2s ease, transform 0.2s ease;
-    `;
-      document.body.appendChild(toast);
+  // src/panels/config-feedback.js
+  var CONFIG_ACTION_FEEDBACK = {
+    testing: {
+      tone: "testing",
+      action: "test",
+      title: "\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5",
+      detail: "\u6B63\u5728\u68C0\u67E5\u670D\u52A1\u662F\u5426\u53EF\u7528\uFF0C\u8BF7\u7A0D\u5019\u3002"
+    },
+    connectionSuccess: {
+      tone: "success",
+      title: "\u8FDE\u63A5\u6210\u529F",
+      detail: "\u670D\u52A1\u53EF\u7528\uFF0C\u5F53\u524D\u914D\u7F6E\u53EF\u4EE5\u6B63\u5E38\u8FDE\u63A5\u3002"
+    },
+    connectionError: {
+      tone: "error",
+      title: "\u8FDE\u63A5\u5931\u8D25",
+      detail: "\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E\u540E\u91CD\u8BD5\u3002"
+    },
+    dirty: {
+      tone: "dirty",
+      title: "\u914D\u7F6E\u5DF2\u4FEE\u6539",
+      detail: "\u8BF7\u91CD\u65B0\u6D4B\u8BD5\u6216\u4FDD\u5B58\uFF0C\u4EE5\u786E\u8BA4\u5F53\u524D\u914D\u7F6E\u53EF\u7528\u3002"
+    },
+    saving: {
+      tone: "testing",
+      action: "save",
+      title: "\u6B63\u5728\u4FDD\u5B58\u914D\u7F6E",
+      detail: "\u6B63\u5728\u5C06\u5F53\u524D\u8BBE\u7F6E\u4FDD\u5B58\u5230\u6D4F\u89C8\u5668\uFF0C\u8BF7\u7A0D\u5019\u3002"
+    },
+    saved: {
+      tone: "success",
+      title: "\u914D\u7F6E\u5DF2\u4FDD\u5B58",
+      detail: "\u65B0\u7684\u914D\u7F6E\u5DF2\u751F\u6548\uFF0C\u540E\u7EED\u8BF7\u6C42\u5C06\u4F7F\u7528\u5F53\u524D\u8BBE\u7F6E\u3002"
+    },
+    saveError: {
+      tone: "error",
+      title: "\u4FDD\u5B58\u5931\u8D25",
+      detail: "\u672A\u80FD\u4FDD\u5B58\u5F53\u524D\u914D\u7F6E\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002"
+    },
+    loggingIn: {
+      tone: "testing",
+      action: "login",
+      title: "\u6B63\u5728\u767B\u5F55 EchoAgent",
+      detail: "\u6B63\u5728\u9A8C\u8BC1\u5F53\u524D\u8D26\u53F7\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u5019\u3002"
+    },
+    loginSuccess: {
+      tone: "success",
+      title: "EchoAgent \u767B\u5F55\u6210\u529F",
+      detail: "\u5F53\u524D\u4F1A\u8BDD\u8EAB\u4EFD\u8BA4\u8BC1\u5DF2\u66F4\u65B0\u3002"
+    },
+    loginError: {
+      tone: "error",
+      title: "EchoAgent \u767B\u5F55\u5931\u8D25",
+      detail: "\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u3001\u7528\u6237\u540D\u548C\u5BC6\u7801\u540E\u91CD\u8BD5\u3002"
+    },
+    loginDirty: {
+      tone: "dirty",
+      title: "\u767B\u5F55\u4FE1\u606F\u5DF2\u4FEE\u6539",
+      detail: "\u8BF7\u91CD\u65B0\u767B\u5F55\uFF0C\u4EE5\u4F7F\u7528\u66F4\u65B0\u540E\u7684 EchoAgent \u914D\u7F6E\u3002"
     }
-    const ACCENTS = {
-      success: "#00e6ff",
-      error: "#ff6b6b",
-      info: "#667eea"
-    };
-    const ICONS = {
-      success: "\u2705",
-      error: "\u274C",
-      info: "\u23F3"
-    };
-    const accent = ACCENTS[type] || ACCENTS.info;
-    toast.style.borderColor = accent;
-    toast.innerHTML = `<span style="color:${accent}; margin-right:6px;">${ICONS[type] || ICONS.info}</span>${message}`;
-    clearTimeout(toast._hideTimer);
-    requestAnimationFrame(() => {
-      toast.style.opacity = "1";
-      toast.style.transform = "translateX(-50%) translateY(0)";
+  };
+  function getConfigStatusMarkup(idPrefix) {
+    return `
+    <div id="${idPrefix}-status" class="config-status" data-state="idle" role="status" aria-live="polite" aria-atomic="true" hidden>
+      <span class="config-status-icon" aria-hidden="true">
+        <svg class="config-status-symbol config-status-symbol-testing" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"/></svg>
+        <svg class="config-status-symbol config-status-symbol-success" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+        <svg class="config-status-symbol config-status-symbol-error" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+        <svg class="config-status-symbol config-status-symbol-dirty" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v4M12 17h.01"/></svg>
+      </span>
+      <span class="config-status-copy">
+        <strong id="${idPrefix}-status-title" class="config-status-title"></strong>
+        <span id="${idPrefix}-status-detail" class="config-status-detail"></span>
+      </span>
+    </div>
+  `;
+  }
+  function getConfigStatusStyles(rootSelector) {
+    return `
+    ${rootSelector} .config-status {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 12px;
+      padding: 11px 12px;
+      border: 1px solid #D0BCFF;
+      border-radius: 12px;
+      background: #F3EDF7;
+      color: #49454F;
+    }
+    ${rootSelector} .config-status[hidden] { display: none; }
+    ${rootSelector} .config-status[data-state="success"] {
+      border-color: #A8D5BA;
+      background: #ECF8F0;
+      color: #175C35;
+    }
+    ${rootSelector} .config-status[data-state="error"] {
+      border-color: #F2B8B5;
+      background: #FFF1F0;
+      color: #8C1D18;
+    }
+    ${rootSelector} .config-status[data-state="dirty"] {
+      border-color: #E8C66A;
+      background: #FFF8E1;
+      color: #664B00;
+    }
+    ${rootSelector} .config-status-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      margin-top: 1px;
+      flex: 0 0 auto;
+    }
+    ${rootSelector} .config-status-symbol { display: none; }
+    ${rootSelector} .config-status[data-state="testing"] .config-status-symbol-testing,
+    ${rootSelector} .config-status[data-state="success"] .config-status-symbol-success,
+    ${rootSelector} .config-status[data-state="error"] .config-status-symbol-error,
+    ${rootSelector} .config-status[data-state="dirty"] .config-status-symbol-dirty {
+      display: block;
+    }
+    ${rootSelector} .config-status[data-state="testing"] .config-status-symbol-testing {
+      animation: config-status-spin 0.9s linear infinite;
+    }
+    ${rootSelector} .config-status-copy { min-width: 0; }
+    ${rootSelector} .config-status-title {
+      display: block;
+      margin: 0;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+    ${rootSelector} .config-status-detail {
+      display: block;
+      margin-top: 2px;
+      color: inherit;
+      font-size: 11px;
+      line-height: 1.5;
+      opacity: 0.86;
+    }
+    @keyframes config-status-spin {
+      to { transform: rotate(360deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      ${rootSelector} .config-status[data-state="testing"] .config-status-symbol-testing {
+        animation: none !important;
+      }
+    }
+  `;
+  }
+  function hasErrorStatus(error, statuses) {
+    const status = Number(error == null ? void 0 : error.status);
+    if (statuses.includes(status)) return true;
+    const message = String((error == null ? void 0 : error.message) || "");
+    return statuses.some((candidate) => message.includes(`HTTP ${candidate}`));
+  }
+  function isTimeoutError(error) {
+    const message = String((error == null ? void 0 : error.message) || "").toLowerCase();
+    return (error == null ? void 0 : error.name) === "AbortError" || message.includes("aborted") || message.includes("timeout");
+  }
+  function isNetworkError(error) {
+    const message = String((error == null ? void 0 : error.message) || "");
+    return message.includes("Failed to fetch") || message.includes("Could not establish connection");
+  }
+  function getConnectionTestErrorFeedback(error) {
+    if (isTimeoutError(error)) {
+      return {
+        title: "\u8FDE\u63A5\u8D85\u65F6",
+        detail: "\u670D\u52A1\u672A\u5728\u9884\u671F\u65F6\u95F4\u5185\u54CD\u5E94\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8FD0\u884C\u72B6\u6001\u3002"
+      };
+    }
+    if (hasErrorStatus(error, [401, 403])) {
+      return {
+        title: "\u8BA4\u8BC1\u5931\u8D25",
+        detail: "\u8BF7\u68C0\u67E5\u8BA4\u8BC1\u5BC6\u94A5\u662F\u5426\u6B63\u786E\uFF0C\u5E76\u786E\u8BA4\u5F53\u524D\u5BC6\u94A5\u4ECD\u7136\u6709\u6548\u3002"
+      };
+    }
+    if (isNetworkError(error)) {
+      return {
+        title: "\u65E0\u6CD5\u8FDE\u63A5\u5230\u670D\u52A1",
+        detail: "\u8BF7\u68C0\u67E5\u670D\u52A1\u662F\u5426\u5DF2\u542F\u52A8\uFF0C\u4EE5\u53CA\u5F53\u524D\u7F51\u7EDC\u80FD\u5426\u8BBF\u95EE\u8BE5\u5730\u5740\u3002"
+      };
+    }
+    return CONFIG_ACTION_FEEDBACK.connectionError;
+  }
+  function getConfigSaveErrorFeedback(error) {
+    if ((error == null ? void 0 : error.name) === "QuotaExceededError") {
+      return {
+        title: "\u6D4F\u89C8\u5668\u5B58\u50A8\u7A7A\u95F4\u4E0D\u8DB3",
+        detail: "\u65E0\u6CD5\u4FDD\u5B58\u5F53\u524D\u914D\u7F6E\uFF0C\u8BF7\u6E05\u7406\u6269\u5C55\u5B58\u50A8\u7A7A\u95F4\u540E\u91CD\u8BD5\u3002"
+      };
+    }
+    return CONFIG_ACTION_FEEDBACK.saveError;
+  }
+  function getEchoAgentLoginErrorFeedback(error) {
+    if (isTimeoutError(error)) {
+      return {
+        title: "EchoAgent \u767B\u5F55\u8D85\u65F6",
+        detail: "\u670D\u52A1\u672A\u5728\u9884\u671F\u65F6\u95F4\u5185\u54CD\u5E94\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8FD0\u884C\u72B6\u6001\u3002"
+      };
+    }
+    if (hasErrorStatus(error, [401, 403])) {
+      return {
+        title: "EchoAgent \u8BA4\u8BC1\u5931\u8D25",
+        detail: "\u8BF7\u68C0\u67E5\u7528\u6237\u540D\u548C\u5BC6\u7801\u662F\u5426\u6B63\u786E\uFF0C\u7136\u540E\u91CD\u65B0\u767B\u5F55\u3002"
+      };
+    }
+    if (isNetworkError(error)) {
+      return {
+        title: "\u65E0\u6CD5\u8FDE\u63A5\u5230 EchoAgent",
+        detail: "\u8BF7\u68C0\u67E5 EchoAgent \u662F\u5426\u5DF2\u542F\u52A8\uFF0C\u4EE5\u53CA\u5F53\u524D\u7F51\u7EDC\u80FD\u5426\u8BBF\u95EE\u8BE5\u5730\u5740\u3002"
+      };
+    }
+    return CONFIG_ACTION_FEEDBACK.loginError;
+  }
+  function resetAction(action, statusId, shouldDescribeStatus) {
+    const { button, labelElement, idleLabel } = action || {};
+    if (!button || !labelElement) return;
+    button.disabled = false;
+    button.classList.remove("is-loading");
+    button.removeAttribute("aria-busy");
+    labelElement.textContent = idleLabel;
+    if (shouldDescribeStatus) {
+      button.setAttribute("aria-describedby", statusId);
+    } else {
+      button.removeAttribute("aria-describedby");
+    }
+  }
+  function updateConfigActionFeedback(elements, state2, feedback = null) {
+    const {
+      statusElement,
+      titleElement,
+      detailElement,
+      actions = {}
+    } = elements || {};
+    if (!statusElement || !titleElement || !detailElement) return;
+    const actionEntries = Object.entries(actions);
+    if (state2 === "idle") {
+      statusElement.hidden = true;
+      statusElement.dataset.state = "idle";
+      statusElement.setAttribute("aria-live", "polite");
+      actionEntries.forEach(([, action]) => resetAction(action, statusElement.id, false));
+      return;
+    }
+    const preset = CONFIG_ACTION_FEEDBACK[state2] || CONFIG_ACTION_FEEDBACK.connectionError;
+    const content = { ...preset, ...feedback || {} };
+    const activeAction = content.action || null;
+    statusElement.hidden = false;
+    statusElement.dataset.state = content.tone;
+    statusElement.setAttribute("aria-live", content.tone === "error" ? "assertive" : "polite");
+    titleElement.textContent = content.title;
+    detailElement.textContent = content.detail;
+    actionEntries.forEach(([actionName, action]) => {
+      resetAction(action, statusElement.id, true);
+      const isActive = actionName === activeAction;
+      const { button, labelElement, busyLabel, spinIcon = false } = action || {};
+      if (!button || !labelElement) return;
+      button.disabled = Boolean(activeAction);
+      if (!isActive) return;
+      button.setAttribute("aria-busy", "true");
+      button.classList.toggle("is-loading", spinIcon);
+      labelElement.textContent = busyLabel;
     });
-    if (duration > 0) {
-      toast._hideTimer = setTimeout(() => {
-        toast.style.opacity = "0";
-        toast.style.transform = "translateX(-50%) translateY(20px)";
-        setTimeout(() => toast.remove(), 200);
-      }, duration);
-    }
   }
 
   // src/panels/association/index.js
@@ -2832,6 +3042,13 @@ ${block}` : block;
       .echomem-association .association-primary-button:hover {
         filter: brightness(0.97);
         box-shadow: 0 4px 12px rgba(103, 80, 164, 0.18);
+      }
+      .echomem-association .association-primary-button:disabled {
+        cursor: wait;
+        filter: none;
+        opacity: 0.72;
+        box-shadow: none;
+        transform: none;
       }
       .echomem-association button:active { transform: scale(0.985); }
       .echomem-association button:focus-visible,
@@ -2946,6 +3163,7 @@ ${block}` : block;
         font-size: 12px;
         line-height: 1.6;
       }
+      ${getConfigStatusStyles(".echomem-association")}
       @media (max-width: 360px) {
         .echomem-association .association-action,
         .echomem-association .association-card,
@@ -3025,7 +3243,9 @@ ${block}` : block;
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
-        ">\u4FDD\u5B58\u914D\u7F6E</button>
+        "><span id="ov-save-config-label">\u4FDD\u5B58\u914D\u7F6E</span></button>
+
+        ${getConfigStatusMarkup("ov-config")}
       </div>
 
       <div style="text-align: center;">
@@ -3055,6 +3275,40 @@ ${block}` : block;
   function bindConfigUI() {
     const toggleLink = document.getElementById("echomem-toggle-config");
     const configDiv = document.getElementById("echomem-ov-config");
+    const thresholdInput = document.getElementById("completion-threshold");
+    const thresholdNumber = document.getElementById("completion-threshold-number");
+    const saveBtn = document.getElementById("ov-save-config");
+    const saveBtnLabel = document.getElementById("ov-save-config-label");
+    const saveStatus = document.getElementById("ov-config-status");
+    const saveStatusTitle = document.getElementById("ov-config-status-title");
+    const saveStatusDetail = document.getElementById("ov-config-status-detail");
+    let hasSaveFeedback = false;
+    let saveRevision = 0;
+    const saveFeedbackElements = {
+      statusElement: saveStatus,
+      titleElement: saveStatusTitle,
+      detailElement: saveStatusDetail,
+      actions: {
+        save: {
+          button: saveBtn,
+          labelElement: saveBtnLabel,
+          idleLabel: "\u4FDD\u5B58\u914D\u7F6E",
+          busyLabel: "\u6B63\u5728\u4FDD\u5B58\u2026"
+        }
+      }
+    };
+    function setSaveState(state2, feedback = null) {
+      if (state2 !== "idle") hasSaveFeedback = true;
+      updateConfigActionFeedback(saveFeedbackElements, state2, feedback);
+    }
+    function invalidateSaveFeedback() {
+      saveRevision += 1;
+      if (!hasSaveFeedback) return;
+      setSaveState("dirty", {
+        title: "\u9AD8\u7EA7\u914D\u7F6E\u5DF2\u4FEE\u6539",
+        detail: "\u8BF7\u4FDD\u5B58\u4EE5\u5E94\u7528\u65B0\u7684\u77ED\u8BED\u8FC7\u6EE4\u9608\u503C\u3002"
+      });
+    }
     if (toggleLink && configDiv && !toggleLink.dataset.bound) {
       toggleLink.dataset.bound = "true";
       toggleLink.addEventListener("click", (e) => {
@@ -3064,12 +3318,11 @@ ${block}` : block;
         toggleLink.textContent = isHidden ? "\u9690\u85CF\u9AD8\u7EA7\u914D\u7F6E" : "\u663E\u793A\u9AD8\u7EA7\u914D\u7F6E";
       });
     }
-    const thresholdInput = document.getElementById("completion-threshold");
-    const thresholdNumber = document.getElementById("completion-threshold-number");
     if (thresholdInput && thresholdNumber && !thresholdInput.dataset.bound) {
       thresholdInput.dataset.bound = "true";
       thresholdInput.addEventListener("input", () => {
         thresholdNumber.value = thresholdInput.value;
+        invalidateSaveFeedback();
       });
       thresholdNumber.addEventListener("input", () => {
         let val = parseFloat(thresholdNumber.value);
@@ -3077,21 +3330,29 @@ ${block}` : block;
         if (val < 0.2) val = 0.2;
         if (val > 0.8) val = 0.8;
         thresholdInput.value = val;
+        invalidateSaveFeedback();
       });
     }
-    const saveBtn = document.getElementById("ov-save-config");
     if (saveBtn && !saveBtn.dataset.bound) {
       saveBtn.dataset.bound = "true";
       saveBtn.addEventListener("click", async (e) => {
         var _a;
         e.preventDefault();
         e.stopPropagation();
+        const revision = ++saveRevision;
+        setSaveState("saving");
+        const canApplyResult = () => revision === saveRevision && saveBtn.isConnected !== false;
         const phraseScoreThreshold2 = parseFloat(((_a = document.getElementById("completion-threshold")) == null ? void 0 : _a.value) || "0.2");
         try {
           await setCompletionConfig({ phraseScoreThreshold: phraseScoreThreshold2 });
-          showFloatingToast("\u914D\u7F6E\u5DF2\u4FDD\u5B58", "success");
+          if (!canApplyResult()) return;
+          setSaveState("saved", {
+            title: "\u9AD8\u7EA7\u914D\u7F6E\u5DF2\u4FDD\u5B58",
+            detail: "\u65B0\u7684\u77ED\u8BED\u8FC7\u6EE4\u9608\u503C\u5DF2\u751F\u6548\u3002"
+          });
         } catch (err) {
-          showFloatingToast(`\u4FDD\u5B58\u5931\u8D25: ${err.message}`, "error");
+          if (!canApplyResult()) return;
+          setSaveState("saveError", getConfigSaveErrorFeedback(err));
         }
       });
     }
@@ -9173,203 +9434,11 @@ ${MEM_TAG_CLOSE2}`;
     return document.querySelector(selector);
   }
 
-  // src/panels/echomem/config-feedback.js
-  var CONFIG_ACTION_FEEDBACK = {
-    testing: {
-      tone: "testing",
-      action: "test",
-      title: "\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5",
-      detail: "\u6B63\u5728\u68C0\u67E5\u670D\u52A1\u662F\u5426\u53EF\u7528\uFF0C\u8BF7\u7A0D\u5019\u3002"
-    },
-    connectionSuccess: {
-      tone: "success",
-      title: "\u8FDE\u63A5\u6210\u529F",
-      detail: "\u670D\u52A1\u53EF\u7528\uFF0C\u5F53\u524D\u914D\u7F6E\u53EF\u4EE5\u6B63\u5E38\u8FDE\u63A5\u3002"
-    },
-    connectionError: {
-      tone: "error",
-      title: "\u8FDE\u63A5\u5931\u8D25",
-      detail: "\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E\u540E\u91CD\u8BD5\u3002"
-    },
-    dirty: {
-      tone: "dirty",
-      title: "\u914D\u7F6E\u5DF2\u4FEE\u6539",
-      detail: "\u8BF7\u91CD\u65B0\u6D4B\u8BD5\u6216\u4FDD\u5B58\uFF0C\u4EE5\u786E\u8BA4\u5F53\u524D\u914D\u7F6E\u53EF\u7528\u3002"
-    },
-    saving: {
-      tone: "testing",
-      action: "save",
-      title: "\u6B63\u5728\u4FDD\u5B58\u914D\u7F6E",
-      detail: "\u6B63\u5728\u5C06\u5F53\u524D\u8BBE\u7F6E\u4FDD\u5B58\u5230\u6D4F\u89C8\u5668\uFF0C\u8BF7\u7A0D\u5019\u3002"
-    },
-    saved: {
-      tone: "success",
-      title: "\u914D\u7F6E\u5DF2\u4FDD\u5B58",
-      detail: "\u65B0\u7684\u914D\u7F6E\u5DF2\u751F\u6548\uFF0C\u540E\u7EED\u8BF7\u6C42\u5C06\u4F7F\u7528\u5F53\u524D\u8BBE\u7F6E\u3002"
-    },
-    saveError: {
-      tone: "error",
-      title: "\u4FDD\u5B58\u5931\u8D25",
-      detail: "\u672A\u80FD\u4FDD\u5B58\u5F53\u524D\u914D\u7F6E\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002"
-    },
-    loggingIn: {
-      tone: "testing",
-      action: "login",
-      title: "\u6B63\u5728\u767B\u5F55 EchoAgent",
-      detail: "\u6B63\u5728\u9A8C\u8BC1\u5F53\u524D\u8D26\u53F7\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u5019\u3002"
-    },
-    loginSuccess: {
-      tone: "success",
-      title: "EchoAgent \u767B\u5F55\u6210\u529F",
-      detail: "\u5F53\u524D\u4F1A\u8BDD\u8EAB\u4EFD\u8BA4\u8BC1\u5DF2\u66F4\u65B0\u3002"
-    },
-    loginError: {
-      tone: "error",
-      title: "EchoAgent \u767B\u5F55\u5931\u8D25",
-      detail: "\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u3001\u7528\u6237\u540D\u548C\u5BC6\u7801\u540E\u91CD\u8BD5\u3002"
-    },
-    loginDirty: {
-      tone: "dirty",
-      title: "\u767B\u5F55\u4FE1\u606F\u5DF2\u4FEE\u6539",
-      detail: "\u8BF7\u91CD\u65B0\u767B\u5F55\uFF0C\u4EE5\u4F7F\u7528\u66F4\u65B0\u540E\u7684 EchoAgent \u914D\u7F6E\u3002"
-    }
-  };
-  function hasErrorStatus(error, statuses) {
-    const status = Number(error == null ? void 0 : error.status);
-    if (statuses.includes(status)) return true;
-    const message = String((error == null ? void 0 : error.message) || "");
-    return statuses.some((candidate) => message.includes(`HTTP ${candidate}`));
-  }
-  function isTimeoutError(error) {
-    const message = String((error == null ? void 0 : error.message) || "").toLowerCase();
-    return (error == null ? void 0 : error.name) === "AbortError" || message.includes("aborted") || message.includes("timeout");
-  }
-  function isNetworkError(error) {
-    const message = String((error == null ? void 0 : error.message) || "");
-    return message.includes("Failed to fetch") || message.includes("Could not establish connection");
-  }
-  function getConnectionTestErrorFeedback(error) {
-    if (isTimeoutError(error)) {
-      return {
-        title: "\u8FDE\u63A5\u8D85\u65F6",
-        detail: "\u670D\u52A1\u672A\u5728\u9884\u671F\u65F6\u95F4\u5185\u54CD\u5E94\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8FD0\u884C\u72B6\u6001\u3002"
-      };
-    }
-    if (hasErrorStatus(error, [401, 403])) {
-      return {
-        title: "\u8BA4\u8BC1\u5931\u8D25",
-        detail: "\u8BF7\u68C0\u67E5\u8BA4\u8BC1\u5BC6\u94A5\u662F\u5426\u6B63\u786E\uFF0C\u5E76\u786E\u8BA4\u5F53\u524D\u5BC6\u94A5\u4ECD\u7136\u6709\u6548\u3002"
-      };
-    }
-    if (isNetworkError(error)) {
-      return {
-        title: "\u65E0\u6CD5\u8FDE\u63A5\u5230\u670D\u52A1",
-        detail: "\u8BF7\u68C0\u67E5\u670D\u52A1\u662F\u5426\u5DF2\u542F\u52A8\uFF0C\u4EE5\u53CA\u5F53\u524D\u7F51\u7EDC\u80FD\u5426\u8BBF\u95EE\u8BE5\u5730\u5740\u3002"
-      };
-    }
-    return CONFIG_ACTION_FEEDBACK.connectionError;
-  }
-  function getConfigSaveErrorFeedback(error) {
-    if ((error == null ? void 0 : error.name) === "QuotaExceededError") {
-      return {
-        title: "\u6D4F\u89C8\u5668\u5B58\u50A8\u7A7A\u95F4\u4E0D\u8DB3",
-        detail: "\u65E0\u6CD5\u4FDD\u5B58\u5F53\u524D\u914D\u7F6E\uFF0C\u8BF7\u6E05\u7406\u6269\u5C55\u5B58\u50A8\u7A7A\u95F4\u540E\u91CD\u8BD5\u3002"
-      };
-    }
-    return CONFIG_ACTION_FEEDBACK.saveError;
-  }
-  function getEchoAgentLoginErrorFeedback(error) {
-    if (isTimeoutError(error)) {
-      return {
-        title: "EchoAgent \u767B\u5F55\u8D85\u65F6",
-        detail: "\u670D\u52A1\u672A\u5728\u9884\u671F\u65F6\u95F4\u5185\u54CD\u5E94\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8FD0\u884C\u72B6\u6001\u3002"
-      };
-    }
-    if (hasErrorStatus(error, [401, 403])) {
-      return {
-        title: "EchoAgent \u8BA4\u8BC1\u5931\u8D25",
-        detail: "\u8BF7\u68C0\u67E5\u7528\u6237\u540D\u548C\u5BC6\u7801\u662F\u5426\u6B63\u786E\uFF0C\u7136\u540E\u91CD\u65B0\u767B\u5F55\u3002"
-      };
-    }
-    if (isNetworkError(error)) {
-      return {
-        title: "\u65E0\u6CD5\u8FDE\u63A5\u5230 EchoAgent",
-        detail: "\u8BF7\u68C0\u67E5 EchoAgent \u662F\u5426\u5DF2\u542F\u52A8\uFF0C\u4EE5\u53CA\u5F53\u524D\u7F51\u7EDC\u80FD\u5426\u8BBF\u95EE\u8BE5\u5730\u5740\u3002"
-      };
-    }
-    return CONFIG_ACTION_FEEDBACK.loginError;
-  }
-  function resetAction(action, statusId, shouldDescribeStatus) {
-    const { button, labelElement, idleLabel } = action || {};
-    if (!button || !labelElement) return;
-    button.disabled = false;
-    button.classList.remove("is-loading");
-    button.removeAttribute("aria-busy");
-    labelElement.textContent = idleLabel;
-    if (shouldDescribeStatus) {
-      button.setAttribute("aria-describedby", statusId);
-    } else {
-      button.removeAttribute("aria-describedby");
-    }
-  }
-  function updateConfigActionFeedback(elements, state2, feedback = null) {
-    const {
-      statusElement,
-      titleElement,
-      detailElement,
-      actions = {}
-    } = elements || {};
-    if (!statusElement || !titleElement || !detailElement) return;
-    const actionEntries = Object.entries(actions);
-    if (state2 === "idle") {
-      statusElement.hidden = true;
-      statusElement.dataset.state = "idle";
-      statusElement.setAttribute("aria-live", "polite");
-      actionEntries.forEach(([, action]) => resetAction(action, statusElement.id, false));
-      return;
-    }
-    const preset = CONFIG_ACTION_FEEDBACK[state2] || CONFIG_ACTION_FEEDBACK.connectionError;
-    const content = { ...preset, ...feedback || {} };
-    const activeAction = content.action || null;
-    statusElement.hidden = false;
-    statusElement.dataset.state = content.tone;
-    statusElement.setAttribute("aria-live", content.tone === "error" ? "assertive" : "polite");
-    titleElement.textContent = content.title;
-    detailElement.textContent = content.detail;
-    actionEntries.forEach(([actionName, action]) => {
-      resetAction(action, statusElement.id, true);
-      const isActive = actionName === activeAction;
-      const { button, labelElement, busyLabel, spinIcon = false } = action || {};
-      if (!button || !labelElement) return;
-      button.disabled = Boolean(activeAction);
-      if (!isActive) return;
-      button.setAttribute("aria-busy", "true");
-      button.classList.toggle("is-loading", spinIcon);
-      labelElement.textContent = busyLabel;
-    });
-  }
-
   // src/panels/echomem/config.js
   function isHigoPlatform2() {
     var _a;
     const platform = getCurrentPlatform();
     return ((_a = platform == null ? void 0 : platform.config) == null ? void 0 : _a.id) === "higo" || (platform == null ? void 0 : platform.key) === "higo";
-  }
-  function getConfigStatusMarkup(idPrefix) {
-    return `
-    <div id="${idPrefix}-status" class="config-status" data-state="idle" role="status" aria-live="polite" aria-atomic="true" hidden>
-      <span class="config-status-icon" aria-hidden="true">
-        <svg class="config-status-symbol config-status-symbol-testing" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"/></svg>
-        <svg class="config-status-symbol config-status-symbol-success" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
-        <svg class="config-status-symbol config-status-symbol-error" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
-        <svg class="config-status-symbol config-status-symbol-dirty" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v4M12 17h.01"/></svg>
-      </span>
-      <span class="config-status-copy">
-        <strong id="${idPrefix}-status-title" class="config-status-title"></strong>
-        <span id="${idPrefix}-status-detail" class="config-status-detail"></span>
-      </span>
-    </div>
-  `;
   }
   function getEchoMemConfigContent() {
     const showOpenView = isHigoPlatform2();
@@ -9563,73 +9632,7 @@ ${MEM_TAG_CLOSE2}`;
       .echomem-config-root .config-button.is-loading svg {
         animation: config-status-spin 0.9s linear infinite;
       }
-      .echomem-config-root .config-status {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        margin-top: 12px;
-        padding: 11px 12px;
-        border: 1px solid #D0BCFF;
-        border-radius: 12px;
-        background: #F3EDF7;
-        color: #49454F;
-      }
-      .echomem-config-root .config-status[hidden] { display: none; }
-      .echomem-config-root .config-status[data-state="success"] {
-        border-color: #A8D5BA;
-        background: #ECF8F0;
-        color: #175C35;
-      }
-      .echomem-config-root .config-status[data-state="error"] {
-        border-color: #F2B8B5;
-        background: #FFF1F0;
-        color: #8C1D18;
-      }
-      .echomem-config-root .config-status[data-state="dirty"] {
-        border-color: #E8C66A;
-        background: #FFF8E1;
-        color: #664B00;
-      }
-      .echomem-config-root .config-status-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 20px;
-        height: 20px;
-        margin-top: 1px;
-        flex: 0 0 auto;
-      }
-      .echomem-config-root .config-status-symbol { display: none; }
-      .echomem-config-root .config-status[data-state="testing"] .config-status-symbol-testing,
-      .echomem-config-root .config-status[data-state="success"] .config-status-symbol-success,
-      .echomem-config-root .config-status[data-state="error"] .config-status-symbol-error,
-      .echomem-config-root .config-status[data-state="dirty"] .config-status-symbol-dirty {
-        display: block;
-      }
-      .echomem-config-root .config-status[data-state="testing"] .config-status-symbol-testing {
-        animation: config-status-spin 0.9s linear infinite;
-      }
-      .echomem-config-root .config-status-copy {
-        min-width: 0;
-      }
-      .echomem-config-root .config-status-title {
-        display: block;
-        margin: 0;
-        font-size: 12px;
-        font-weight: 600;
-        line-height: 1.45;
-      }
-      .echomem-config-root .config-status-detail {
-        display: block;
-        margin-top: 2px;
-        color: inherit;
-        font-size: 11px;
-        line-height: 1.5;
-        opacity: 0.86;
-      }
-      @keyframes config-status-spin {
-        to { transform: rotate(360deg); }
-      }
+      ${getConfigStatusStyles(".echomem-config-root")}
       @media (max-width: 360px) {
         .echomem-config-root .config-card { padding: 14px; border-radius: 16px; }
         .echomem-config-root .config-actions { flex-direction: column; }
@@ -9638,8 +9641,7 @@ ${MEM_TAG_CLOSE2}`;
       @media (prefers-reduced-motion: reduce) {
         .echomem-config-root .config-input,
         .echomem-config-root .config-button { transition: none !important; }
-        .echomem-config-root .config-button.is-loading svg,
-        .echomem-config-root .config-status[data-state="testing"] .config-status-symbol-testing {
+        .echomem-config-root .config-button.is-loading svg {
           animation: none !important;
         }
       }

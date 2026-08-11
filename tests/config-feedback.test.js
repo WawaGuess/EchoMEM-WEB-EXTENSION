@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 
 import {
   getConfigSaveErrorFeedback,
+  getConfigStatusMarkup,
+  getConfigStatusStyles,
   getConnectionTestErrorFeedback,
   getEchoAgentLoginErrorFeedback,
   updateConfigActionFeedback,
-} from '../src/panels/echomem/config-feedback.js';
+} from '../src/panels/config-feedback.js';
 
 function createClassList() {
   const values = new Set();
@@ -63,6 +65,17 @@ function createFeedbackElements(actionNames = ['test', 'save']) {
     actions,
   };
 }
+
+test('shared status markup and styles can be scoped to different panels', () => {
+  const markup = getConfigStatusMarkup('association-save');
+  const styles = getConfigStatusStyles('.echomem-association');
+
+  assert.match(markup, /id="association-save-status"/);
+  assert.match(markup, /role="status"/);
+  assert.match(markup, /aria-live="polite"/);
+  assert.match(styles, /\.echomem-association \.config-status/);
+  assert.match(styles, /prefers-reduced-motion/);
+});
 
 test('connection testing stays inside the card and prevents conflicting actions', () => {
   const elements = createFeedbackElements();
