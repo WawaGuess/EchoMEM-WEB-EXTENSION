@@ -9174,22 +9174,64 @@ ${MEM_TAG_CLOSE2}`;
   }
 
   // src/panels/echomem/config-feedback.js
-  var CONNECTION_TEST_FEEDBACK = {
+  var CONFIG_ACTION_FEEDBACK = {
     testing: {
+      tone: "testing",
+      action: "test",
       title: "\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5",
       detail: "\u6B63\u5728\u68C0\u67E5\u670D\u52A1\u662F\u5426\u53EF\u7528\uFF0C\u8BF7\u7A0D\u5019\u3002"
     },
-    success: {
+    connectionSuccess: {
+      tone: "success",
       title: "\u8FDE\u63A5\u6210\u529F",
       detail: "\u670D\u52A1\u53EF\u7528\uFF0C\u5F53\u524D\u914D\u7F6E\u53EF\u4EE5\u6B63\u5E38\u8FDE\u63A5\u3002"
     },
-    error: {
+    connectionError: {
+      tone: "error",
       title: "\u8FDE\u63A5\u5931\u8D25",
       detail: "\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8BA4\u8BC1\u914D\u7F6E\u540E\u91CD\u8BD5\u3002"
     },
     dirty: {
+      tone: "dirty",
       title: "\u914D\u7F6E\u5DF2\u4FEE\u6539",
-      detail: "\u8BF7\u91CD\u65B0\u6D4B\u8BD5\u8FDE\u63A5\uFF0C\u4EE5\u786E\u8BA4\u5F53\u524D\u914D\u7F6E\u53EF\u7528\u3002"
+      detail: "\u8BF7\u91CD\u65B0\u6D4B\u8BD5\u6216\u4FDD\u5B58\uFF0C\u4EE5\u786E\u8BA4\u5F53\u524D\u914D\u7F6E\u53EF\u7528\u3002"
+    },
+    saving: {
+      tone: "testing",
+      action: "save",
+      title: "\u6B63\u5728\u4FDD\u5B58\u914D\u7F6E",
+      detail: "\u6B63\u5728\u5C06\u5F53\u524D\u8BBE\u7F6E\u4FDD\u5B58\u5230\u6D4F\u89C8\u5668\uFF0C\u8BF7\u7A0D\u5019\u3002"
+    },
+    saved: {
+      tone: "success",
+      title: "\u914D\u7F6E\u5DF2\u4FDD\u5B58",
+      detail: "\u65B0\u7684\u914D\u7F6E\u5DF2\u751F\u6548\uFF0C\u540E\u7EED\u8BF7\u6C42\u5C06\u4F7F\u7528\u5F53\u524D\u8BBE\u7F6E\u3002"
+    },
+    saveError: {
+      tone: "error",
+      title: "\u4FDD\u5B58\u5931\u8D25",
+      detail: "\u672A\u80FD\u4FDD\u5B58\u5F53\u524D\u914D\u7F6E\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002"
+    },
+    loggingIn: {
+      tone: "testing",
+      action: "login",
+      title: "\u6B63\u5728\u767B\u5F55 EchoAgent",
+      detail: "\u6B63\u5728\u9A8C\u8BC1\u5F53\u524D\u8D26\u53F7\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u5019\u3002"
+    },
+    loginSuccess: {
+      tone: "success",
+      title: "EchoAgent \u767B\u5F55\u6210\u529F",
+      detail: "\u5F53\u524D\u4F1A\u8BDD\u8EAB\u4EFD\u8BA4\u8BC1\u5DF2\u66F4\u65B0\u3002"
+    },
+    loginError: {
+      tone: "error",
+      title: "EchoAgent \u767B\u5F55\u5931\u8D25",
+      detail: "\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u3001\u7528\u6237\u540D\u548C\u5BC6\u7801\u540E\u91CD\u8BD5\u3002"
+    },
+    loginDirty: {
+      tone: "dirty",
+      title: "\u767B\u5F55\u4FE1\u606F\u5DF2\u4FEE\u6539",
+      detail: "\u8BF7\u91CD\u65B0\u767B\u5F55\uFF0C\u4EE5\u4F7F\u7528\u66F4\u65B0\u540E\u7684 EchoAgent \u914D\u7F6E\u3002"
     }
   };
   function hasErrorStatus(error, statuses) {
@@ -9198,9 +9240,16 @@ ${MEM_TAG_CLOSE2}`;
     const message = String((error == null ? void 0 : error.message) || "");
     return statuses.some((candidate) => message.includes(`HTTP ${candidate}`));
   }
-  function getConnectionTestErrorFeedback(error) {
+  function isTimeoutError(error) {
+    const message = String((error == null ? void 0 : error.message) || "").toLowerCase();
+    return (error == null ? void 0 : error.name) === "AbortError" || message.includes("aborted") || message.includes("timeout");
+  }
+  function isNetworkError(error) {
     const message = String((error == null ? void 0 : error.message) || "");
-    if ((error == null ? void 0 : error.name) === "AbortError" || message.includes("aborted")) {
+    return message.includes("Failed to fetch") || message.includes("Could not establish connection");
+  }
+  function getConnectionTestErrorFeedback(error) {
+    if (isTimeoutError(error)) {
       return {
         title: "\u8FDE\u63A5\u8D85\u65F6",
         detail: "\u670D\u52A1\u672A\u5728\u9884\u671F\u65F6\u95F4\u5185\u54CD\u5E94\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8FD0\u884C\u72B6\u6001\u3002"
@@ -9212,52 +9261,92 @@ ${MEM_TAG_CLOSE2}`;
         detail: "\u8BF7\u68C0\u67E5\u8BA4\u8BC1\u5BC6\u94A5\u662F\u5426\u6B63\u786E\uFF0C\u5E76\u786E\u8BA4\u5F53\u524D\u5BC6\u94A5\u4ECD\u7136\u6709\u6548\u3002"
       };
     }
-    if (message.includes("Failed to fetch") || message.includes("Could not establish connection")) {
+    if (isNetworkError(error)) {
       return {
         title: "\u65E0\u6CD5\u8FDE\u63A5\u5230\u670D\u52A1",
         detail: "\u8BF7\u68C0\u67E5\u670D\u52A1\u662F\u5426\u5DF2\u542F\u52A8\uFF0C\u4EE5\u53CA\u5F53\u524D\u7F51\u7EDC\u80FD\u5426\u8BBF\u95EE\u8BE5\u5730\u5740\u3002"
       };
     }
-    return CONNECTION_TEST_FEEDBACK.error;
+    return CONFIG_ACTION_FEEDBACK.connectionError;
   }
-  function updateConnectionTestFeedback(elements, state2, feedback = null) {
+  function getConfigSaveErrorFeedback(error) {
+    if ((error == null ? void 0 : error.name) === "QuotaExceededError") {
+      return {
+        title: "\u6D4F\u89C8\u5668\u5B58\u50A8\u7A7A\u95F4\u4E0D\u8DB3",
+        detail: "\u65E0\u6CD5\u4FDD\u5B58\u5F53\u524D\u914D\u7F6E\uFF0C\u8BF7\u6E05\u7406\u6269\u5C55\u5B58\u50A8\u7A7A\u95F4\u540E\u91CD\u8BD5\u3002"
+      };
+    }
+    return CONFIG_ACTION_FEEDBACK.saveError;
+  }
+  function getEchoAgentLoginErrorFeedback(error) {
+    if (isTimeoutError(error)) {
+      return {
+        title: "EchoAgent \u767B\u5F55\u8D85\u65F6",
+        detail: "\u670D\u52A1\u672A\u5728\u9884\u671F\u65F6\u95F4\u5185\u54CD\u5E94\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u5730\u5740\u548C\u8FD0\u884C\u72B6\u6001\u3002"
+      };
+    }
+    if (hasErrorStatus(error, [401, 403])) {
+      return {
+        title: "EchoAgent \u8BA4\u8BC1\u5931\u8D25",
+        detail: "\u8BF7\u68C0\u67E5\u7528\u6237\u540D\u548C\u5BC6\u7801\u662F\u5426\u6B63\u786E\uFF0C\u7136\u540E\u91CD\u65B0\u767B\u5F55\u3002"
+      };
+    }
+    if (isNetworkError(error)) {
+      return {
+        title: "\u65E0\u6CD5\u8FDE\u63A5\u5230 EchoAgent",
+        detail: "\u8BF7\u68C0\u67E5 EchoAgent \u662F\u5426\u5DF2\u542F\u52A8\uFF0C\u4EE5\u53CA\u5F53\u524D\u7F51\u7EDC\u80FD\u5426\u8BBF\u95EE\u8BE5\u5730\u5740\u3002"
+      };
+    }
+    return CONFIG_ACTION_FEEDBACK.loginError;
+  }
+  function resetAction(action, statusId, shouldDescribeStatus) {
+    const { button, labelElement, idleLabel } = action || {};
+    if (!button || !labelElement) return;
+    button.disabled = false;
+    button.classList.remove("is-loading");
+    button.removeAttribute("aria-busy");
+    labelElement.textContent = idleLabel;
+    if (shouldDescribeStatus) {
+      button.setAttribute("aria-describedby", statusId);
+    } else {
+      button.removeAttribute("aria-describedby");
+    }
+  }
+  function updateConfigActionFeedback(elements, state2, feedback = null) {
     const {
       statusElement,
       titleElement,
       detailElement,
-      testButton,
-      testButtonLabel
+      actions = {}
     } = elements || {};
-    if (!statusElement || !titleElement || !detailElement || !testButton || !testButtonLabel) {
-      return;
-    }
+    if (!statusElement || !titleElement || !detailElement) return;
+    const actionEntries = Object.entries(actions);
     if (state2 === "idle") {
       statusElement.hidden = true;
       statusElement.dataset.state = "idle";
       statusElement.setAttribute("aria-live", "polite");
-      testButton.disabled = false;
-      testButton.removeAttribute("aria-busy");
-      testButton.removeAttribute("aria-describedby");
-      testButton.classList.remove("is-loading");
-      testButtonLabel.textContent = "\u6D4B\u8BD5\u8FDE\u63A5";
+      actionEntries.forEach(([, action]) => resetAction(action, statusElement.id, false));
       return;
     }
-    const content = feedback || CONNECTION_TEST_FEEDBACK[state2] || CONNECTION_TEST_FEEDBACK.error;
-    const isTesting = state2 === "testing";
+    const preset = CONFIG_ACTION_FEEDBACK[state2] || CONFIG_ACTION_FEEDBACK.connectionError;
+    const content = { ...preset, ...feedback || {} };
+    const activeAction = content.action || null;
     statusElement.hidden = false;
-    statusElement.dataset.state = state2;
-    statusElement.setAttribute("aria-live", state2 === "error" ? "assertive" : "polite");
+    statusElement.dataset.state = content.tone;
+    statusElement.setAttribute("aria-live", content.tone === "error" ? "assertive" : "polite");
     titleElement.textContent = content.title;
     detailElement.textContent = content.detail;
-    testButton.disabled = isTesting;
-    testButton.classList.toggle("is-loading", isTesting);
-    testButton.setAttribute("aria-describedby", statusElement.id);
-    testButtonLabel.textContent = isTesting ? "\u6B63\u5728\u8FDE\u63A5\u2026" : "\u6D4B\u8BD5\u8FDE\u63A5";
-    if (isTesting) {
-      testButton.setAttribute("aria-busy", "true");
-    } else {
-      testButton.removeAttribute("aria-busy");
-    }
+    actionEntries.forEach(([actionName, action]) => {
+      resetAction(action, statusElement.id, true);
+      const isActive = actionName === activeAction;
+      const { button, labelElement, busyLabel, spinIcon = false } = action || {};
+      if (!button || !labelElement) return;
+      button.disabled = Boolean(activeAction);
+      if (!isActive) return;
+      button.setAttribute("aria-busy", "true");
+      button.classList.toggle("is-loading", spinIcon);
+      labelElement.textContent = busyLabel;
+    });
   }
 
   // src/panels/echomem/config.js
@@ -9265,6 +9354,22 @@ ${MEM_TAG_CLOSE2}`;
     var _a;
     const platform = getCurrentPlatform();
     return ((_a = platform == null ? void 0 : platform.config) == null ? void 0 : _a.id) === "higo" || (platform == null ? void 0 : platform.key) === "higo";
+  }
+  function getConfigStatusMarkup(idPrefix) {
+    return `
+    <div id="${idPrefix}-status" class="config-status" data-state="idle" role="status" aria-live="polite" aria-atomic="true" hidden>
+      <span class="config-status-icon" aria-hidden="true">
+        <svg class="config-status-symbol config-status-symbol-testing" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"/></svg>
+        <svg class="config-status-symbol config-status-symbol-success" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+        <svg class="config-status-symbol config-status-symbol-error" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+        <svg class="config-status-symbol config-status-symbol-dirty" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v4M12 17h.01"/></svg>
+      </span>
+      <span class="config-status-copy">
+        <strong id="${idPrefix}-status-title" class="config-status-title"></strong>
+        <span id="${idPrefix}-status-detail" class="config-status-detail"></span>
+      </span>
+    </div>
+  `;
   }
   function getEchoMemConfigContent() {
     const showOpenView = isHigoPlatform2();
@@ -9298,8 +9403,10 @@ ${MEM_TAG_CLOSE2}`;
 
         <button id="cfg-openview-login-btn" class="config-button config-button-secondary" style="width: 100%;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          \u767B\u5F55 EchoAgent
+          <span id="cfg-openview-login-btn-label">\u767B\u5F55 EchoAgent</span>
         </button>
+
+        ${getConfigStatusMarkup("cfg-openview")}
       </div>
   ` : "";
     return `
@@ -9576,22 +9683,11 @@ ${MEM_TAG_CLOSE2}`;
           </button>
           <button id="cfg-save-btn" class="config-button config-button-primary" style="flex: 1;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
-            \u4FDD\u5B58\u914D\u7F6E
+            <span id="cfg-save-btn-label">\u4FDD\u5B58\u914D\u7F6E</span>
           </button>
         </div>
 
-        <div id="cfg-test-status" class="config-status" data-state="idle" role="status" aria-live="polite" aria-atomic="true" hidden>
-          <span class="config-status-icon" aria-hidden="true">
-            <svg class="config-status-symbol config-status-symbol-testing" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"/></svg>
-            <svg class="config-status-symbol config-status-symbol-success" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
-            <svg class="config-status-symbol config-status-symbol-error" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
-            <svg class="config-status-symbol config-status-symbol-dirty" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v4M12 17h.01"/></svg>
-          </span>
-          <span class="config-status-copy">
-            <strong id="cfg-test-status-title" class="config-status-title"></strong>
-            <span id="cfg-test-status-detail" class="config-status-detail"></span>
-          </span>
-        </div>
+        ${getConfigStatusMarkup("cfg-engine")}
       </div>
 
       ${openViewSection}
@@ -9605,14 +9701,19 @@ ${MEM_TAG_CLOSE2}`;
     const agentIdInput = bodyElement.querySelector("#cfg-agent-id");
     const testBtn = bodyElement.querySelector("#cfg-test-btn");
     const testBtnLabel = bodyElement.querySelector("#cfg-test-btn-label");
-    const testStatus = bodyElement.querySelector("#cfg-test-status");
-    const testStatusTitle = bodyElement.querySelector("#cfg-test-status-title");
-    const testStatusDetail = bodyElement.querySelector("#cfg-test-status-detail");
+    const engineStatus = bodyElement.querySelector("#cfg-engine-status");
+    const engineStatusTitle = bodyElement.querySelector("#cfg-engine-status-title");
+    const engineStatusDetail = bodyElement.querySelector("#cfg-engine-status-detail");
     const saveBtn = bodyElement.querySelector("#cfg-save-btn");
+    const saveBtnLabel = bodyElement.querySelector("#cfg-save-btn-label");
     const openviewUrlInput = bodyElement.querySelector("#cfg-openview-url");
     const openviewUsernameInput = bodyElement.querySelector("#cfg-openview-username");
     const openviewPasswordInput = bodyElement.querySelector("#cfg-openview-password");
     const openviewLoginBtn = bodyElement.querySelector("#cfg-openview-login-btn");
+    const openviewLoginBtnLabel = bodyElement.querySelector("#cfg-openview-login-btn-label");
+    const openviewStatus = bodyElement.querySelector("#cfg-openview-status");
+    const openviewStatusTitle = bodyElement.querySelector("#cfg-openview-status-title");
+    const openviewStatusDetail = bodyElement.querySelector("#cfg-openview-status-detail");
     function normalizeBaseUrl2(url) {
       const trimmed = (url || "").trim();
       if (!trimmed) return DEFAULT_ECHOMEM_BASE_URL;
@@ -9624,22 +9725,61 @@ ${MEM_TAG_CLOSE2}`;
       return trimmed.replace(/\/$/, "");
     }
     const showOpenView = isHigoPlatform2();
-    let hasTestedConnection = false;
-    let connectionTestRevision = 0;
-    const connectionFeedbackElements = {
-      statusElement: testStatus,
-      titleElement: testStatusTitle,
-      detailElement: testStatusDetail,
-      testButton: testBtn,
-      testButtonLabel: testBtnLabel
+    let hasEngineFeedback = false;
+    let engineActionRevision = 0;
+    let hasOpenViewFeedback = false;
+    let openViewActionRevision = 0;
+    const engineActions = {
+      test: {
+        button: testBtn,
+        labelElement: testBtnLabel,
+        idleLabel: "\u6D4B\u8BD5\u8FDE\u63A5",
+        busyLabel: "\u6B63\u5728\u8FDE\u63A5\u2026",
+        spinIcon: true
+      },
+      save: {
+        button: saveBtn,
+        labelElement: saveBtnLabel,
+        idleLabel: "\u4FDD\u5B58\u914D\u7F6E",
+        busyLabel: "\u6B63\u5728\u4FDD\u5B58\u2026"
+      }
     };
-    function setConnectionTestState(state2, feedback = null) {
-      updateConnectionTestFeedback(connectionFeedbackElements, state2, feedback);
+    const engineFeedbackElements = {
+      statusElement: engineStatus,
+      titleElement: engineStatusTitle,
+      detailElement: engineStatusDetail,
+      actions: engineActions
+    };
+    const openViewActions = {
+      login: {
+        button: openviewLoginBtn,
+        labelElement: openviewLoginBtnLabel,
+        idleLabel: "\u767B\u5F55 EchoAgent",
+        busyLabel: "\u6B63\u5728\u767B\u5F55\u2026"
+      }
+    };
+    const openViewFeedbackElements = {
+      statusElement: openviewStatus,
+      titleElement: openviewStatusTitle,
+      detailElement: openviewStatusDetail,
+      actions: openViewActions
+    };
+    function setEngineState(state2, feedback = null) {
+      if (state2 !== "idle") hasEngineFeedback = true;
+      updateConfigActionFeedback(engineFeedbackElements, state2, feedback);
     }
-    function invalidateConnectionTest() {
-      if (!hasTestedConnection) return;
-      connectionTestRevision += 1;
-      setConnectionTestState("dirty");
+    function invalidateEngineFeedback() {
+      engineActionRevision += 1;
+      if (hasEngineFeedback) setEngineState("dirty");
+    }
+    function setOpenViewState(state2, feedback = null) {
+      if (state2 !== "idle") hasOpenViewFeedback = true;
+      updateConfigActionFeedback(openViewFeedbackElements, state2, feedback);
+    }
+    function invalidateOpenViewFeedback() {
+      openViewActionRevision += 1;
+      openViewActions.login.idleLabel = "\u767B\u5F55 EchoAgent";
+      if (hasOpenViewFeedback) setOpenViewState("loginDirty");
     }
     try {
       const cfg = await getEchoMemConfig();
@@ -9652,23 +9792,27 @@ ${MEM_TAG_CLOSE2}`;
         if (openviewUsernameInput) openviewUsernameInput.value = openviewCfg.username || "";
         if (openviewPasswordInput) openviewPasswordInput.value = openviewCfg.password || "";
         const openviewAuth = await getOpenViewAuth();
-        if ((openviewAuth == null ? void 0 : openviewAuth.user) && (openviewAuth == null ? void 0 : openviewAuth.csrfToken) && openviewLoginBtn) {
-          openviewLoginBtn.textContent = "\u2705 \u5DF2\u767B\u5F55 EchoAgent";
+        if ((openviewAuth == null ? void 0 : openviewAuth.user) && (openviewAuth == null ? void 0 : openviewAuth.csrfToken) && openviewLoginBtnLabel) {
+          hasOpenViewFeedback = true;
+          openViewActions.login.idleLabel = "\u5DF2\u767B\u5F55 EchoAgent";
+          openviewLoginBtnLabel.textContent = openViewActions.login.idleLabel;
         }
       }
     } catch (err) {
       console.warn("EchoMem: failed to load config", err);
     }
     [baseUrlInput, authKeyInput, agentIdInput].forEach((input) => {
-      input == null ? void 0 : input.addEventListener("input", invalidateConnectionTest);
+      input == null ? void 0 : input.addEventListener("input", invalidateEngineFeedback);
+    });
+    [openviewUrlInput, openviewUsernameInput, openviewPasswordInput].forEach((input) => {
+      input == null ? void 0 : input.addEventListener("input", invalidateOpenViewFeedback);
     });
     if (testBtn) {
       testBtn.addEventListener("click", async () => {
         var _a, _b;
-        hasTestedConnection = true;
-        const revision = ++connectionTestRevision;
-        setConnectionTestState("testing");
-        const canApplyResult = () => revision === connectionTestRevision && bodyElement.isConnected !== false;
+        const revision = ++engineActionRevision;
+        setEngineState("testing");
+        const canApplyResult = () => revision === engineActionRevision && bodyElement.isConnected !== false;
         try {
           const config = {
             baseUrl: normalizeBaseUrl2(baseUrlInput == null ? void 0 : baseUrlInput.value),
@@ -9679,22 +9823,25 @@ ${MEM_TAG_CLOSE2}`;
           const ok = await client2.healthCheck();
           if (!canApplyResult()) return;
           if (ok) {
-            setConnectionTestState("success");
+            setEngineState("connectionSuccess");
           } else {
-            setConnectionTestState("error", {
+            setEngineState("connectionError", {
               title: "\u8FDE\u63A5\u5931\u8D25",
               detail: "\u670D\u52A1\u8FD4\u56DE\u4E86\u5F02\u5E38\u72B6\u6001\uFF0C\u8BF7\u68C0\u67E5\u670D\u52A1\u8FD0\u884C\u72B6\u6001\u540E\u91CD\u8BD5\u3002"
             });
           }
         } catch (err) {
           if (!canApplyResult()) return;
-          setConnectionTestState("error", getConnectionTestErrorFeedback(err));
+          setEngineState("connectionError", getConnectionTestErrorFeedback(err));
         }
       });
     }
     if (saveBtn) {
       saveBtn.addEventListener("click", async () => {
         var _a, _b, _c;
+        const revision = ++engineActionRevision;
+        setEngineState("saving");
+        const canApplyResult = () => revision === engineActionRevision && bodyElement.isConnected !== false;
         const config = {
           baseUrl: normalizeBaseUrl2(baseUrlInput == null ? void 0 : baseUrlInput.value),
           authKey: ((_a = authKeyInput == null ? void 0 : authKeyInput.value) == null ? void 0 : _a.trim()) || "",
@@ -9711,16 +9858,21 @@ ${MEM_TAG_CLOSE2}`;
             };
             await setOpenViewConfig(openviewConfig);
           }
-          showFloatingToast("\u914D\u7F6E\u5DF2\u4FDD\u5B58", "success");
+          if (!canApplyResult()) return;
+          setEngineState("saved");
         } catch (err) {
-          showFloatingToast(`\u4FDD\u5B58\u5931\u8D25: ${err.message}`, "error");
+          if (!canApplyResult()) return;
+          setEngineState("saveError", getConfigSaveErrorFeedback(err));
         }
       });
     }
     if (showOpenView && openviewLoginBtn) {
       openviewLoginBtn.addEventListener("click", async () => {
-        var _a, _b;
-        showFloatingToast("\u6B63\u5728\u767B\u5F55 EchoAgent...", "info", 0);
+        var _a, _b, _c;
+        const revision = ++openViewActionRevision;
+        openViewActions.login.idleLabel = "\u767B\u5F55 EchoAgent";
+        setOpenViewState("loggingIn");
+        const canApplyResult = () => revision === openViewActionRevision && bodyElement.isConnected !== false;
         try {
           const openviewConfig = {
             baseUrl: normalizeOpenViewUrl(openviewUrlInput == null ? void 0 : openviewUrlInput.value),
@@ -9733,11 +9885,17 @@ ${MEM_TAG_CLOSE2}`;
             username: openviewConfig.username,
             password: openviewConfig.password
           });
-          openviewLoginBtn.textContent = "\u2705 \u5DF2\u767B\u5F55 EchoAgent";
-          showFloatingToast(`EchoAgent \u767B\u5F55\u6210\u529F: ${((_b = auth.user) == null ? void 0 : _b.username) || ""}`, "success");
+          if (!canApplyResult()) return;
+          openViewActions.login.idleLabel = "\u5DF2\u767B\u5F55 EchoAgent";
+          const username = (_c = (_b = auth.user) == null ? void 0 : _b.username) == null ? void 0 : _c.trim();
+          setOpenViewState("loginSuccess", username ? {
+            title: "EchoAgent \u767B\u5F55\u6210\u529F",
+            detail: `\u5DF2\u4F7F\u7528\u8D26\u53F7 ${username} \u5B8C\u6210\u8EAB\u4EFD\u8BA4\u8BC1\u3002`
+          } : null);
         } catch (err) {
-          openviewLoginBtn.textContent = "\u{1F511} \u767B\u5F55 EchoAgent";
-          showFloatingToast(`EchoAgent \u767B\u5F55\u5931\u8D25: ${err.message}`, "error");
+          if (!canApplyResult()) return;
+          openViewActions.login.idleLabel = "\u767B\u5F55 EchoAgent";
+          setOpenViewState("loginError", getEchoAgentLoginErrorFeedback(err));
         }
       });
     }

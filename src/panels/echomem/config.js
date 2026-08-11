@@ -7,7 +7,6 @@ import {
   getOpenViewConfig,
   setOpenViewConfig,
 } from '../../services/config.js';
-import { showFloatingToast } from '../../services/toast.js';
 import { createClient } from '../../services/echomem-client.js';
 import { login, getOpenViewAuth } from '../../services/openview-client.js';
 import { resetClient } from '../../core/input-tracker.js';
@@ -17,13 +16,32 @@ import {
   DEPLOYMENT_PROFILE_LABEL,
 } from '../../config/deployment.js';
 import {
+  getConfigSaveErrorFeedback,
   getConnectionTestErrorFeedback,
-  updateConnectionTestFeedback,
+  getEchoAgentLoginErrorFeedback,
+  updateConfigActionFeedback,
 } from './config-feedback.js';
 
 function isHigoPlatform() {
   const platform = getCurrentPlatform();
   return platform?.config?.id === 'higo' || platform?.key === 'higo';
+}
+
+function getConfigStatusMarkup(idPrefix) {
+  return `
+    <div id="${idPrefix}-status" class="config-status" data-state="idle" role="status" aria-live="polite" aria-atomic="true" hidden>
+      <span class="config-status-icon" aria-hidden="true">
+        <svg class="config-status-symbol config-status-symbol-testing" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"/></svg>
+        <svg class="config-status-symbol config-status-symbol-success" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+        <svg class="config-status-symbol config-status-symbol-error" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+        <svg class="config-status-symbol config-status-symbol-dirty" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v4M12 17h.01"/></svg>
+      </span>
+      <span class="config-status-copy">
+        <strong id="${idPrefix}-status-title" class="config-status-title"></strong>
+        <span id="${idPrefix}-status-detail" class="config-status-detail"></span>
+      </span>
+    </div>
+  `;
 }
 
 export function getEchoMemConfigContent() {
@@ -60,8 +78,10 @@ export function getEchoMemConfigContent() {
 
         <button id="cfg-openview-login-btn" class="config-button config-button-secondary" style="width: 100%;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          登录 EchoAgent
+          <span id="cfg-openview-login-btn-label">登录 EchoAgent</span>
         </button>
+
+        ${getConfigStatusMarkup('cfg-openview')}
       </div>
   ` : '';
 
@@ -339,22 +359,11 @@ export function getEchoMemConfigContent() {
           </button>
           <button id="cfg-save-btn" class="config-button config-button-primary" style="flex: 1;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
-            保存配置
+            <span id="cfg-save-btn-label">保存配置</span>
           </button>
         </div>
 
-        <div id="cfg-test-status" class="config-status" data-state="idle" role="status" aria-live="polite" aria-atomic="true" hidden>
-          <span class="config-status-icon" aria-hidden="true">
-            <svg class="config-status-symbol config-status-symbol-testing" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"/></svg>
-            <svg class="config-status-symbol config-status-symbol-success" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
-            <svg class="config-status-symbol config-status-symbol-error" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
-            <svg class="config-status-symbol config-status-symbol-dirty" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v4M12 17h.01"/></svg>
-          </span>
-          <span class="config-status-copy">
-            <strong id="cfg-test-status-title" class="config-status-title"></strong>
-            <span id="cfg-test-status-detail" class="config-status-detail"></span>
-          </span>
-        </div>
+        ${getConfigStatusMarkup('cfg-engine')}
       </div>
 
       ${openViewSection}
@@ -370,14 +379,19 @@ export async function initConfigPanel(bodyElement) {
   const agentIdInput = bodyElement.querySelector('#cfg-agent-id');
   const testBtn = bodyElement.querySelector('#cfg-test-btn');
   const testBtnLabel = bodyElement.querySelector('#cfg-test-btn-label');
-  const testStatus = bodyElement.querySelector('#cfg-test-status');
-  const testStatusTitle = bodyElement.querySelector('#cfg-test-status-title');
-  const testStatusDetail = bodyElement.querySelector('#cfg-test-status-detail');
+  const engineStatus = bodyElement.querySelector('#cfg-engine-status');
+  const engineStatusTitle = bodyElement.querySelector('#cfg-engine-status-title');
+  const engineStatusDetail = bodyElement.querySelector('#cfg-engine-status-detail');
   const saveBtn = bodyElement.querySelector('#cfg-save-btn');
+  const saveBtnLabel = bodyElement.querySelector('#cfg-save-btn-label');
   const openviewUrlInput = bodyElement.querySelector('#cfg-openview-url');
   const openviewUsernameInput = bodyElement.querySelector('#cfg-openview-username');
   const openviewPasswordInput = bodyElement.querySelector('#cfg-openview-password');
   const openviewLoginBtn = bodyElement.querySelector('#cfg-openview-login-btn');
+  const openviewLoginBtnLabel = bodyElement.querySelector('#cfg-openview-login-btn-label');
+  const openviewStatus = bodyElement.querySelector('#cfg-openview-status');
+  const openviewStatusTitle = bodyElement.querySelector('#cfg-openview-status-title');
+  const openviewStatusDetail = bodyElement.querySelector('#cfg-openview-status-detail');
 
   function normalizeBaseUrl(url) {
     const trimmed = (url || '').trim();
@@ -392,25 +406,66 @@ export async function initConfigPanel(bodyElement) {
   }
 
   const showOpenView = isHigoPlatform();
-  let hasTestedConnection = false;
-  let connectionTestRevision = 0;
+  let hasEngineFeedback = false;
+  let engineActionRevision = 0;
+  let hasOpenViewFeedback = false;
+  let openViewActionRevision = 0;
 
-  const connectionFeedbackElements = {
-    statusElement: testStatus,
-    titleElement: testStatusTitle,
-    detailElement: testStatusDetail,
-    testButton: testBtn,
-    testButtonLabel: testBtnLabel,
+  const engineActions = {
+    test: {
+      button: testBtn,
+      labelElement: testBtnLabel,
+      idleLabel: '测试连接',
+      busyLabel: '正在连接…',
+      spinIcon: true,
+    },
+    save: {
+      button: saveBtn,
+      labelElement: saveBtnLabel,
+      idleLabel: '保存配置',
+      busyLabel: '正在保存…',
+    },
+  };
+  const engineFeedbackElements = {
+    statusElement: engineStatus,
+    titleElement: engineStatusTitle,
+    detailElement: engineStatusDetail,
+    actions: engineActions,
+  };
+  const openViewActions = {
+    login: {
+      button: openviewLoginBtn,
+      labelElement: openviewLoginBtnLabel,
+      idleLabel: '登录 EchoAgent',
+      busyLabel: '正在登录…',
+    },
+  };
+  const openViewFeedbackElements = {
+    statusElement: openviewStatus,
+    titleElement: openviewStatusTitle,
+    detailElement: openviewStatusDetail,
+    actions: openViewActions,
   };
 
-  function setConnectionTestState(state, feedback = null) {
-    updateConnectionTestFeedback(connectionFeedbackElements, state, feedback);
+  function setEngineState(state, feedback = null) {
+    if (state !== 'idle') hasEngineFeedback = true;
+    updateConfigActionFeedback(engineFeedbackElements, state, feedback);
   }
 
-  function invalidateConnectionTest() {
-    if (!hasTestedConnection) return;
-    connectionTestRevision += 1;
-    setConnectionTestState('dirty');
+  function invalidateEngineFeedback() {
+    engineActionRevision += 1;
+    if (hasEngineFeedback) setEngineState('dirty');
+  }
+
+  function setOpenViewState(state, feedback = null) {
+    if (state !== 'idle') hasOpenViewFeedback = true;
+    updateConfigActionFeedback(openViewFeedbackElements, state, feedback);
+  }
+
+  function invalidateOpenViewFeedback() {
+    openViewActionRevision += 1;
+    openViewActions.login.idleLabel = '登录 EchoAgent';
+    if (hasOpenViewFeedback) setOpenViewState('loginDirty');
   }
 
   // Load existing config
@@ -427,8 +482,10 @@ export async function initConfigPanel(bodyElement) {
       if (openviewPasswordInput) openviewPasswordInput.value = openviewCfg.password || '';
 
       const openviewAuth = await getOpenViewAuth();
-      if (openviewAuth?.user && openviewAuth?.csrfToken && openviewLoginBtn) {
-        openviewLoginBtn.textContent = '✅ 已登录 EchoAgent';
+      if (openviewAuth?.user && openviewAuth?.csrfToken && openviewLoginBtnLabel) {
+        hasOpenViewFeedback = true;
+        openViewActions.login.idleLabel = '已登录 EchoAgent';
+        openviewLoginBtnLabel.textContent = openViewActions.login.idleLabel;
       }
     }
   } catch (err) {
@@ -436,18 +493,20 @@ export async function initConfigPanel(bodyElement) {
   }
 
   [baseUrlInput, authKeyInput, agentIdInput].forEach((input) => {
-    input?.addEventListener('input', invalidateConnectionTest);
+    input?.addEventListener('input', invalidateEngineFeedback);
+  });
+  [openviewUrlInput, openviewUsernameInput, openviewPasswordInput].forEach((input) => {
+    input?.addEventListener('input', invalidateOpenViewFeedback);
   });
 
   // Test connection
   if (testBtn) {
     testBtn.addEventListener('click', async () => {
-      hasTestedConnection = true;
-      const revision = ++connectionTestRevision;
-      setConnectionTestState('testing');
+      const revision = ++engineActionRevision;
+      setEngineState('testing');
 
       const canApplyResult = () => (
-        revision === connectionTestRevision && bodyElement.isConnected !== false
+        revision === engineActionRevision && bodyElement.isConnected !== false
       );
 
       try {
@@ -461,16 +520,16 @@ export async function initConfigPanel(bodyElement) {
         if (!canApplyResult()) return;
 
         if (ok) {
-          setConnectionTestState('success');
+          setEngineState('connectionSuccess');
         } else {
-          setConnectionTestState('error', {
+          setEngineState('connectionError', {
             title: '连接失败',
             detail: '服务返回了异常状态，请检查服务运行状态后重试。',
           });
         }
       } catch (err) {
         if (!canApplyResult()) return;
-        setConnectionTestState('error', getConnectionTestErrorFeedback(err));
+        setEngineState('connectionError', getConnectionTestErrorFeedback(err));
       }
     });
   }
@@ -478,6 +537,12 @@ export async function initConfigPanel(bodyElement) {
   // Save config
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
+      const revision = ++engineActionRevision;
+      setEngineState('saving');
+
+      const canApplyResult = () => (
+        revision === engineActionRevision && bodyElement.isConnected !== false
+      );
       const config = {
         baseUrl: normalizeBaseUrl(baseUrlInput?.value),
         authKey: authKeyInput?.value?.trim() || '',
@@ -496,9 +561,11 @@ export async function initConfigPanel(bodyElement) {
           await setOpenViewConfig(openviewConfig);
         }
 
-        showFloatingToast('配置已保存', 'success');
+        if (!canApplyResult()) return;
+        setEngineState('saved');
       } catch (err) {
-        showFloatingToast(`保存失败: ${err.message}`, 'error');
+        if (!canApplyResult()) return;
+        setEngineState('saveError', getConfigSaveErrorFeedback(err));
       }
     });
   }
@@ -506,7 +573,13 @@ export async function initConfigPanel(bodyElement) {
   // Login OpenView
   if (showOpenView && openviewLoginBtn) {
     openviewLoginBtn.addEventListener('click', async () => {
-      showFloatingToast('正在登录 EchoAgent...', 'info', 0);
+      const revision = ++openViewActionRevision;
+      openViewActions.login.idleLabel = '登录 EchoAgent';
+      setOpenViewState('loggingIn');
+
+      const canApplyResult = () => (
+        revision === openViewActionRevision && bodyElement.isConnected !== false
+      );
       try {
         const openviewConfig = {
           baseUrl: normalizeOpenViewUrl(openviewUrlInput?.value),
@@ -521,11 +594,17 @@ export async function initConfigPanel(bodyElement) {
           password: openviewConfig.password,
         });
 
-        openviewLoginBtn.textContent = '✅ 已登录 EchoAgent';
-        showFloatingToast(`EchoAgent 登录成功: ${auth.user?.username || ''}`, 'success');
+        if (!canApplyResult()) return;
+        openViewActions.login.idleLabel = '已登录 EchoAgent';
+        const username = auth.user?.username?.trim();
+        setOpenViewState('loginSuccess', username ? {
+          title: 'EchoAgent 登录成功',
+          detail: `已使用账号 ${username} 完成身份认证。`,
+        } : null);
       } catch (err) {
-        openviewLoginBtn.textContent = '🔑 登录 EchoAgent';
-        showFloatingToast(`EchoAgent 登录失败: ${err.message}`, 'error');
+        if (!canApplyResult()) return;
+        openViewActions.login.idleLabel = '登录 EchoAgent';
+        setOpenViewState('loginError', getEchoAgentLoginErrorFeedback(err));
       }
     });
   }
