@@ -126,7 +126,6 @@ const SKILL_STORE_STYLES = `
     .claw-skill-intro-copy {
       position: relative;
       z-index: 1;
-      max-width: 270px;
       margin: 4px 0 0;
       color: var(--skill-text-muted);
       font-size: 12px;

@@ -265,11 +265,9 @@ export function getPerformanceContent() {
         font-size: 12px;
         line-height: 1.65;
       }
-      @media (max-width: 360px) {
-        #perf-root .perf-grid { grid-template-columns: 1fr; }
-        #perf-root .perf-hero-card { padding: 18px 14px 16px; }
-        #perf-root .perf-total-value { font-size: 28px; }
-      }
+      .claw-overlay-panel--narrow #perf-root .perf-grid { grid-template-columns: 1fr; }
+      .claw-overlay-panel--narrow #perf-root .perf-hero-card { padding: 18px 14px 16px; }
+      .claw-overlay-panel--narrow #perf-root .perf-total-value { font-size: 28px; }
       @media (prefers-reduced-motion: reduce) {
         #perf-root .perf-skeleton { animation: none; }
         #perf-root .perf-refresh { transition: none; }

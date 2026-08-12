@@ -185,13 +185,11 @@ export function getInputAssociationContent() {
         line-height: 1.6;
       }
       ${getConfigStatusStyles('.echomem-association')}
-      @media (max-width: 360px) {
-        .echomem-association .association-action,
-        .echomem-association .association-card,
-        .echomem-association .association-config { padding: 13px; }
-        .echomem-association .association-threshold-row { gap: 8px !important; }
-        .echomem-association .association-number { width: 62px; }
-      }
+      .claw-overlay-panel--narrow .echomem-association .association-action,
+      .claw-overlay-panel--narrow .echomem-association .association-card,
+      .claw-overlay-panel--narrow .echomem-association .association-config { padding: 13px; }
+      .claw-overlay-panel--narrow .echomem-association .association-threshold-row { gap: 8px !important; }
+      .claw-overlay-panel--narrow .echomem-association .association-number { width: 62px; }
       @media (prefers-reduced-motion: reduce) {
         .echomem-association button { transition: none !important; }
       }

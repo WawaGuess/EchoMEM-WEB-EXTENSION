@@ -225,11 +225,9 @@ export function getEchoMemConfigContent() {
         animation: config-status-spin 0.9s linear infinite;
       }
       ${getConfigStatusStyles('.echomem-config-root')}
-      @media (max-width: 360px) {
-        .echomem-config-root .config-card { padding: 14px; border-radius: 16px; }
-        .echomem-config-root .config-actions { flex-direction: column; }
-        .echomem-config-root .config-actions .config-button { width: 100%; flex: none !important; }
-      }
+      .claw-overlay-panel--narrow .echomem-config-root .config-card { padding: 14px; border-radius: 16px; }
+      .claw-overlay-panel--narrow .echomem-config-root .config-actions { flex-direction: column; }
+      .claw-overlay-panel--narrow .echomem-config-root .config-actions .config-button { width: 100%; flex: none !important; }
       @media (prefers-reduced-motion: reduce) {
         .echomem-config-root .config-input,
         .echomem-config-root .config-button { transition: none !important; }

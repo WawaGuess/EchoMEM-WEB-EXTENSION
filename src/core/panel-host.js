@@ -11,6 +11,7 @@ import {
   calculateSidePanelWidth,
   clampSidePanelWidth,
   getKeyboardSidePanelWidth,
+  getSidePanelResponsiveState,
   getSidePanelWidthForViewport,
   getSidePanelWidthBounds,
   shouldHandleSidePanelWindowResize,
@@ -206,10 +207,17 @@ function attachSideOverlayResize(overlay, position, configuredWidth) {
     handle.setAttribute('aria-valuenow', String(Math.round(width)));
   };
 
+  const updateResponsiveState = (width) => {
+    const { isCompact, isNarrow } = getSidePanelResponsiveState(width);
+    overlay.classList.toggle('claw-overlay-panel--compact', isCompact);
+    overlay.classList.toggle('claw-overlay-panel--narrow', isNarrow);
+  };
+
   const applyWidth = (width) => {
     const nextWidth = clampSidePanelWidth(width, window.innerWidth);
     overlay.style.width = `${Math.round(nextWidth)}px`;
     updateHandleValue(nextWidth);
+    updateResponsiveState(nextWidth);
     return nextWidth;
   };
 
@@ -308,7 +316,9 @@ function attachSideOverlayResize(overlay, position, configuredWidth) {
   handle.addEventListener('keydown', onKeyDown);
   handle.addEventListener('dblclick', onDoubleClick);
   window.addEventListener('resize', onWindowResize);
-  updateHandleValue(overlay.getBoundingClientRect().width);
+  const initialWidth = overlay.getBoundingClientRect().width;
+  updateHandleValue(initialWidth);
+  updateResponsiveState(initialWidth);
   overlay._resizeToCurrentViewport = resizeToCurrentViewport;
 
   overlay._resizeCleanup = () => {

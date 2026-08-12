@@ -258,14 +258,12 @@ export function getResourceImportContent() {
         color: #B3261E !important;
       }
       #claw-resource-import-root button:disabled { cursor: wait !important; opacity: 0.58; }
-      @media (max-width: 360px) {
-        #claw-resource-import-root .resource-import-card { padding: 13px; border-radius: 16px; }
-        #claw-resource-import-root .resource-remote-header { align-items: flex-start; flex-direction: column; }
-        #claw-resource-import-root #claw-remote-path { max-width: 100%; width: 100%; }
-        #claw-resource-import-root .resource-entry-date { display: none; }
-        #claw-resource-import-root .claw-remote-folder,
-        #claw-resource-import-root .claw-remote-file { padding: 9px !important; }
-      }
+      .claw-overlay-panel--narrow #claw-resource-import-root .resource-import-card { padding: 13px; border-radius: 16px; }
+      .claw-overlay-panel--narrow #claw-resource-import-root .resource-remote-header { align-items: flex-start; flex-direction: column; }
+      .claw-overlay-panel--narrow #claw-resource-import-root #claw-remote-path { max-width: 100%; width: 100%; }
+      .claw-overlay-panel--narrow #claw-resource-import-root .resource-entry-date { display: none; }
+      .claw-overlay-panel--narrow #claw-resource-import-root .claw-remote-folder,
+      .claw-overlay-panel--narrow #claw-resource-import-root .claw-remote-file { padding: 9px !important; }
       @media (prefers-reduced-motion: reduce) {
         #claw-resource-import-root .resource-loading-spinner { animation: none; }
         #claw-resource-import-root .claw-remote-folder,
