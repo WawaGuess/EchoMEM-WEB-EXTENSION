@@ -7480,7 +7480,7 @@ ${block}` : block;
   async function setOpenViewAuth(auth) {
     await chrome.storage.local.set({ [AUTH_STORAGE_KEY]: auth });
   }
-  async function login({ baseUrl, username, password }) {
+  async function login({ baseUrl, username, password }, { shouldPersistAuth = () => true } = {}) {
     const payload = await request(baseUrl, resolveLoginPath(baseUrl), {
       method: "POST",
       credentials: "include",
@@ -7495,7 +7495,9 @@ ${block}` : block;
       user: payload.user,
       loggedInAt: Date.now()
     };
-    await setOpenViewAuth(auth);
+    if (shouldPersistAuth()) {
+      await setOpenViewAuth(auth);
+    }
     return auth;
   }
 
@@ -9896,6 +9898,8 @@ ${MEM_TAG_CLOSE2}`;
             baseUrl: openviewConfig.baseUrl,
             username: openviewConfig.username,
             password: openviewConfig.password
+          }, {
+            shouldPersistAuth: canApplyResult
           });
           if (!canApplyResult()) return;
           openViewActions.login.idleLabel = "\u5DF2\u767B\u5F55 EchoAgent";

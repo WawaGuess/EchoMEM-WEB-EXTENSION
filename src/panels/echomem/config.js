@@ -508,6 +508,8 @@ export async function initConfigPanel(bodyElement) {
           baseUrl: openviewConfig.baseUrl,
           username: openviewConfig.username,
           password: openviewConfig.password,
+        }, {
+          shouldPersistAuth: canApplyResult,
         });
 
         if (!canApplyResult()) return;
