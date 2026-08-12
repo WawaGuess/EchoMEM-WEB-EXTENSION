@@ -2,9 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  getConfigSaveErrorFeedback,
+  getConfigStatusMarkup,
+  getConfigStatusStyles,
   getConnectionTestErrorFeedback,
-  updateConnectionTestFeedback,
-} from '../src/panels/echomem/config-feedback.js';
+  getEchoAgentLoginErrorFeedback,
+  updateConfigActionFeedback,
+} from '../src/panels/config-feedback.js';
 
 function createClassList() {
   const values = new Set();
@@ -34,44 +38,97 @@ function createElement(id = '') {
   };
 }
 
-function createFeedbackElements() {
+function createAction(name, options = {}) {
   return {
-    statusElement: createElement('cfg-test-status'),
-    titleElement: createElement(),
-    detailElement: createElement(),
-    testButton: createElement('cfg-test-btn'),
-    testButtonLabel: createElement('cfg-test-btn-label'),
+    button: createElement(`cfg-${name}-btn`),
+    labelElement: createElement(`cfg-${name}-btn-label`),
+    idleLabel: options.idleLabel || name,
+    busyLabel: options.busyLabel || `${name}中`,
+    spinIcon: options.spinIcon || false,
   };
 }
 
-test('testing state stays inside the panel and disables repeated tests', () => {
+function createFeedbackElements(actionNames = ['test', 'save']) {
+  const actions = {};
+  actionNames.forEach((name) => {
+    actions[name] = createAction(name, {
+      idleLabel: name === 'test' ? '测试连接' : name === 'save' ? '保存配置' : '登录 EchoAgent',
+      busyLabel: name === 'test' ? '正在连接…' : name === 'save' ? '正在保存…' : '正在登录…',
+      spinIcon: name === 'test',
+    });
+  });
+
+  return {
+    statusElement: createElement('cfg-status'),
+    titleElement: createElement(),
+    detailElement: createElement(),
+    actions,
+  };
+}
+
+test('shared status markup and styles can be scoped to different panels', () => {
+  const markup = getConfigStatusMarkup('association-save');
+  const styles = getConfigStatusStyles('.echomem-association');
+
+  assert.match(markup, /id="association-save-status"/);
+  assert.match(markup, /role="status"/);
+  assert.match(markup, /aria-live="polite"/);
+  assert.match(styles, /\.echomem-association \.config-status/);
+  assert.match(styles, /prefers-reduced-motion/);
+});
+
+test('connection testing stays inside the card and prevents conflicting actions', () => {
   const elements = createFeedbackElements();
 
-  updateConnectionTestFeedback(elements, 'testing');
+  updateConfigActionFeedback(elements, 'testing');
 
   assert.equal(elements.statusElement.hidden, false);
   assert.equal(elements.statusElement.dataset.state, 'testing');
   assert.equal(elements.titleElement.textContent, '正在测试连接');
-  assert.equal(elements.testButton.disabled, true);
-  assert.equal(elements.testButton.getAttribute('aria-busy'), 'true');
-  assert.equal(elements.testButton.getAttribute('aria-describedby'), 'cfg-test-status');
-  assert.equal(elements.testButtonLabel.textContent, '正在连接…');
-  assert.equal(elements.testButton.classList.contains('is-loading'), true);
+  assert.equal(elements.actions.test.button.disabled, true);
+  assert.equal(elements.actions.save.button.disabled, true);
+  assert.equal(elements.actions.test.button.getAttribute('aria-busy'), 'true');
+  assert.equal(elements.actions.test.button.getAttribute('aria-describedby'), 'cfg-status');
+  assert.equal(elements.actions.test.labelElement.textContent, '正在连接…');
+  assert.equal(elements.actions.test.button.classList.contains('is-loading'), true);
 });
 
-test('success and dirty states keep actionable feedback visible', () => {
+test('save feedback reuses the card status and restores both action buttons', () => {
   const elements = createFeedbackElements();
 
-  updateConnectionTestFeedback(elements, 'success');
-  assert.equal(elements.statusElement.dataset.state, 'success');
-  assert.equal(elements.titleElement.textContent, '连接成功');
-  assert.equal(elements.testButton.disabled, false);
+  updateConfigActionFeedback(elements, 'saving');
+  assert.equal(elements.titleElement.textContent, '正在保存配置');
+  assert.equal(elements.actions.save.labelElement.textContent, '正在保存…');
+  assert.equal(elements.actions.save.button.getAttribute('aria-busy'), 'true');
+  assert.equal(elements.actions.test.button.disabled, true);
 
-  updateConnectionTestFeedback(elements, 'dirty');
-  assert.equal(elements.statusElement.hidden, false);
+  updateConfigActionFeedback(elements, 'saved');
+  assert.equal(elements.statusElement.dataset.state, 'success');
+  assert.equal(elements.titleElement.textContent, '配置已保存');
+  assert.equal(elements.actions.test.button.disabled, false);
+  assert.equal(elements.actions.save.button.disabled, false);
+  assert.equal(elements.actions.save.labelElement.textContent, '保存配置');
+});
+
+test('EchoAgent login has an independent inline loading and result state', () => {
+  const elements = createFeedbackElements(['login']);
+
+  updateConfigActionFeedback(elements, 'loggingIn');
+  assert.equal(elements.statusElement.dataset.state, 'testing');
+  assert.equal(elements.titleElement.textContent, '正在登录 EchoAgent');
+  assert.equal(elements.actions.login.labelElement.textContent, '正在登录…');
+  assert.equal(elements.actions.login.button.getAttribute('aria-busy'), 'true');
+
+  elements.actions.login.idleLabel = '已登录 EchoAgent';
+  updateConfigActionFeedback(elements, 'loginSuccess');
+  assert.equal(elements.statusElement.dataset.state, 'success');
+  assert.equal(elements.titleElement.textContent, 'EchoAgent 登录成功');
+  assert.equal(elements.actions.login.labelElement.textContent, '已登录 EchoAgent');
+
+  elements.actions.login.idleLabel = '登录 EchoAgent';
+  updateConfigActionFeedback(elements, 'loginDirty');
   assert.equal(elements.statusElement.dataset.state, 'dirty');
-  assert.equal(elements.titleElement.textContent, '配置已修改');
-  assert.match(elements.detailElement.textContent, /重新测试连接/);
+  assert.equal(elements.titleElement.textContent, '登录信息已修改');
 });
 
 test('connection errors are mapped to safe recovery guidance', () => {
@@ -95,3 +152,24 @@ test('connection errors are mapped to safe recovery guidance', () => {
   assert.doesNotMatch(fallback.detail, /<img/);
 });
 
+test('save and login failures never expose raw exception content', () => {
+  assert.deepEqual(getConfigSaveErrorFeedback({ name: 'QuotaExceededError' }), {
+    title: '浏览器存储空间不足',
+    detail: '无法保存当前配置，请清理扩展存储空间后重试。',
+  });
+
+  assert.deepEqual(getEchoAgentLoginErrorFeedback({ status: 401 }), {
+    title: 'EchoAgent 认证失败',
+    detail: '请检查用户名和密码是否正确，然后重新登录。',
+  });
+
+  assert.deepEqual(getEchoAgentLoginErrorFeedback(new Error('Failed to fetch')), {
+    title: '无法连接到 EchoAgent',
+    detail: '请检查 EchoAgent 是否已启动，以及当前网络能否访问该地址。',
+  });
+
+  const saveFallback = getConfigSaveErrorFeedback(new Error('<script>alert(1)</script>'));
+  const loginFallback = getEchoAgentLoginErrorFeedback(new Error('<script>alert(1)</script>'));
+  assert.doesNotMatch(saveFallback.detail, /<script/);
+  assert.doesNotMatch(loginFallback.detail, /<script/);
+});

@@ -141,7 +141,10 @@ export async function clearOpenViewAuth() {
   await chrome.storage.local.remove(AUTH_STORAGE_KEY);
 }
 
-export async function login({ baseUrl, username, password }) {
+export async function login(
+  { baseUrl, username, password },
+  { shouldPersistAuth = () => true } = {}
+) {
   const payload = await request(baseUrl, resolveLoginPath(baseUrl), {
     method: 'POST',
     credentials: 'include',
@@ -158,6 +161,8 @@ export async function login({ baseUrl, username, password }) {
     user: payload.user,
     loggedInAt: Date.now(),
   };
-  await setOpenViewAuth(auth);
+  if (shouldPersistAuth()) {
+    await setOpenViewAuth(auth);
+  }
   return auth;
 }
