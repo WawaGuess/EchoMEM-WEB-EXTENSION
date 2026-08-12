@@ -77,16 +77,14 @@ export function getResourceHomeContent() {
         outline: 3px solid rgba(103, 80, 164, 0.22);
         outline-offset: 2px;
       }
-      @media (max-width: 360px) {
-        .claw-resource-home .claw-resource-section {
-          padding: 14px 12px !important;
-          gap: 10px !important;
-        }
-        .claw-resource-home .claw-resource-section-icon {
-          width: 38px !important;
-          height: 38px !important;
-          border-radius: 12px !important;
-        }
+      .claw-overlay-panel--narrow .claw-resource-home .claw-resource-section {
+        padding: 14px 12px !important;
+        gap: 10px !important;
+      }
+      .claw-overlay-panel--narrow .claw-resource-home .claw-resource-section-icon {
+        width: 38px !important;
+        height: 38px !important;
+        border-radius: 12px !important;
       }
       @media (prefers-reduced-motion: reduce) {
         .claw-resource-home .claw-resource-section { transition: none !important; }

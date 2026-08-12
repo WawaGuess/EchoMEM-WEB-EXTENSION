@@ -620,6 +620,8 @@ ${bodyText}`.toLowerCase();
   var SIDE_PANEL_MAX_WIDTH_PX = 960;
   var SIDE_PANEL_MAX_VIEWPORT_RATIO = 0.7;
   var SIDE_PANEL_KEYBOARD_STEP_PX = 16;
+  var SIDE_PANEL_COMPACT_WIDTH_PX = 480;
+  var SIDE_PANEL_NARROW_WIDTH_PX = 360;
   function normalizeViewportWidth(viewportWidth) {
     return Number.isFinite(viewportWidth) && viewportWidth > 0 ? viewportWidth : SIDE_PANEL_MIN_WIDTH_PX;
   }
@@ -640,6 +642,14 @@ ${bodyText}`.toLowerCase();
     const numericWidth = Number(width);
     if (!Number.isFinite(numericWidth)) return minWidth;
     return Math.min(maxWidth, Math.max(minWidth, numericWidth));
+  }
+  function getSidePanelResponsiveState(width) {
+    const numericWidth = Number(width);
+    const safeWidth = Number.isFinite(numericWidth) && numericWidth > 0 ? numericWidth : SIDE_PANEL_MIN_WIDTH_PX;
+    return {
+      isCompact: safeWidth <= SIDE_PANEL_COMPACT_WIDTH_PX,
+      isNarrow: safeWidth <= SIDE_PANEL_NARROW_WIDTH_PX
+    };
   }
   function shouldHandleSidePanelWindowResize({ isConnected, display }) {
     return isConnected === true && display !== "none";
@@ -864,10 +874,16 @@ ${bodyText}`.toLowerCase();
       handle.setAttribute("aria-valuemax", String(Math.round(maxWidth)));
       handle.setAttribute("aria-valuenow", String(Math.round(width)));
     };
+    const updateResponsiveState = (width) => {
+      const { isCompact, isNarrow } = getSidePanelResponsiveState(width);
+      overlay.classList.toggle("claw-overlay-panel--compact", isCompact);
+      overlay.classList.toggle("claw-overlay-panel--narrow", isNarrow);
+    };
     const applyWidth = (width) => {
       const nextWidth = clampSidePanelWidth(width, window.innerWidth);
       overlay.style.width = `${Math.round(nextWidth)}px`;
       updateHandleValue(nextWidth);
+      updateResponsiveState(nextWidth);
       return nextWidth;
     };
     const restorePageInteraction = () => {
@@ -954,7 +970,9 @@ ${bodyText}`.toLowerCase();
     handle.addEventListener("keydown", onKeyDown);
     handle.addEventListener("dblclick", onDoubleClick);
     window.addEventListener("resize", onWindowResize);
-    updateHandleValue(overlay.getBoundingClientRect().width);
+    const initialWidth = overlay.getBoundingClientRect().width;
+    updateHandleValue(initialWidth);
+    updateResponsiveState(initialWidth);
     overlay._resizeToCurrentViewport = resizeToCurrentViewport;
     overlay._resizeCleanup = () => {
       handle.removeEventListener("pointerdown", onPointerDown);
@@ -2240,14 +2258,12 @@ ${block}` : block;
         color: #B3261E !important;
       }
       #claw-resource-import-root button:disabled { cursor: wait !important; opacity: 0.58; }
-      @media (max-width: 360px) {
-        #claw-resource-import-root .resource-import-card { padding: 13px; border-radius: 16px; }
-        #claw-resource-import-root .resource-remote-header { align-items: flex-start; flex-direction: column; }
-        #claw-resource-import-root #claw-remote-path { max-width: 100%; width: 100%; }
-        #claw-resource-import-root .resource-entry-date { display: none; }
-        #claw-resource-import-root .claw-remote-folder,
-        #claw-resource-import-root .claw-remote-file { padding: 9px !important; }
-      }
+      .claw-overlay-panel--narrow #claw-resource-import-root .resource-import-card { padding: 13px; border-radius: 16px; }
+      .claw-overlay-panel--narrow #claw-resource-import-root .resource-remote-header { align-items: flex-start; flex-direction: column; }
+      .claw-overlay-panel--narrow #claw-resource-import-root #claw-remote-path { max-width: 100%; width: 100%; }
+      .claw-overlay-panel--narrow #claw-resource-import-root .resource-entry-date { display: none; }
+      .claw-overlay-panel--narrow #claw-resource-import-root .claw-remote-folder,
+      .claw-overlay-panel--narrow #claw-resource-import-root .claw-remote-file { padding: 9px !important; }
       @media (prefers-reduced-motion: reduce) {
         #claw-resource-import-root .resource-loading-spinner { animation: none; }
         #claw-resource-import-root .claw-remote-folder,
@@ -2946,13 +2962,11 @@ ${block}` : block;
         font-size: 12px;
         line-height: 1.6;
       }
-      @media (max-width: 360px) {
-        .echomem-association .association-action,
-        .echomem-association .association-card,
-        .echomem-association .association-config { padding: 13px; }
-        .echomem-association .association-threshold-row { gap: 8px !important; }
-        .echomem-association .association-number { width: 62px; }
-      }
+      .claw-overlay-panel--narrow .echomem-association .association-action,
+      .claw-overlay-panel--narrow .echomem-association .association-card,
+      .claw-overlay-panel--narrow .echomem-association .association-config { padding: 13px; }
+      .claw-overlay-panel--narrow .echomem-association .association-threshold-row { gap: 8px !important; }
+      .claw-overlay-panel--narrow .echomem-association .association-number { width: 62px; }
       @media (prefers-reduced-motion: reduce) {
         .echomem-association button { transition: none !important; }
       }
@@ -3661,11 +3675,9 @@ ${block}` : block;
         font-size: 12px;
         line-height: 1.65;
       }
-      @media (max-width: 360px) {
-        #perf-root .perf-grid { grid-template-columns: 1fr; }
-        #perf-root .perf-hero-card { padding: 18px 14px 16px; }
-        #perf-root .perf-total-value { font-size: 28px; }
-      }
+      .claw-overlay-panel--narrow #perf-root .perf-grid { grid-template-columns: 1fr; }
+      .claw-overlay-panel--narrow #perf-root .perf-hero-card { padding: 18px 14px 16px; }
+      .claw-overlay-panel--narrow #perf-root .perf-total-value { font-size: 28px; }
       @media (prefers-reduced-motion: reduce) {
         #perf-root .perf-skeleton { animation: none; }
         #perf-root .perf-refresh { transition: none; }
@@ -4156,7 +4168,6 @@ ${block}` : block;
     .claw-skill-intro-copy {
       position: relative;
       z-index: 1;
-      max-width: 270px;
       margin: 4px 0 0;
       color: var(--skill-text-muted);
       font-size: 12px;
@@ -6537,16 +6548,14 @@ ${block}` : block;
         outline: 3px solid rgba(103, 80, 164, 0.22);
         outline-offset: 2px;
       }
-      @media (max-width: 360px) {
-        .claw-resource-home .claw-resource-section {
-          padding: 14px 12px !important;
-          gap: 10px !important;
-        }
-        .claw-resource-home .claw-resource-section-icon {
-          width: 38px !important;
-          height: 38px !important;
-          border-radius: 12px !important;
-        }
+      .claw-overlay-panel--narrow .claw-resource-home .claw-resource-section {
+        padding: 14px 12px !important;
+        gap: 10px !important;
+      }
+      .claw-overlay-panel--narrow .claw-resource-home .claw-resource-section-icon {
+        width: 38px !important;
+        height: 38px !important;
+        border-radius: 12px !important;
       }
       @media (prefers-reduced-motion: reduce) {
         .claw-resource-home .claw-resource-section { transition: none !important; }
@@ -6685,10 +6694,16 @@ ${block}` : block;
         font-size: 11px;
         line-height: 1.45;
       }
-      #claw-resource-manage-root .resource-manage-path {
-        display: inline-block;
+      #claw-resource-manage-root .resource-manage-current-dir {
+        display: flex;
+        flex: 1;
         min-width: 0;
-        max-width: 190px;
+        margin: 0;
+      }
+      #claw-resource-manage-root .resource-manage-path {
+        display: block;
+        flex: 1;
+        min-width: 0;
         overflow: hidden;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         text-overflow: ellipsis;
@@ -6772,12 +6787,9 @@ ${block}` : block;
         color: #B3261E !important;
       }
       #claw-resource-manage-root button:disabled { cursor: wait !important; opacity: 0.58 !important; }
-      @media (max-width: 360px) {
-        #claw-resource-manage-root .resource-manage-summary { align-items: flex-start; flex-direction: column; }
-        #claw-resource-manage-root .resource-manage-path { max-width: 180px; }
-        #claw-resource-manage-root .claw-resource-item { padding: 11px !important; border-radius: 14px !important; }
-        #claw-resource-manage-root .claw-resource-actions .claw-resource-btn-delete { margin-left: 0 !important; }
-      }
+      .claw-overlay-panel--narrow #claw-resource-manage-root .resource-manage-summary { align-items: flex-start; flex-direction: column; }
+      .claw-overlay-panel--narrow #claw-resource-manage-root .claw-resource-item { padding: 11px !important; border-radius: 14px !important; }
+      .claw-overlay-panel--narrow #claw-resource-manage-root .claw-resource-actions .claw-resource-btn-delete { margin-left: 0 !important; }
       @media (prefers-reduced-motion: reduce) {
         #claw-resource-manage-root .resource-manage-spinner { animation: none; }
         #claw-resource-manage-root .claw-resource-item,
@@ -6965,7 +6977,7 @@ ${block}` : block;
       if (toolbarEl) toolbarEl.style.display = "flex";
       contentEl.innerHTML = `
       <div class="resource-manage-summary">
-        <p style="margin: 0; min-width: 0;">\u5F53\u524D\u76EE\u5F55\uFF1A<span class="resource-manage-path">${dirUri}</span></p>
+        <p class="resource-manage-current-dir"><span>\u5F53\u524D\u76EE\u5F55\uFF1A</span><span class="resource-manage-path">${dirUri}</span></p>
         <p style="margin: 0; white-space: nowrap;">\u5171 ${entries.length} \u4E2A\u8D44\u6E90</p>
       </div>
       <div class="resource-manage-list">
@@ -9523,11 +9535,9 @@ ${MEM_TAG_CLOSE2}`;
       @keyframes config-status-spin {
         to { transform: rotate(360deg); }
       }
-      @media (max-width: 360px) {
-        .echomem-config-root .config-card { padding: 14px; border-radius: 16px; }
-        .echomem-config-root .config-actions { flex-direction: column; }
-        .echomem-config-root .config-actions .config-button { width: 100%; flex: none !important; }
-      }
+      .claw-overlay-panel--narrow .echomem-config-root .config-card { padding: 14px; border-radius: 16px; }
+      .claw-overlay-panel--narrow .echomem-config-root .config-actions { flex-direction: column; }
+      .claw-overlay-panel--narrow .echomem-config-root .config-actions .config-button { width: 100%; flex: none !important; }
       @media (prefers-reduced-motion: reduce) {
         .echomem-config-root .config-input,
         .echomem-config-root .config-button { transition: none !important; }
